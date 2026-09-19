@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
         Title = "Aryan eBook Library";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
 
         Closed += (_, _) => AppServices.Shutdown();
