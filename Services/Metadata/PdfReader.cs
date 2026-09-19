@@ -68,7 +68,28 @@ public static class PdfReader
             Log.Write($"PDF render failed ({Path.GetFileName(path)}): {ex.Message}");
         }
 
+        await CollectEveryFewDocumentsAsync();
         return md;
+    }
+
+    private static int _documentsSinceCollect;
+
+    /// <summary>
+    /// Windows.Data.Pdf keeps each loaded document's native memory (several MB) until finalizers run, and the
+    /// GC cannot see that memory, so it hardly ever runs: scanning 400 PDFs grew the process to 3.9 GB.
+    /// Releasing the WinRT objects by hand (document, file, page, async operations) did not free it; only a
+    /// collection that waits for finalizers does. Doing that every 20 documents keeps a scan flat.
+    /// Runs on the thread pool so it can never block the UI thread.
+    /// </summary>
+    private static async Task CollectEveryFewDocumentsAsync()
+    {
+        if (Interlocked.Increment(ref _documentsSinceCollect) % 20 != 0) return;
+        await Task.Run(() =>
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        });
     }
 
     private static void ReadInfoDictionary(string path, BookMetadata md)
