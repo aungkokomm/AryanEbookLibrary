@@ -165,6 +165,13 @@ public sealed class Database : IDisposable
                 """);
             Exec("PRAGMA user_version = 1;");
         }
+        if (version < 2)
+        {
+            // Books that vanish from a connected folder are flagged, not deleted (CineLibrary's
+            // mark-missing-then-clear), so the user can review them on the Drives page.
+            Exec("ALTER TABLE books ADD COLUMN is_missing INTEGER NOT NULL DEFAULT 0;");
+            Exec("PRAGMA user_version = 2;");
+        }
     }
 
     public void Dispose()

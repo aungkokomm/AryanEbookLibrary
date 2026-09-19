@@ -40,6 +40,30 @@ public sealed class LibraryRepository
     public void RenameDrive(string id, string label) =>
         _db.Exec("UPDATE drives SET label=$label WHERE id=$id", ("$id", id), ("$label", label.Trim()));
 
+    /// <summary>Registers a drive under the name the user chose (Add Drive). No scan happens here.</summary>
+    public void AddDrive(string id, string label, string root)
+    {
+        _db.Exec("""
+            INSERT INTO drives (id, label, last_root, last_seen_utc) VALUES ($id, $label, $root, $seen)
+            ON CONFLICT(id) DO UPDATE SET label = excluded.label, last_root = excluded.last_root,
+                                          last_seen_utc = excluded.last_seen_utc;
+            """,
+            ("$id", id), ("$label", label.Trim()), ("$root", root), ("$seen", Iso(DateTime.UtcNow)));
+    }
+
+    /// <summary>Removes the drive, its folders and their indexed books. Personal state rows are kept on purpose.</summary>
+    public void RemoveDrive(string id) => _db.Transaction(() =>
+    {
+        _db.Exec("DELETE FROM folders WHERE drive_id=$id", ("$id", id));
+        _db.Exec("DELETE FROM drives WHERE id=$id", ("$id", id));
+    });
+
+    /// <summary>Per drive: books in the catalog and books the last scan could not find.</summary>
+    public Dictionary<string, (int Books, int Missing)> CountBooksByDrive() =>
+        _db.Query("SELECT drive_id, SUM(is_missing = 0), SUM(is_missing = 1) FROM books GROUP BY drive_id",
+                r => (Id: r.GetString(0), Books: r.GetInt32(1), Missing: r.GetInt32(2)))
+            .ToDictionary(x => x.Id, x => (x.Books, x.Missing), StringComparer.OrdinalIgnoreCase);
+
     // ------------------------------------------------------------ folders
 
     public List<LibraryFolder> GetFolders() => _db.Query(
@@ -64,8 +88,33 @@ public sealed class LibraryRepository
     public void RemoveFolder(long id) => _db.Exec("DELETE FROM folders WHERE id=$id", ("$id", id));
 
     public Dictionary<long, int> CountBooksByFolder() =>
-        _db.Query("SELECT folder_id, COUNT(*) FROM books GROUP BY folder_id",
+        _db.Query("SELECT folder_id, COUNT(*) FROM books WHERE is_missing = 0 GROUP BY folder_id",
             r => (r.GetInt64(0), r.GetInt32(1))).ToDictionary(x => x.Item1, x => x.Item2);
+
+    public sealed record MissingBook(long Id, string Title, string Author, string RelPath);
+
+    public List<MissingBook> GetMissingBooks(string driveId) => _db.Query(
+        "SELECT id, title, author, rel_path FROM books WHERE drive_id=$d AND is_missing = 1 ORDER BY title COLLATE NOCASE",
+        r => new MissingBook(r.GetInt64(0), Str(r, 1), Str(r, 2), r.GetString(3)),
+        ("$d", driveId));
+
+    /// <summary>
+    /// End of a completed folder scan: every book of the folder is marked missing, then the ones the
+    /// walk saw are cleared again (CineLibrary's mark-missing-then-clear, in one transaction).
+    /// Returns how many books of the folder are now missing.
+    /// </summary>
+    public int MarkMissing(long folderId, string driveId, IEnumerable<string> seenRelPaths)
+    {
+        var missing = 0;
+        _db.Transaction(() =>
+        {
+            _db.Exec("UPDATE books SET is_missing = 1 WHERE folder_id=$f", ("$f", folderId));
+            foreach (var rel in seenRelPaths)
+                _db.Exec("UPDATE books SET is_missing = 0 WHERE drive_id=$d AND rel_path=$r", ("$d", driveId), ("$r", rel));
+            missing = (int)(_db.Scalar<long>("SELECT COUNT(*) FROM books WHERE folder_id=$f AND is_missing = 1", ("$f", folderId)));
+        });
+        return missing;
+    }
 
     // ------------------------------------------------------------ books
 
@@ -81,7 +130,7 @@ public sealed class LibraryRepository
         var labels = GetDrives().ToDictionary(d => d.Id, d => d.Label, StringComparer.OrdinalIgnoreCase);
 
         return _db.Query(
-            $"SELECT {BookColumns} FROM books b LEFT JOIN book_state s ON s.key = b.state_key",
+            $"SELECT {BookColumns} FROM books b LEFT JOIN book_state s ON s.key = b.state_key WHERE b.is_missing = 0",
             r =>
             {
                 var b = new Book
@@ -159,7 +208,8 @@ public sealed class LibraryRepository
                 subjects = excluded.subjects,
                 cover_file = COALESCE(excluded.cover_file, books.cover_file),
                 file_size = excluded.file_size,
-                modified_ticks = excluded.modified_ticks;
+                modified_ticks = excluded.modified_ticks,
+                is_missing = 0;
             """,
             ("$folder", b.FolderId), ("$drive", b.DriveId), ("$rel", b.RelPath), ("$key", b.StateKey),
             ("$format", (int)b.Format), ("$title", b.Title), ("$author", b.Author), ("$series", b.Series),

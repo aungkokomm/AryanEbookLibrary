@@ -39,12 +39,32 @@ public sealed partial class SettingsPage : Page
 
     private async void OnRebuildCovers(object sender, RoutedEventArgs e)
     {
+        if (AppServices.Library.IsScanning)
+        {
+            await ShowMessage("A scan is already running. Wait for it to finish, then rebuild the covers.");
+            return;
+        }
+
         CoverStore.ClearAll();
         // Force every file to be re-read on the next scan by wiping the stored size/timestamp.
         AppServices.Db.Exec("UPDATE books SET modified_ticks = 0, cover_file = NULL");
         await AppServices.Library.ReloadAsync();
-        await AppServices.Library.ScanAsync();
+        try
+        {
+            await AppServices.Library.ScanAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            await ShowMessage("The scan failed: " + ex.Message);
+        }
     }
+
+    private async Task ShowMessage(string text) =>
+        await new ContentDialog { Title = "Rebuild covers", Content = text, CloseButtonText = "OK", XamlRoot = XamlRoot }
+            .ShowAsync();
 
     private async void OnExport(object sender, RoutedEventArgs e)
     {

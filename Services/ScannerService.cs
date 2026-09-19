@@ -3,34 +3,54 @@ using AryanEbookLibrary.Services.Metadata;
 
 namespace AryanEbookLibrary.Services;
 
-public sealed record ScanProgress(string Message, int Done, int Total);
+/// <summary>Live scan state, CineLibrary style: running counts plus the folder being worked on.</summary>
+public sealed record ScanProgress(
+    int Found, int Checked, int Inserted, int Updated, int Skipped, string CurrentFolder, bool Done);
 
 public sealed class ScanResult
 {
-    public int Added;
+    public int Found;
+    public int Inserted;
     public int Updated;
-    public int Removed;
-    public int Unchanged;
+    public int Skipped;
     public int Failed;
+    public int Missing;
     public int OfflineFolders;
 
     public void Add(ScanResult o)
     {
-        Added += o.Added;
+        Found += o.Found;
+        Inserted += o.Inserted;
         Updated += o.Updated;
-        Removed += o.Removed;
-        Unchanged += o.Unchanged;
+        Skipped += o.Skipped;
         Failed += o.Failed;
+        Missing += o.Missing;
         OfflineFolders += o.OfflineFolders;
     }
+
+    public string Summary =>
+        $"{Inserted:N0} new, {Updated:N0} updated, {Skipped:N0} unchanged" +
+        (Failed > 0 ? $", {Failed:N0} failed" : "") +
+        (Missing > 0 ? $", {Missing:N0} missing" : "");
 }
 
 /// <summary>
-/// Walks library folders and updates the SQLite index. Incremental: files whose size and timestamp did not
-/// change are skipped. Folders on unplugged drives are skipped and their books stay in the catalog (OFFLINE).
+/// Walks library folders (always including every subfolder) and updates the SQLite index.
+/// Same architecture as CineLibrary's scanner:
+///  - defensive stack walk: system/recycle folders are skipped, an unreadable folder never stops the scan;
+///  - incremental: a file whose size and timestamp did not change is not read again;
+///  - mark-missing-then-clear: books that vanished from a connected folder are flagged for review, never
+///    silently deleted. A cancelled scan changes no flags.
+/// Folders on unplugged drives are skipped and their books stay in the catalog (OFFLINE).
 /// </summary>
 public sealed class ScannerService
 {
+    private static readonly HashSet<string> ExcludedDirs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "System Volume Information", "$RECYCLE.BIN", "RECYCLER", "Config.Msi", "$WinREAgent", "Recovery",
+        ".caltrash"   // Calibre's trash
+    };
+
     private readonly LibraryRepository _repo;
     public ScannerService(LibraryRepository repo) => _repo = repo;
 
@@ -54,6 +74,8 @@ public sealed class ScannerService
 
             total.Add(await ScanFolderAsync(folder, root, driveRoot, progress, ct));
         }
+
+        progress?.Report(new ScanProgress(total.Found, total.Found, total.Inserted, total.Updated, total.Skipped, "", true));
         return total;
     }
 
@@ -61,11 +83,11 @@ public sealed class ScannerService
         LibraryFolder folder, string root, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct)
     {
         var result = new ScanResult();
-        progress?.Report(new ScanProgress($"Looking for books in {root} ...", 0, 0));
 
-        var files = await Task.Run(() => Enumerate(root, ct), ct);
+        var files = await Task.Run(() => FindBookFiles(root, progress, ct), ct);
+        result.Found = files.Count;
         var existing = _repo.GetExistingForFolder(folder.Id);
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new List<string>(files.Count);
 
         // Calibre keeps one book (possibly in several formats) per folder. Only then is metadata.opf trustworthy.
         var stemsPerDir = files
@@ -84,7 +106,7 @@ public sealed class ScannerService
             {
                 if (ex.Size == fi.Length && ex.ModifiedTicks == fi.LastWriteTimeUtc.Ticks)
                 {
-                    result.Unchanged++;
+                    result.Skipped++;
                     continue;
                 }
                 work.Add((fi, rel, false));
@@ -95,10 +117,8 @@ public sealed class ScannerService
             }
         }
 
-        var done = 0;
-        var totalWork = work.Count;
-        var leaf = Path.GetFileName(root.TrimEnd('\\'));
-        var label = leaf.Length > 0 ? leaf : root;
+        var done = result.Skipped;
+        Report();
 
         await Parallel.ForEachAsync(work,
             new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
@@ -136,7 +156,7 @@ public sealed class ScannerService
 
                     _repo.UpsertBook(book);
 
-                    if (item.IsNew) Interlocked.Increment(ref result.Added);
+                    if (item.IsNew) Interlocked.Increment(ref result.Inserted);
                     else Interlocked.Increment(ref result.Updated);
                 }
                 catch (OperationCanceledException)
@@ -149,21 +169,18 @@ public sealed class ScannerService
                     Log.Write($"Index failed for {item.File.FullName}: {ex.Message}");
                 }
 
-                var n = Interlocked.Increment(ref done);
-                if (n % 5 == 0 || n == totalWork)
-                    progress?.Report(new ScanProgress($"Indexing {label}: {n} / {totalWork}", n, totalWork));
+                if (Interlocked.Increment(ref done) % 5 == 0) Report(item.File.DirectoryName);
             });
 
-        // Books that vanished from a connected folder are removed from the index.
-        var gone = existing.Where(kv => !seen.Contains(kv.Key)).Select(kv => kv.Value.Id).ToList();
-        if (gone.Count > 0)
-        {
-            _repo.DeleteBooks(gone);
-            result.Removed = gone.Count;
-        }
-
+        // Only a completed walk may decide what is missing.
+        result.Missing = _repo.MarkMissing(folder.Id, folder.DriveId, seen);
         _repo.TouchDrive(folder.DriveId, driveRoot);
+        Report();
         return result;
+
+        void Report(string? currentDir = null) =>
+            progress?.Report(new ScanProgress(result.Found, done, result.Inserted, result.Updated, result.Skipped,
+                currentDir ?? root, false));
     }
 
     private static DateTime AddedTime(FileInfo fi)
@@ -174,26 +191,42 @@ public sealed class ScannerService
         return best.Year < 1990 ? DateTime.UtcNow : best;
     }
 
-    private static List<FileInfo> Enumerate(string root, CancellationToken ct)
+    /// <summary>
+    /// Stack walk of <paramref name="root"/> and every subfolder. Skips system/recycle folders and folders that
+    /// are both hidden and system; an access-denied or vanished folder is skipped instead of ending the scan.
+    /// </summary>
+    private static List<FileInfo> FindBookFiles(string root, IProgress<ScanProgress>? progress, CancellationToken ct)
     {
         var list = new List<FileInfo>();
-        var options = new EnumerationOptions
-        {
-            RecurseSubdirectories = true,
-            IgnoreInaccessible = true,
-            AttributesToSkip = FileAttributes.System,
-            ReturnSpecialDirectories = false
-        };
+        var stack = new Stack<DirectoryInfo>();
+        stack.Push(new DirectoryInfo(root));
 
-        foreach (var fi in new DirectoryInfo(root).EnumerateFiles("*", options))
+        while (stack.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
-            if (!FormatHelper.IsSupported(fi.Name)) continue;
-            if (fi.Name.StartsWith("._", StringComparison.Ordinal)) continue;   // macOS resource forks
-            var full = fi.FullName;
-            if (full.Contains(@"\.caltrash\", StringComparison.OrdinalIgnoreCase) ||
-                full.Contains(@"\$RECYCLE.BIN\", StringComparison.OrdinalIgnoreCase)) continue;
-            list.Add(fi);
+            var dir = stack.Pop();
+
+            try
+            {
+                foreach (var fi in dir.EnumerateFiles())
+                {
+                    if (!FormatHelper.IsSupported(fi.Name)) continue;
+                    if (fi.Name.StartsWith("._", StringComparison.Ordinal)) continue;   // macOS resource forks
+                    list.Add(fi);
+                }
+
+                foreach (var sub in dir.EnumerateDirectories())
+                {
+                    if (ExcludedDirs.Contains(sub.Name)) continue;
+                    var attr = sub.Attributes;
+                    if ((attr & FileAttributes.Hidden) != 0 && (attr & FileAttributes.System) != 0) continue;
+                    stack.Push(sub);
+                }
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+
+            progress?.Report(new ScanProgress(list.Count, 0, 0, 0, 0, dir.FullName, false));
         }
         return list;
     }

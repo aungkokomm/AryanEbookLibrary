@@ -13,11 +13,10 @@ public sealed class LibraryViewModel : ObservableObject
 {
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly DispatcherQueueTimer _searchTimer;
-    private readonly DispatcherQueueTimer _driveTimer;
     private readonly Random _random = new();
     private CancellationTokenSource? _scanCts;
     private List<Book> _all = new();
-    private bool _driveCheckRunning;
+    private int _deviceChangeCallId;
 
     private static LibraryRepository Repo => AppServices.Repo;
     private static AppSettings Settings => AppServices.Settings;
@@ -28,11 +27,6 @@ public sealed class LibraryViewModel : ObservableObject
         _searchTimer.Interval = TimeSpan.FromMilliseconds(200);
         _searchTimer.IsRepeating = false;
         _searchTimer.Tick += (_, _) => ApplyFilter();
-
-        _driveTimer = _dispatcher.CreateTimer();
-        _driveTimer.Interval = TimeSpan.FromSeconds(3);
-        _driveTimer.IsRepeating = true;
-        _driveTimer.Tick += async (_, _) => await CheckDrivesAsync();
 
         _sortIndex = (int)Settings.SortMode;
         _sortDescending = Settings.SortDescending;
@@ -184,15 +178,23 @@ public sealed class LibraryViewModel : ObservableObject
         {
             await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
             await ReloadAsync();
-            _driveTimer.Start();
-
-            if (Settings.AutoScanOnStart && Repo.GetFolders().Count > 0)
-                await ScanAsync();
+            // Drive changes arrive from DeviceChangeWatcher (WM_DEVICECHANGE); nothing polls.
         }
         catch (Exception ex)
         {
             Log.Write("Initialize failed: " + ex);
             StatusText = "Could not load the library: " + ex.Message;
+            return;
+        }
+
+        if (!Settings.AutoScanOnStart || Repo.GetFolders().Count == 0) return;
+        try
+        {
+            await ScanAsync();
+        }
+        catch
+        {
+            // cancelled or failed: ScanAsync already logged it and put it in the status bar
         }
     }
 
@@ -205,29 +207,38 @@ public sealed class LibraryViewModel : ObservableObject
         ApplyFilter();
     }
 
-    private async Task CheckDrivesAsync()
+    /// <summary>
+    /// Called by DeviceChangeWatcher on the UI thread when Windows reports a volume arriving or leaving.
+    /// USB hubs send several messages per plug-in, so calls are coalesced (CineLibrary's 150 ms debounce).
+    /// </summary>
+    public async Task OnDeviceChangeAsync()
     {
-        if (_driveCheckRunning || IsScanning) return;
-        _driveCheckRunning = true;
+        var myCall = ++_deviceChangeCallId;
+        await Task.Delay(150);
+        if (myCall != _deviceChangeCallId) return;
+
         try
         {
-            var changed = await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
+            var drives = Repo.GetDrives();
+            var before = drives.ToDictionary(d => d.Id, d => DriveRegistry.IsOnline(d.Id));
+            var changed = await Task.Run(() => DriveRegistry.Refresh(drives));
             if (!changed) return;
 
             foreach (var b in _all)
                 b.IsAvailable = DriveRegistry.IsOnline(b.DriveId);
 
-            // A drive that just came back may hold a newer state sidecar, and its books may have changed.
+            var arrived = drives.FirstOrDefault(d => !before[d.Id] && DriveRegistry.IsOnline(d.Id));
+            var left = drives.FirstOrDefault(d => before[d.Id] && !DriveRegistry.IsOnline(d.Id));
+            if (!IsScanning)
+                StatusText = arrived is not null ? $"Drive \"{arrived.Label}\" connected"
+                    : left is not null ? $"Drive \"{left.Label}\" disconnected, its books stay in the catalog as OFFLINE"
+                    : "Drive change detected";
+
             DriveStatusChanged?.Invoke(this, EventArgs.Empty);
-            StatusText = "Drive change detected";
         }
         catch (Exception ex)
         {
-            Log.Write("Drive check failed: " + ex.Message);
-        }
-        finally
-        {
-            _driveCheckRunning = false;
+            Log.Write("Drive change handling failed: " + ex);
         }
     }
 
@@ -311,26 +322,119 @@ public sealed class LibraryViewModel : ObservableObject
         };
     }
 
-    // ------------------------------------------------------------ folders + scanning
+    // ------------------------------------------------------------ drives + folders (CineLibrary's drive-first flow)
 
-    public async Task<string> AddFolderAsync(string path)
+    /// <summary>Cards for the Drives page: every registered drive, its folders and counts, and whether it is connected.</summary>
+    public List<DriveItem> GetDriveCards()
     {
-        var identity = DriveRegistry.Identify(path);
-        if (identity is null) return "Could not identify the drive for that folder.";
+        var counts = Repo.CountBooksByDrive();
+        var folderCounts = Repo.CountBooksByFolder();
+        var folders = Repo.GetFolders();
 
-        var (id, root, label) = identity.Value;
-        Repo.UpsertDrive(id, label, root);
+        return Repo.GetDrives().Select(d =>
+        {
+            var online = DriveRegistry.IsOnline(d.Id);
+            counts.TryGetValue(d.Id, out var c);
+            return new DriveItem
+            {
+                Id = d.Id,
+                Label = d.Label,
+                IsConnected = online,
+                Root = (online ? DriveRegistry.GetRoot(d.Id) : null) ?? d.LastRoot,
+                BookCount = c.Books,
+                MissingCount = c.Missing,
+                Folders = folders.Where(f => f.DriveId == d.Id)
+                    .Select(f => new FolderItem { Folder = f, BookCount = folderCounts.GetValueOrDefault(f.Id) })
+                    .ToList()
+            };
+        }).ToList();
+    }
+
+    /// <summary>Connected drives that are not in the library yet. Touches every volume, so call it off the UI thread.</summary>
+    public List<(string Id, string Root, string Label)> GetAddableDrives()
+    {
+        var known = Repo.GetDrives().Select(d => d.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var list = new List<(string Id, string Root, string Label)>();
+        foreach (var d in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (d.DriveType is DriveType.NoRootDirectory or DriveType.CDRom or DriveType.Unknown || !d.IsReady) continue;
+                var identity = DriveRegistry.Identify(d.RootDirectory.FullName);
+                if (identity is { } i && !known.Contains(i.Id)) list.Add(i);
+            }
+            catch
+            {
+                // drive vanished while we looked at it
+            }
+        }
+        return list;
+    }
+
+    /// <summary>Registers a drive under the user's name for it. No scan: folders are added on the drive card.</summary>
+    public async Task AddDriveAsync(string id, string label, string root)
+    {
+        Repo.AddDrive(id, label, root);
         await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
+    }
+
+    /// <summary>
+    /// Null when <paramref name="path"/> can be added to the drive, otherwise the reason it cannot. Folders are
+    /// scanned with all their subfolders, so a folder inside (or around) a tracked one would index books twice.
+    /// </summary>
+    public string? CheckNewFolder(string driveId, string path, out string relPath)
+    {
+        relPath = "";
+        var root = DriveRegistry.GetRoot(driveId);
+        if (root is null) return "Connect this drive to add or scan folders on it.";
 
         var full = Path.GetFullPath(path);
-        var rel = Path.GetRelativePath(root, full);
-        if (rel == ".") rel = "";
+        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            return $"Please choose a folder on drive {root.TrimEnd('\\')} ({root}).";
 
-        var folder = Repo.AddFolder(id, rel);
-        await ScanAsync(new[] { folder });
-        DriveStatusChanged?.Invoke(this, EventArgs.Empty);
-        return "";
+        relPath = Path.GetRelativePath(root, full);
+        if (relPath == ".") relPath = "";
+        var shown = relPath.Length == 0 ? "(entire drive)" : relPath;
+
+        foreach (var f in Repo.GetFolders().Where(f => f.DriveId == driveId))
+        {
+            var tracked = f.RelPath.Length == 0 ? "(entire drive)" : f.RelPath;
+            if (string.Equals(f.RelPath, relPath, StringComparison.OrdinalIgnoreCase))
+                return $"'{shown}' is already tracked on this drive.";
+            if (IsInside(relPath, f.RelPath))
+                return $"'{shown}' is already included: '{tracked}' is scanned together with all of its subfolders.";
+            if (IsInside(f.RelPath, relPath))
+                return $"'{shown}' contains '{tracked}', which is already tracked. Remove '{tracked}' first, then add this folder.";
+        }
+        return null;
+
+        static bool IsInside(string child, string parent) =>
+            parent.Length == 0 || child.StartsWith(parent.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>Adds the folder (checked with <see cref="CheckNewFolder"/>) and scans it right away.</summary>
+    public async Task<ScanResult> AddFolderAsync(string driveId, string relPath, IProgress<ScanProgress>? observer)
+    {
+        var folder = Repo.AddFolder(driveId, relPath);
+        return await ScanAsync(new[] { folder }, observer);
+    }
+
+    /// <summary>"Update" on a drive card: rescans that drive's folders for new or changed books.</summary>
+    public Task<ScanResult> UpdateDriveAsync(string driveId, IProgress<ScanProgress>? observer) =>
+        ScanAsync(Repo.GetFolders().Where(f => f.DriveId == driveId).ToList(), observer);
+
+    /// <summary>"Refresh changes": rescans the folders of every connected drive.</summary>
+    public Task<ScanResult> RefreshChangesAsync(IProgress<ScanProgress>? observer) =>
+        ScanAsync(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId)).ToList(), observer);
+
+    public void RemoveDrive(string driveId)
+    {
+        Repo.RemoveDrive(driveId);
+        _ = ReloadAsync();
+    }
+
+    /// <summary>Drops books the last scan could not find. Their favorites/notes rows are kept, like everywhere else.</summary>
+    public void RemoveMissing(IEnumerable<long> bookIds) => Repo.DeleteBooks(bookIds);
 
     public void RemoveFolder(long folderId)
     {
@@ -346,15 +450,22 @@ public sealed class LibraryViewModel : ObservableObject
         foreach (var b in _all.Where(b => b.DriveId == driveId)) b.DriveLabel = label.Trim();
     }
 
-    public async Task ScanAsync(IReadOnlyList<LibraryFolder>? folders = null)
+    /// <summary>
+    /// Scans the folders (all of them when null) one after another. The status bar follows along, and
+    /// <paramref name="observer"/> gets the same progress (the Drives page overlay). Throws
+    /// OperationCanceledException when cancelled and rethrows real failures after logging them, so the
+    /// caller can tell the user instead of the scan silently doing nothing.
+    /// </summary>
+    public async Task<ScanResult> ScanAsync(IReadOnlyList<LibraryFolder>? folders = null, IProgress<ScanProgress>? observer = null)
     {
-        if (IsScanning) return;
+        if (IsScanning) throw new InvalidOperationException("A scan is already running.");
 
         folders ??= Repo.GetFolders();
+        var total = new ScanResult();
         if (folders.Count == 0)
         {
             StatusText = "No folders to scan. Add one from Drives & Folders.";
-            return;
+            return total;
         }
 
         IsScanning = true;
@@ -365,12 +476,13 @@ public sealed class LibraryViewModel : ObservableObject
 
         var progress = new Progress<ScanProgress>(p =>
         {
-            ScanTotal = p.Total;   // total first so Done never exceeds the progress bar maximum
-            ScanDone = p.Done;
-            StatusText = p.Message;
+            ScanTotal = p.Found;   // total first so Done never exceeds the progress bar maximum
+            ScanDone = p.Checked;
+            if (!p.Done)
+                StatusText = p.Checked == 0 ? $"Looking for books... {p.Found:N0} found" : $"Indexing {p.Checked:N0} / {p.Found:N0}";
+            observer?.Report(p);
         });
 
-        var total = new ScanResult();
         try
         {
             foreach (var folder in folders)
@@ -381,19 +493,21 @@ public sealed class LibraryViewModel : ObservableObject
                 await ReloadAsync();
             }
 
-            StatusText = $"Scan complete: {total.Added} new, {total.Updated} updated, {total.Removed} removed" +
-                         (total.Failed > 0 ? $", {total.Failed} failed" : "") +
+            StatusText = "Scan complete: " + total.Summary +
                          (total.OfflineFolders > 0 ? $"  ·  {total.OfflineFolders} folder(s) offline, kept in catalog" : "");
+            return total;
         }
         catch (OperationCanceledException)
         {
             StatusText = "Scan cancelled";
             await ReloadAsync();
+            throw;
         }
         catch (Exception ex)
         {
             Log.Write("Scan failed: " + ex);
             StatusText = "Scan failed: " + ex.Message;
+            throw;
         }
         finally
         {

@@ -10,6 +10,7 @@ namespace AryanEbookLibrary;
 public sealed partial class MainWindow : Window
 {
     public LibraryViewModel Library => AppServices.Library;
+    private readonly DeviceChangeWatcher _deviceWatcher;
 
     public MainWindow()
     {
@@ -21,7 +22,16 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
 
-        Closed += (_, _) => AppServices.Shutdown();
+        // Event-driven drive detection (WM_DEVICECHANGE) instead of a poll timer, as in CineLibrary.
+        // Don't await inside the WndProc: it must return promptly.
+        _deviceWatcher = new DeviceChangeWatcher(WinRT.Interop.WindowNative.GetWindowHandle(this),
+            () => _ = Library.OnDeviceChangeAsync());
+
+        Closed += (_, _) =>
+        {
+            _deviceWatcher.Dispose();
+            AppServices.Shutdown();
+        };
 
         NavView.SelectedItem = NavView.MenuItems[0];
         ContentFrame.Navigate(typeof(LibraryPage));

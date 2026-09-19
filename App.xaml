@@ -8,9 +8,27 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
+            <ResourceDictionary.ThemeDictionaries>
+                <!-- Gold text needs a darker shade on light surfaces to stay readable -->
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#FAAC17" />
+                    <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#6AA8FF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#9A6200" />
+                    <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#186BD5" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
             <SolidColorBrush x:Key="CoverPlaceholderBrush" Color="#FF3B4A5A" />
             <SolidColorBrush x:Key="PillBackgroundBrush" Color="#CC000000" />
             <SolidColorBrush x:Key="OfflineBrush" Color="#E0B45309" />
+
+            <!-- Brand colours, taken from the app icon (fixed in every theme) -->
+            <SolidColorBrush x:Key="BrandBlueBrush" Color="#186BD5" />
+            <SolidColorBrush x:Key="BrandGoldWashBrush" Color="#33FAAC17" />
+            <SolidColorBrush x:Key="AccentRedBrush" Color="#E5484D" />
+            <SolidColorBrush x:Key="AccentGreenBrush" Color="#22C55E" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
