@@ -33,41 +33,57 @@ public static class PdfReader
             Log.Write($"PDF metadata failed ({Path.GetFileName(path)}): {ex.Message}");
         }
 
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            var file = await StorageFile.GetFileFromPathAsync(path);
-            var doc = await PdfDocument.LoadFromFileAsync(file);
-            md.PageCount = (int)doc.PageCount;
-
-            if (doc.PageCount > 0)
+            try
             {
-                using var page = doc.GetPage(0);
-                var options = new PdfPageRenderOptions
-                {
-                    DestinationWidth = 480,
-                    BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255)
-                };
-
-                using var stream = new InMemoryRandomAccessStream();
-                await page.RenderToStreamAsync(stream, options);
-
-                var bytes = new byte[stream.Size];
-                using var reader = new DataReader(stream.GetInputStreamAt(0));
-                await reader.LoadAsync((uint)stream.Size);
-                reader.ReadBytes(bytes);
-
-                md.Cover = bytes;
-                md.CoverExt = ".png";
+                await RenderFirstPageAsync(path, md);
+                if (attempt > 1) Log.Write($"PDF render retry worked ({Path.GetFileName(path)})");
+                break;
             }
-        }
-        catch (Exception ex)
-        {
-            // password-protected or damaged PDFs: keep whatever metadata was found
-            Log.Write($"PDF render failed ({Path.GetFileName(path)}): {ex.Message}");
+            catch (Exception ex) when (attempt == 1 && ex.HResult == RpcWrongThread)
+            {
+                // Windows sometimes fails to open the file with RPC_E_WRONG_THREAD (5 of 1,534 PDFs in one scan,
+                // none in two others). Try once more; the log line above says whether that helps.
+            }
+            catch (Exception ex)
+            {
+                // password-protected or damaged PDFs: keep whatever metadata was found
+                Log.Write($"PDF render failed ({Path.GetFileName(path)}): {ex.Message}");
+                break;
+            }
         }
 
         await CollectEveryFewDocumentsAsync();
         return md;
+    }
+
+    private const int RpcWrongThread = unchecked((int)0x8001010E);
+
+    private static async Task RenderFirstPageAsync(string path, BookMetadata md)
+    {
+        var file = await StorageFile.GetFileFromPathAsync(path);
+        var doc = await PdfDocument.LoadFromFileAsync(file);
+        md.PageCount = (int)doc.PageCount;
+        if (doc.PageCount == 0) return;
+
+        using var page = doc.GetPage(0);
+        var options = new PdfPageRenderOptions
+        {
+            DestinationWidth = 480,
+            BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255)
+        };
+
+        using var stream = new InMemoryRandomAccessStream();
+        await page.RenderToStreamAsync(stream, options);
+
+        var bytes = new byte[stream.Size];
+        using var reader = new DataReader(stream.GetInputStreamAt(0));
+        await reader.LoadAsync((uint)stream.Size);
+        reader.ReadBytes(bytes);
+
+        md.Cover = bytes;
+        md.CoverExt = ".png";
     }
 
     private static int _documentsSinceCollect;
@@ -103,11 +119,22 @@ public static class PdfReader
         var title = XmlUtil.Clean(info.Title);
         var authors = SplitAuthors(info.Author);
 
-        if ((title is null || LooksLikeJunkTitle(title) || authors.Count == 0) && doc.TryGetXmpMetadata(out var xmp))
+        if (title is null || LooksLikeJunkTitle(title) || authors.Count == 0)
         {
-            var x = xmp.GetXDocument();
-            if (title is null || LooksLikeJunkTitle(title)) title = XmlUtil.Clean(XmpValues(x, "title").FirstOrDefault());
-            if (authors.Count == 0) authors = XmpValues(x, "creator").SelectMany(SplitAuthors).ToList();
+            try
+            {
+                if (doc.TryGetXmpMetadata(out var xmp))
+                {
+                    var x = xmp.GetXDocument();
+                    if (title is null || LooksLikeJunkTitle(title)) title = XmlUtil.Clean(XmpValues(x, "title").FirstOrDefault());
+                    if (authors.Count == 0) authors = XmpValues(x, "creator").SelectMany(SplitAuthors).ToList();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Damaged XMP (not XML at all in 4 of 1,534 PDFs): keep what the Info dictionary gave.
+                Log.Write($"PDF XMP unreadable ({Path.GetFileName(path)}): {ex.Message}");
+            }
         }
 
         if (title is not null && !LooksLikeJunkTitle(title)) md.Title = title;
@@ -143,7 +170,7 @@ public static class PdfReader
 
     private static readonly HashSet<string> JunkAuthors = new(StringComparer.OrdinalIgnoreCase)
     {
-        "user", "admin", "administrator", "owner", "unknown", "author", "default", "windows user", "pc"
+        "user", "admin", "administrator", "owner", "unknown", "desconocido", "author", "default", "windows user", "pc"
     };
 
     /// <summary>Titles that are really file names, editor defaults or noise (":", "3", scrambled bytes).</summary>
