@@ -1,0 +1,55 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer>
+        <StackPanel Spacing="18" Padding="28,20,28,30" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Appearance" FontWeight="SemiBold" />
+                <ComboBox x:Name="ThemeBox" Width="200" SelectionChanged="OnThemeChanged">
+                    <ComboBoxItem Content="Use system setting" Tag="System" />
+                    <ComboBoxItem Content="Light" Tag="Light" />
+                    <ComboBoxItem Content="Dark" Tag="Dark" />
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Library" FontWeight="SemiBold" />
+                <ToggleSwitch x:Name="AutoScanSwitch" Header="Scan connected folders when the app starts"
+                              Toggled="OnAutoScanToggled" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Rebuild covers" Click="OnRebuildCovers" />
+                    <TextBlock Text="Clears the cover cache and re-reads every book on the next scan."
+                               VerticalAlignment="Center" Opacity="0.6" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Backup" FontWeight="SemiBold" />
+                <TextBlock Text="Favorites, reading status, ratings, tags and notes can be exported to one portable JSON file."
+                           Opacity="0.7" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Export backup..." Click="OnExport" />
+                    <Button Content="Restore backup..." Click="OnRestore" />
+                </StackPanel>
+                <TextBlock x:Name="BackupResult" Opacity="0.7" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Data" FontWeight="SemiBold" />
+                <TextBlock x:Name="DataPathText" IsTextSelectionEnabled="True" Opacity="0.7" TextWrapping="Wrap" />
+                <Button Content="Open data folder" Click="OnOpenDataFolder" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="About" FontWeight="SemiBold" />
+                <TextBlock Text="Aryan eBook Library 0.1.0" />
+                <TextBlock Text="Free, offline, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, and never modifies your files."
+                           Opacity="0.7" TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

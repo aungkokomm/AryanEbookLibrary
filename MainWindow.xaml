@@ -1,0 +1,83 @@
+<Window
+    x:Class="AryanEbookLibrary.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Custom title bar -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="40">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" Spacing="10">
+                <FontIcon Glyph="&#xE8F1;" FontSize="16" />
+                <TextBlock Text="Aryan eBook Library" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <NavigationView
+            x:Name="NavView"
+            Grid.Row="1"
+            PaneDisplayMode="Left"
+            OpenPaneLength="230"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="True"
+            ItemInvoked="NavView_ItemInvoked">
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="All Books" Tag="all">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8F1;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Continue Reading" Tag="continue">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE736;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Recently Added" Tag="recent">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE787;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Favorites" Tag="favorites">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE734;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Unread" Tag="unread">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Finished" Tag="finished">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Drives &amp; Folders" Tag="drives">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xEDA2;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+
+        <!-- Status bar -->
+        <Grid Grid.Row="2" Padding="16,6" ColumnSpacing="12"
+              Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="{x:Bind Library.StatusText, Mode=OneWay}"
+                       VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis" />
+
+            <ProgressBar Grid.Column="1" Width="220" Minimum="0"
+                         Maximum="{x:Bind Library.ScanTotal, Mode=OneWay}"
+                         Value="{x:Bind Library.ScanDone, Mode=OneWay}"
+                         Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
+                         VerticalAlignment="Center" />
+
+            <Button Grid.Column="2" Content="Cancel" Padding="10,2"
+                    Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
+                    Click="OnCancelScan" />
+        </Grid>
+    </Grid>
+</Window>

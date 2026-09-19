@@ -1,0 +1,16 @@
+<Application
+    x:Class="AryanEbookLibrary.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <SolidColorBrush x:Key="CoverPlaceholderBrush" Color="#FF3B4A5A" />
+            <SolidColorBrush x:Key="PillBackgroundBrush" Color="#CC000000" />
+            <SolidColorBrush x:Key="OfflineBrush" Color="#E0B45309" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

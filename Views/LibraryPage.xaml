@@ -1,0 +1,206 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.LibraryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:AryanEbookLibrary.Models"
+    xmlns:helpers="using:AryanEbookLibrary.Helpers">
+
+    <Page.Resources>
+
+        <!-- ============ Grid card ============ -->
+        <DataTemplate x:Key="CardTemplate" x:DataType="models:Book">
+            <Grid Width="168" Margin="6" Background="Transparent">
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Open" Icon="OpenFile" Tag="{x:Bind}" Click="OnMenuOpen" />
+                        <MenuFlyoutItem Text="Details" Icon="List" Tag="{x:Bind}" Click="OnMenuDetails" />
+                        <MenuFlyoutItem Text="Toggle favorite" Icon="Favorite" Tag="{x:Bind}" Click="OnMenuFavorite" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Mark as finished" Icon="Accept" Tag="{x:Bind}" Click="OnMenuFinished" />
+                        <MenuFlyoutItem Text="Mark as unread" Icon="Undo" Tag="{x:Bind}" Click="OnMenuUnread" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Show in folder" Icon="Folder" Tag="{x:Bind}" Click="OnMenuShowInFolder" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+
+                <StackPanel Spacing="2">
+                    <Grid Height="236" CornerRadius="6"
+                          Background="{StaticResource CoverPlaceholderBrush}">
+                        <TextBlock Text="{x:Bind Title}" Foreground="White" Margin="12"
+                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                                   FontWeight="SemiBold" MaxLines="6" TextTrimming="CharacterEllipsis"
+                                   Visibility="{x:Bind helpers:Fn.VisEmpty(CoverFile)}" />
+                        <Image Source="{x:Bind helpers:Fn.Cover(CoverPath)}" Stretch="UniformToFill"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6"
+                                CornerRadius="4" Padding="6,1" Background="{StaticResource PillBackgroundBrush}">
+                            <TextBlock Text="{x:Bind FormatLabel}" FontSize="10" Foreground="White" />
+                        </Border>
+
+                        <FontIcon Glyph="&#xE735;" FontSize="18" Foreground="Gold"
+                                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
+                                  Visibility="{x:Bind IsFavorite, Mode=OneWay}" />
+
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6,6,6,10"
+                                CornerRadius="4" Padding="6,1" Background="{StaticResource OfflineBrush}"
+                                Visibility="{x:Bind IsOffline, Mode=OneWay}">
+                            <TextBlock Text="OFFLINE" FontSize="10" FontWeight="SemiBold" Foreground="White" />
+                        </Border>
+
+                        <ProgressBar VerticalAlignment="Bottom" Minimum="0" Maximum="100"
+                                     Value="{x:Bind Progress, Mode=OneWay}"
+                                     Visibility="{x:Bind ShowProgress, Mode=OneWay}" />
+                    </Grid>
+
+                    <TextBlock Text="{x:Bind Title}" Margin="0,6,0,0" FontWeight="SemiBold"
+                               MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind DisplayAuthor}" FontSize="12" Opacity="0.7"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind SeriesLine}" FontSize="11" Opacity="0.55"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{x:Bind helpers:Fn.VisNotEmpty(SeriesLine)}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ============ List row ============ -->
+        <DataTemplate x:Key="RowTemplate" x:DataType="models:Book">
+            <Grid Padding="8,6" ColumnSpacing="14" Background="Transparent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="70" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="80" />
+                </Grid.ColumnDefinitions>
+
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Open" Icon="OpenFile" Tag="{x:Bind}" Click="OnMenuOpen" />
+                        <MenuFlyoutItem Text="Details" Icon="List" Tag="{x:Bind}" Click="OnMenuDetails" />
+                        <MenuFlyoutItem Text="Toggle favorite" Icon="Favorite" Tag="{x:Bind}" Click="OnMenuFavorite" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Mark as finished" Icon="Accept" Tag="{x:Bind}" Click="OnMenuFinished" />
+                        <MenuFlyoutItem Text="Mark as unread" Icon="Undo" Tag="{x:Bind}" Click="OnMenuUnread" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Show in folder" Icon="Folder" Tag="{x:Bind}" Click="OnMenuShowInFolder" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+
+                <Border Grid.Column="0" Width="44" Height="62" CornerRadius="3"
+                        Background="{StaticResource CoverPlaceholderBrush}">
+                    <Image Source="{x:Bind helpers:Fn.CoverThumb(CoverPath)}" Stretch="UniformToFill" />
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind DisplayAuthor}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="2" Text="{x:Bind SeriesLine}" VerticalAlignment="Center"
+                           Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="3" Text="{x:Bind FormatLabel}" VerticalAlignment="Center" Opacity="0.7" />
+                <TextBlock Grid.Column="4" Text="{x:Bind StatusText, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.7" />
+
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="Gold"
+                              Visibility="{x:Bind IsFavorite, Mode=OneWay}" />
+                    <Border CornerRadius="4" Padding="6,1" Background="{StaticResource OfflineBrush}"
+                            Visibility="{x:Bind IsOffline, Mode=OneWay}">
+                        <TextBlock Text="OFFLINE" FontSize="10" FontWeight="SemiBold" Foreground="White" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid RowSpacing="8" Padding="28,20,28,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="14">
+            <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
+                       Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" Opacity="0.6" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Toolbar -->
+        <Grid Grid.Row="1" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0" PlaceholderText="Search title, author, series, tags..."
+                     Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     MaxWidth="520" HorizontalAlignment="Stretch" />
+
+            <ComboBox Grid.Column="1" Width="120" SelectedIndex="{x:Bind ViewModel.FormatIndex, Mode=TwoWay}">
+                <ComboBoxItem Content="All formats" />
+                <ComboBoxItem Content="EPUB" />
+                <ComboBoxItem Content="PDF" />
+                <ComboBoxItem Content="Kindle" />
+                <ComboBoxItem Content="Comics" />
+            </ComboBox>
+
+            <ComboBox Grid.Column="2" Width="140" SelectedIndex="{x:Bind ViewModel.SortIndex, Mode=TwoWay}">
+                <ComboBoxItem Content="Title" />
+                <ComboBoxItem Content="Author" />
+                <ComboBoxItem Content="Series" />
+                <ComboBoxItem Content="Date added" />
+                <ComboBoxItem Content="Last opened" />
+                <ComboBoxItem Content="Rating" />
+            </ComboBox>
+
+            <Button Grid.Column="3" Click="OnToggleSortDirection" ToolTipService.ToolTip="Sort direction">
+                <FontIcon Glyph="{x:Bind ViewModel.SortDirectionGlyph, Mode=OneWay}" FontSize="14" />
+            </Button>
+
+            <Button Grid.Column="4" Click="OnViewGrid" ToolTipService.ToolTip="Grid view">
+                <FontIcon Glyph="&#xE80A;" FontSize="14" />
+            </Button>
+            <Button Grid.Column="5" Click="OnViewList" ToolTipService.ToolTip="List view">
+                <FontIcon Glyph="&#xE8FD;" FontSize="14" />
+            </Button>
+            <Button Grid.Column="6" Click="OnSurprise" ToolTipService.ToolTip="Pick something to read from what is shown">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE8B1;" FontSize="14" />
+                    <TextBlock Text="Surprise me" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Content -->
+        <Grid Grid.Row="2">
+            <GridView ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}"
+                      ItemTemplate="{StaticResource CardTemplate}"
+                      Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}"
+                      IsItemClickEnabled="True" SelectionMode="None"
+                      ItemClick="OnBookClick" Padding="0,8,0,20" />
+
+            <ListView ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}"
+                      ItemTemplate="{StaticResource RowTemplate}"
+                      Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}"
+                      IsItemClickEnabled="True" SelectionMode="None"
+                      ItemClick="OnBookClick" Padding="0,8,0,20" />
+
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"
+                        Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+                <FontIcon Glyph="&#xE8F1;" FontSize="44" Opacity="0.35" />
+                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" Opacity="0.6"
+                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
