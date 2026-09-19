@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using AryanEbookLibrary.Models;
 
 namespace AryanEbookLibrary.Services.Metadata;
@@ -44,15 +43,9 @@ public static class MetadataService
             }
         }
 
-        if (string.IsNullOrWhiteSpace(md.Title)) md.Title = TitleFromFileName(path);
+        // Whatever the book itself did not say: title, author, series from the file name (fills gaps only).
+        md.MergeFrom(FileNameParser.Parse(path), overwrite: false);
+        if (string.IsNullOrWhiteSpace(md.Title)) md.Title = "Untitled";
         return md;
-    }
-
-    public static string TitleFromFileName(string path)
-    {
-        var name = Path.GetFileNameWithoutExtension(path);
-        name = name.Replace('_', ' ');
-        name = Regex.Replace(name, @"\s+", " ").Trim();
-        return name.Length == 0 ? "Untitled" : name;
     }
 }
