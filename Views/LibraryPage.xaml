@@ -2,205 +2,178 @@
     x:Class="AryanEbookLibrary.Views.LibraryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:models="using:AryanEbookLibrary.Models"
-    xmlns:helpers="using:AryanEbookLibrary.Helpers">
+    xmlns:local="using:AryanEbookLibrary.Views"
+    xmlns:models="using:AryanEbookLibrary.Models">
 
     <Page.Resources>
+        <!-- Checked toolbar toggles (grid/list, S/M/L/XL) use the brand blue, as CineLibrary uses its brand colour -->
+        <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#186BD5" />
+        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#2A7BE0" />
+        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#145CB8" />
+        <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
 
-        <!-- ============ Grid card ============ -->
-        <DataTemplate x:Key="CardTemplate" x:DataType="models:Book">
-            <Grid Width="168" Margin="6" Background="Transparent">
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="Open" Icon="OpenFile" Tag="{x:Bind}" Click="OnMenuOpen" />
-                        <MenuFlyoutItem Text="Details" Icon="List" Tag="{x:Bind}" Click="OnMenuDetails" />
-                        <MenuFlyoutItem Text="Toggle favorite" Icon="Favorite" Tag="{x:Bind}" Click="OnMenuFavorite" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Mark as finished" Icon="Accept" Tag="{x:Bind}" Click="OnMenuFinished" />
-                        <MenuFlyoutItem Text="Mark as unread" Icon="Undo" Tag="{x:Bind}" Click="OnMenuUnread" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Show in folder" Icon="Folder" Tag="{x:Bind}" Click="OnMenuShowInFolder" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-
-                <StackPanel Spacing="2">
-                    <Grid Height="236" CornerRadius="6"
-                          Background="{StaticResource CoverPlaceholderBrush}">
-                        <TextBlock Text="{x:Bind Title, Mode=OneWay}" Foreground="White" Margin="12"
-                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
-                                   FontWeight="SemiBold" MaxLines="6" TextTrimming="CharacterEllipsis"
-                                   Visibility="{x:Bind helpers:Fn.VisEmpty(CoverFile)}" />
-                        <Image Source="{x:Bind helpers:Fn.Cover(CoverPath)}" Stretch="UniformToFill"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-
-                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6"
-                                CornerRadius="4" Padding="6,1" Background="{StaticResource PillBackgroundBrush}">
-                            <TextBlock Text="{x:Bind FormatLabel}" FontSize="10" Foreground="White" />
-                        </Border>
-
-                        <FontIcon Glyph="&#xE735;" FontSize="18" Foreground="Gold"
-                                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
-                                  Visibility="{x:Bind IsFavorite, Mode=OneWay}" />
-
-                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6,6,6,10"
-                                CornerRadius="4" Padding="6,1" Background="{StaticResource OfflineBrush}"
-                                Visibility="{x:Bind IsOffline, Mode=OneWay}">
-                            <TextBlock Text="OFFLINE" FontSize="10" FontWeight="SemiBold" Foreground="White" />
-                        </Border>
-
-                        <ProgressBar VerticalAlignment="Bottom" Minimum="0" Maximum="100"
-                                     Value="{x:Bind Progress, Mode=OneWay}"
-                                     Visibility="{x:Bind ShowProgress, Mode=OneWay}" />
-                    </Grid>
-
-                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" Margin="0,6,0,0" FontWeight="SemiBold"
-                               MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind DisplayAuthor, Mode=OneWay}" FontSize="12" Opacity="0.7"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind SeriesLine, Mode=OneWay}" FontSize="11" Opacity="0.55"
-                               TextTrimming="CharacterEllipsis"
-                               Visibility="{x:Bind helpers:Fn.VisNotEmpty(SeriesLine), Mode=OneWay}" />
-                </StackPanel>
-            </Grid>
-        </DataTemplate>
-
-        <!-- ============ List row ============ -->
-        <DataTemplate x:Key="RowTemplate" x:DataType="models:Book">
-            <Grid Padding="8,6" ColumnSpacing="14" Background="Transparent">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="44" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="200" />
-                    <ColumnDefinition Width="70" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="80" />
-                </Grid.ColumnDefinitions>
-
-                <Grid.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="Open" Icon="OpenFile" Tag="{x:Bind}" Click="OnMenuOpen" />
-                        <MenuFlyoutItem Text="Details" Icon="List" Tag="{x:Bind}" Click="OnMenuDetails" />
-                        <MenuFlyoutItem Text="Toggle favorite" Icon="Favorite" Tag="{x:Bind}" Click="OnMenuFavorite" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Mark as finished" Icon="Accept" Tag="{x:Bind}" Click="OnMenuFinished" />
-                        <MenuFlyoutItem Text="Mark as unread" Icon="Undo" Tag="{x:Bind}" Click="OnMenuUnread" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="Show in folder" Icon="Folder" Tag="{x:Bind}" Click="OnMenuShowInFolder" />
-                    </MenuFlyout>
-                </Grid.ContextFlyout>
-
-                <Border Grid.Column="0" Width="44" Height="62" CornerRadius="3"
-                        Background="{StaticResource CoverPlaceholderBrush}">
-                    <Image Source="{x:Bind helpers:Fn.CoverThumb(CoverPath)}" Stretch="UniformToFill" />
-                </Border>
-
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind DisplayAuthor, Mode=OneWay}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-
-                <TextBlock Grid.Column="2" Text="{x:Bind SeriesLine, Mode=OneWay}" VerticalAlignment="Center"
-                           Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="3" Text="{x:Bind FormatLabel}" VerticalAlignment="Center" Opacity="0.7" />
-                <TextBlock Grid.Column="4" Text="{x:Bind StatusText, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.7" />
-
-                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE735;" FontSize="14" Foreground="Gold"
-                              Visibility="{x:Bind IsFavorite, Mode=OneWay}" />
-                    <Border CornerRadius="4" Padding="6,1" Background="{StaticResource OfflineBrush}"
-                            Visibility="{x:Bind IsOffline, Mode=OneWay}">
-                        <TextBlock Text="OFFLINE" FontSize="10" FontWeight="SemiBold" Foreground="White" />
-                    </Border>
-                </StackPanel>
-            </Grid>
-        </DataTemplate>
+        <Style x:Key="SegmentToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
     </Page.Resources>
 
-    <Grid RowSpacing="8" Padding="28,20,28,0">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="14">
-            <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
-                       Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center" />
-            <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" Opacity="0.6" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <!-- Toolbar -->
-        <Grid Grid.Row="1" ColumnSpacing="8">
+        <!-- ═══ TOP BAR ═══ -->
+        <!-- When the page is narrow the search box moves to its own row under the title (see OnTopBarSizeChanged) -->
+        <Grid x:Name="TopBar" Grid.Row="0" Padding="24,18,24,8" SizeChanged="OnTopBarSizeChanged">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="TitleColumn" Width="Auto" />
+                <ColumnDefinition x:Name="SearchColumn" Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-            <TextBox Grid.Column="0" PlaceholderText="Search title, author, series, tags..."
-                     Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     MaxWidth="520" HorizontalAlignment="Stretch" />
+            <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}" FontSize="24" FontWeight="SemiBold"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
 
-            <ComboBox Grid.Column="1" Width="120" SelectedIndex="{x:Bind ViewModel.FormatIndex, Mode=TwoWay}">
-                <ComboBoxItem Content="All formats" />
-                <ComboBoxItem Content="EPUB" />
-                <ComboBoxItem Content="PDF" />
-                <ComboBoxItem Content="Kindle" />
-                <ComboBoxItem Content="Comics" />
-            </ComboBox>
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Margin="20,0" MaxWidth="520"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                            PlaceholderText="Search title, author, series, tags…" QueryIcon="Find"
+                            CornerRadius="8" TextChanged="OnSearchTextChanged" KeyDown="OnSearchKeyDown" />
 
-            <ComboBox Grid.Column="2" Width="140" SelectedIndex="{x:Bind ViewModel.SortIndex, Mode=TwoWay}">
-                <ComboBoxItem Content="Title" />
-                <ComboBoxItem Content="Author" />
-                <ComboBoxItem Content="Series" />
-                <ComboBoxItem Content="Date added" />
-                <ComboBoxItem Content="Last opened" />
-                <ComboBoxItem Content="Rating" />
-            </ComboBox>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <ComboBox x:Name="SortCombo" MinWidth="140" Height="36" CornerRadius="8"
+                          VerticalAlignment="Center" SelectionChanged="OnSortChanged"
+                          AutomationProperties.Name="Sort by" />
 
-            <Button Grid.Column="3" Click="OnToggleSortDirection" ToolTipService.ToolTip="Sort direction">
-                <FontIcon Glyph="{x:Bind ViewModel.SortDirectionGlyph, Mode=OneWay}" FontSize="14" />
-            </Button>
+                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="OnSurprise"
+                        AutomationProperties.Name="Surprise me"
+                        ToolTipService.ToolTip="Surprise me: a random pick from what is shown">
+                    <FontIcon Glyph="&#xE8B1;" FontSize="15" />
+                </Button>
 
-            <Button Grid.Column="4" Click="OnViewGrid" ToolTipService.ToolTip="Grid view">
-                <FontIcon Glyph="&#xE80A;" FontSize="14" />
-            </Button>
-            <Button Grid.Column="5" Click="OnViewList" ToolTipService.ToolTip="List view">
-                <FontIcon Glyph="&#xE8FD;" FontSize="14" />
-            </Button>
-            <Button Grid.Column="6" Click="OnSurprise" ToolTipService.ToolTip="Pick something to read from what is shown">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE8B1;" FontSize="14" />
-                    <TextBlock Text="Surprise me" />
-                </StackPanel>
-            </Button>
-        </Grid>
+                <!-- View mode: grid / list -->
+                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="8" Height="38"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton x:Name="GridViewToggle" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnViewGrid" AutomationProperties.Name="Grid view"
+                                      ToolTipService.ToolTip="Grid view">
+                            <FontIcon Glyph="&#xE8A9;" FontSize="16" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="ListViewToggle" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnViewList" AutomationProperties.Name="List view"
+                                      ToolTipService.ToolTip="List view">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
 
-        <!-- Content -->
-        <Grid Grid.Row="2">
-            <GridView ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}"
-                      ItemTemplate="{StaticResource CardTemplate}"
-                      Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}"
-                      IsItemClickEnabled="True" SelectionMode="None"
-                      ItemClick="OnBookClick" Padding="0,8,0,20" />
-
-            <ListView ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}"
-                      ItemTemplate="{StaticResource RowTemplate}"
-                      Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}"
-                      IsItemClickEnabled="True" SelectionMode="None"
-                      ItemClick="OnBookClick" Padding="0,8,0,20" />
-
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"
-                        Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
-                <FontIcon Glyph="&#xE8F1;" FontSize="44" Opacity="0.35" />
-                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" Opacity="0.6"
-                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+                <!-- Card size: S / M / L / XL -->
+                <Border x:Name="DensityGroup" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8" Height="38"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton x:Name="DensityS" Tag="S" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnDensityClick" AutomationProperties.Name="Small covers"
+                                      ToolTipService.ToolTip="Small covers">
+                            <TextBlock Text="S" FontSize="12" FontWeight="SemiBold" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="DensityM" Tag="M" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnDensityClick" AutomationProperties.Name="Medium covers"
+                                      ToolTipService.ToolTip="Medium covers">
+                            <TextBlock Text="M" FontSize="12" FontWeight="SemiBold" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="DensityL" Tag="L" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnDensityClick" AutomationProperties.Name="Large covers"
+                                      ToolTipService.ToolTip="Large covers">
+                            <TextBlock Text="L" FontSize="12" FontWeight="SemiBold" />
+                        </ToggleButton>
+                        <ToggleButton x:Name="DensityXL" Tag="XL" Style="{StaticResource SegmentToggleStyle}"
+                                      Click="OnDensityClick" AutomationProperties.Name="Extra large covers"
+                                      ToolTipService.ToolTip="Extra large covers">
+                            <TextBlock Text="XL" FontSize="12" FontWeight="SemiBold" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </Grid>
+
+        <!-- ═══ FILTER BAR: count + format pills ═══ -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="24,0,24,12">
+            <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="13" Opacity="0.7"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Button x:Name="PillAll" Content="All" Tag="0" Click="OnFormatPill" />
+            <Button x:Name="PillEpub" Content="EPUB" Tag="1" Click="OnFormatPill" />
+            <Button x:Name="PillPdf" Content="PDF" Tag="2" Click="OnFormatPill" />
+            <Button x:Name="PillKindle" Content="Kindle" Tag="3" Click="OnFormatPill" />
+            <Button x:Name="PillComics" Content="Comics" Tag="4" Click="OnFormatPill" />
+            <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters" Click="OnClearFilters"
+                    Style="{StaticResource PillButtonStyle}" Margin="12,0,0,0" Visibility="Collapsed" />
+        </StackPanel>
+
+        <!-- ═══ BOOK GRID / LIST ═══ -->
+        <ScrollViewer x:Name="MainScroller" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <!-- Grid view: CineLibrary's UniformGridLayout. The cards are sized in code (FitCards) so each row
+                     fills the width exactly with even gaps: no empty band on the right, no loose gaps. -->
+                <Border x:Name="GridArea" Padding="24,0,24,24" SizeChanged="OnGridAreaSizeChanged"
+                        Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}">
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout x:Name="GridLayout" MinItemWidth="150" MinItemHeight="240"
+                                               MinColumnSpacing="12" MinRowSpacing="14" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:Book">
+                                <local:BookCardControl Book="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+
+                <!-- List view -->
+                <Border Padding="24,0,24,24" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Vertical" Spacing="2" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:Book">
+                                <local:BookRowControl Book="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Empty state -->
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
+                    Margin="24,0,24,80" MaxWidth="440"
+                    Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+            <TextBlock Text="📚" FontSize="56" Opacity="0.5" HorizontalAlignment="Center" />
+            <TextBlock x:Name="EmptyTitle" FontSize="16" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" TextAlignment="Center" />
+            <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" FontSize="13" Opacity="0.7"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
     </Grid>
 </Page>

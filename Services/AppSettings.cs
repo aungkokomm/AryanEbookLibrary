@@ -10,6 +10,7 @@ public sealed class AppSettings
     public ViewMode ViewMode { get; set; } = ViewMode.Grid;
     public SortMode SortMode { get; set; } = SortMode.Title;
     public bool SortDescending { get; set; }
+    public string GridDensity { get; set; } = "M";     // S | M | L | XL card size
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

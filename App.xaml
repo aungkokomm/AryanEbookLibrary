@@ -13,12 +13,40 @@
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#FAAC17" />
                     <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#6AA8FF" />
+                    <!-- Cover placeholder gradient (book without a cover), as CineLibrary's poster placeholder -->
+                    <Color x:Key="PlaceholderTopColor">#1C2636</Color>
+                    <Color x:Key="PlaceholderBottomColor">#0C121C</Color>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#9A6200" />
                     <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#186BD5" />
+                    <Color x:Key="PlaceholderTopColor">#EEF3FB</Color>
+                    <Color x:Key="PlaceholderBottomColor">#D6E0EE</Color>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Pill buttons (CineLibrary's filter pills), active = brand blue -->
+            <Style x:Key="PillButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="12,5" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <Style x:Key="PillButtonActiveStyle" TargetType="Button" BasedOn="{StaticResource PillButtonStyle}">
+                <Setter Property="Background" Value="#186BD5" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#186BD5" />
+            </Style>
+
+            <!-- Small dark badge on a cover (favorite star) -->
+            <Style x:Key="PosterBadgeStyle" TargetType="Border">
+                <Setter Property="Background" Value="#CC000000" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Padding" Value="4,2" />
+            </Style>
 
             <SolidColorBrush x:Key="CoverPlaceholderBrush" Color="#FF3B4A5A" />
             <SolidColorBrush x:Key="PillBackgroundBrush" Color="#CC000000" />

@@ -116,13 +116,23 @@ public sealed class LibraryViewModel : ObservableObject
             if (SetProperty(ref _sortDescending, value))
             {
                 Settings.SortDescending = value;
-                OnPropertyChanged(nameof(SortDirectionGlyph));
                 ApplyFilter();
             }
         }
     }
 
-    public string SortDirectionGlyph => SortDescending ? "\uE74B" : "\uE74A";   // down / up arrow
+    /// <summary>Sort key and direction in one step (the sort box lists "Title ↑", "Title ↓", ... as CineLibrary does).</summary>
+    public void SetSort(SortMode mode, bool descending)
+    {
+        if ((SortMode)_sortIndex == mode && _sortDescending == descending) return;
+        _sortIndex = (int)mode;
+        _sortDescending = descending;
+        Settings.SortMode = mode;
+        Settings.SortDescending = descending;
+        OnPropertyChanged(nameof(SortIndex));
+        OnPropertyChanged(nameof(SortDescending));
+        ApplyFilter();
+    }
 
     private ViewMode _viewMode;
     public ViewMode ViewMode

@@ -1,0 +1,112 @@
+<UserControl
+    x:Class="AryanEbookLibrary.Views.BookCardControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="True"
+    UseSystemFocusVisuals="True">
+
+    <!-- CineLibrary's movie card, for books: the cover fills a fixed-size card (every card in the grid is
+         the same size, so rows line up), title and author sit on a dark strip over the bottom of the cover.
+         No ToolTip on the root: tooltips get orphaned when the ItemsRepeater recycles a hovered card. -->
+    <Grid x:Name="CardRoot" Width="150" Height="240" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <TranslateTransform x:Name="CardLift" Y="0" />
+                <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1" />
+            </TransformGroup>
+        </Grid.RenderTransform>
+
+        <Border x:Name="CardBorder" CornerRadius="10"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid>
+                <!-- Placeholder (no cover, or while the cover loads) -->
+                <Grid x:Name="CoverPlaceholder">
+                    <Grid.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="{ThemeResource PlaceholderTopColor}" />
+                            <GradientStop Offset="1" Color="{ThemeResource PlaceholderBottomColor}" />
+                        </LinearGradientBrush>
+                    </Grid.Background>
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,40">
+                        <TextBlock Text="📚" FontSize="40" Opacity="0.85" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="PlaceholderTitle" FontSize="11" Opacity="0.75"
+                                   TextWrapping="Wrap" TextAlignment="Center" MaxLines="4"
+                                   TextTrimming="CharacterEllipsis" Margin="10,0" />
+                    </StackPanel>
+                </Grid>
+
+                <Image x:Name="CoverImage" Stretch="UniformToFill"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       ImageOpened="OnCoverOpened" ImageFailed="OnCoverFailed" />
+
+                <!-- Offline: a quiet dot, not a loud label (every book on an unplugged drive is offline) -->
+                <Border x:Name="OfflineBadge" Background="#66000000" CornerRadius="8"
+                        VerticalAlignment="Top" HorizontalAlignment="Left"
+                        Padding="6,5" Margin="6" Visibility="Collapsed">
+                    <Ellipse Width="6" Height="6" Fill="#9CA3AF" />
+                </Border>
+
+                <!-- Favorite star, top right -->
+                <Border x:Name="FavBadge" Style="{StaticResource PosterBadgeStyle}"
+                        VerticalAlignment="Top" HorizontalAlignment="Right" Margin="8" Visibility="Collapsed">
+                    <TextBlock Text="★" FontSize="13" Foreground="#FAAC17" />
+                </Border>
+
+                <!-- Finished tick, bottom left above the strip -->
+                <Border x:Name="FinishedBadge" Background="#CC22C55E" CornerRadius="11"
+                        Width="22" Height="22" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                        Margin="8,0,0,72" Visibility="Collapsed">
+                    <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <!-- Hover overlay -->
+                <Border x:Name="HoverOverlay" CornerRadius="10" Background="#CC000000"
+                        Opacity="0" Visibility="Collapsed">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="6,0">
+                        <TextBlock x:Name="InfoText" FontSize="11" Foreground="#E0E0E0"
+                                   TextAlignment="Center" TextWrapping="Wrap" />
+                        <Button Content="View Details" Click="OnViewDetails"
+                                Style="{StaticResource PillButtonActiveStyle}" HorizontalAlignment="Center" />
+                        <Button Content="Open" Click="OnOpen"
+                                Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center" />
+                        <Button x:Name="FinishedToggleBtn" Click="OnFinishedToggle"
+                                Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Info strip: strong dark gradient so the white title is always readable -->
+                <Border VerticalAlignment="Bottom" CornerRadius="0,0,10,10" Height="66" Padding="8,6"
+                        IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#00000000" />
+                            <GradientStop Offset="0.3" Color="#B3000000" />
+                            <GradientStop Offset="1" Color="#FF000000" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel VerticalAlignment="Bottom">
+                        <TextBlock x:Name="TitleText" FontSize="12" FontWeight="Bold" Foreground="White"
+                                   TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="WrapWholeWords" />
+                        <Grid Margin="0,1,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="MetaText" FontSize="11" Foreground="#D8D8D8"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="RatingInline" Grid.Column="1" FontSize="11" FontWeight="Bold"
+                                       Foreground="#FACC15" Margin="6,0,0,0" Visibility="Collapsed" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Reading progress along the bottom edge -->
+                <ProgressBar x:Name="ReadingProgress" VerticalAlignment="Bottom" Margin="8,0,8,2"
+                             Minimum="0" Maximum="100" Foreground="#6AA8FF" Background="Transparent"
+                             IsHitTestVisible="False" Visibility="Collapsed" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
