@@ -26,7 +26,7 @@
                 <StackPanel Spacing="2">
                     <Grid Height="236" CornerRadius="6"
                           Background="{StaticResource CoverPlaceholderBrush}">
-                        <TextBlock Text="{x:Bind Title}" Foreground="White" Margin="12"
+                        <TextBlock Text="{x:Bind Title, Mode=OneWay}" Foreground="White" Margin="12"
                                    TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
                                    FontWeight="SemiBold" MaxLines="6" TextTrimming="CharacterEllipsis"
                                    Visibility="{x:Bind helpers:Fn.VisEmpty(CoverFile)}" />
@@ -53,13 +53,13 @@
                                      Visibility="{x:Bind ShowProgress, Mode=OneWay}" />
                     </Grid>
 
-                    <TextBlock Text="{x:Bind Title}" Margin="0,6,0,0" FontWeight="SemiBold"
+                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" Margin="0,6,0,0" FontWeight="SemiBold"
                                MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind DisplayAuthor}" FontSize="12" Opacity="0.7"
+                    <TextBlock Text="{x:Bind DisplayAuthor, Mode=OneWay}" FontSize="12" Opacity="0.7"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind SeriesLine}" FontSize="11" Opacity="0.55"
+                    <TextBlock Text="{x:Bind SeriesLine, Mode=OneWay}" FontSize="11" Opacity="0.55"
                                TextTrimming="CharacterEllipsis"
-                               Visibility="{x:Bind helpers:Fn.VisNotEmpty(SeriesLine)}" />
+                               Visibility="{x:Bind helpers:Fn.VisNotEmpty(SeriesLine), Mode=OneWay}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -95,11 +95,11 @@
                 </Border>
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind DisplayAuthor}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind DisplayAuthor, Mode=OneWay}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
-                <TextBlock Grid.Column="2" Text="{x:Bind SeriesLine}" VerticalAlignment="Center"
+                <TextBlock Grid.Column="2" Text="{x:Bind SeriesLine, Mode=OneWay}" VerticalAlignment="Center"
                            Opacity="0.7" TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Column="3" Text="{x:Bind FormatLabel}" VerticalAlignment="Center" Opacity="0.7" />
                 <TextBlock Grid.Column="4" Text="{x:Bind StatusText, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.7" />

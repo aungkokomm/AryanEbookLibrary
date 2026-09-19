@@ -122,7 +122,8 @@ public sealed class LibraryRepository
         b.id, b.folder_id, b.drive_id, b.rel_path, b.format, b.title, b.author, b.series, b.series_index,
         b.publisher, b.year, b.language, b.description, b.isbn, b.subjects, b.cover_file, b.file_size,
         b.modified_ticks, b.added_utc,
-        s.is_favorite, s.status, s.rating, s.progress, s.notes, s.user_tags, s.last_opened_utc, s.finished_utc, s.updated_utc
+        s.is_favorite, s.status, s.rating, s.progress, s.notes, s.user_tags, s.last_opened_utc, s.finished_utc, s.updated_utc,
+        s.custom_title, s.custom_author, s.custom_series
         """;
 
     public List<Book> LoadAll()
@@ -156,6 +157,9 @@ public sealed class LibraryRepository
                     AddedUtc = Dt(r, 18) ?? DateTime.UtcNow
                 };
                 b.DriveLabel = labels.TryGetValue(b.DriveId, out var l) ? l : b.DriveId;
+                b.FileTitle = b.Title;
+                b.FileAuthor = b.Author;
+                b.FileSeries = b.Series;
 
                 if (!r.IsDBNull(19))
                 {
@@ -169,7 +173,10 @@ public sealed class LibraryRepository
                         UserTags = Str(r, 24),
                         LastOpenedUtc = Dt(r, 25),
                         FinishedUtc = Dt(r, 26),
-                        UpdatedUtc = Dt(r, 27) ?? DateTime.MinValue
+                        UpdatedUtc = Dt(r, 27) ?? DateTime.MinValue,
+                        CustomTitle = NullableStr(r, 28),
+                        CustomAuthor = NullableStr(r, 29),
+                        CustomSeries = NullableStr(r, 30)
                     });
                 }
                 return b;
@@ -234,8 +241,9 @@ public sealed class LibraryRepository
     {
         _db.Exec("""
             INSERT INTO book_state (key, drive_id, rel_path, is_favorite, status, rating, progress, notes, user_tags,
-                                    last_opened_utc, finished_utc, updated_utc)
-            VALUES ($key, $drive, $rel, $fav, $status, $rating, $progress, $notes, $tags, $opened, $finished, $updated)
+                                    last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series)
+            VALUES ($key, $drive, $rel, $fav, $status, $rating, $progress, $notes, $tags, $opened, $finished, $updated,
+                    $ctitle, $cauthor, $cseries)
             ON CONFLICT(key) DO UPDATE SET
                 is_favorite = excluded.is_favorite,
                 status = excluded.status,
@@ -245,26 +253,30 @@ public sealed class LibraryRepository
                 user_tags = excluded.user_tags,
                 last_opened_utc = excluded.last_opened_utc,
                 finished_utc = excluded.finished_utc,
-                updated_utc = excluded.updated_utc;
+                updated_utc = excluded.updated_utc,
+                custom_title = excluded.custom_title,
+                custom_author = excluded.custom_author,
+                custom_series = excluded.custom_series;
             """,
             ("$key", key), ("$drive", driveId), ("$rel", relPath),
             ("$fav", s.IsFavorite ? 1 : 0), ("$status", (int)s.Status), ("$rating", s.Rating),
             ("$progress", s.Progress), ("$notes", s.Notes), ("$tags", s.UserTags),
             ("$opened", s.LastOpenedUtc is { } o ? Iso(o) : null),
             ("$finished", s.FinishedUtc is { } f ? Iso(f) : null),
-            ("$updated", Iso(s.UpdatedUtc)));
+            ("$updated", Iso(s.UpdatedUtc)),
+            ("$ctitle", s.CustomTitle), ("$cauthor", s.CustomAuthor), ("$cseries", s.CustomSeries));
     }
 
     public sealed record StateRow(string DriveId, string RelPath, string Key, BookState State);
 
     public List<StateRow> GetAllStates() => _db.Query(
-        "SELECT drive_id, rel_path, key, is_favorite, status, rating, progress, notes, user_tags, last_opened_utc, finished_utc, updated_utc FROM book_state",
+        "SELECT drive_id, rel_path, key, is_favorite, status, rating, progress, notes, user_tags, last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series FROM book_state",
         ReadStateRow);
 
     public List<StateRow> GetStatesForFolder(long folderId) => _db.Query(
         """
         SELECT s.drive_id, s.rel_path, s.key, s.is_favorite, s.status, s.rating, s.progress, s.notes, s.user_tags,
-               s.last_opened_utc, s.finished_utc, s.updated_utc
+               s.last_opened_utc, s.finished_utc, s.updated_utc, s.custom_title, s.custom_author, s.custom_series
         FROM book_state s JOIN books b ON b.state_key = s.key
         WHERE b.folder_id = $f
         """,
@@ -286,12 +298,17 @@ public sealed class LibraryRepository
             UserTags = Str(r, 8),
             LastOpenedUtc = Dt(r, 9),
             FinishedUtc = Dt(r, 10),
-            UpdatedUtc = Dt(r, 11) ?? DateTime.MinValue
+            UpdatedUtc = Dt(r, 11) ?? DateTime.MinValue,
+            CustomTitle = NullableStr(r, 12),
+            CustomAuthor = NullableStr(r, 13),
+            CustomSeries = NullableStr(r, 14)
         });
 
     // ------------------------------------------------------------ helpers
 
     private static string Str(SqliteDataReader r, int i) => r.IsDBNull(i) ? "" : r.GetString(i);
+
+    private static string? NullableStr(SqliteDataReader r, int i) => r.IsDBNull(i) ? null : r.GetString(i);
 
     private static string Iso(DateTime d) => d.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);
 

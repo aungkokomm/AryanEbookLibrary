@@ -12,9 +12,61 @@ public sealed class Book : ObservableObject
     public string DriveLabel { get; set; } = "";
     public string RelPath { get; set; } = "";
     public BookFormat Format { get; set; }
-    public string Title { get; set; } = "";
-    public string Author { get; set; } = "";
-    public string Series { get; set; } = "";
+
+    // Shown values: the user's edit when there is one, otherwise what the file says (File*).
+    private string _title = "";
+    public string Title
+    {
+        get => _title;
+        set
+        {
+            if (!SetProperty(ref _title, value ?? "")) return;
+            _sortTitle = null;
+            _searchBlob = null;
+        }
+    }
+
+    private string _author = "";
+    public string Author
+    {
+        get => _author;
+        set
+        {
+            if (!SetProperty(ref _author, value ?? "")) return;
+            OnPropertyChanged(nameof(DisplayAuthor));
+            _searchBlob = null;
+        }
+    }
+
+    private string _series = "";
+    public string Series
+    {
+        get => _series;
+        set
+        {
+            if (!SetProperty(ref _series, value ?? "")) return;
+            OnPropertyChanged(nameof(SeriesLine));
+            _searchBlob = null;
+        }
+    }
+
+    public string FileTitle { get; set; } = "";
+    public string FileAuthor { get; set; } = "";
+    public string FileSeries { get; set; } = "";
+    public string? CustomTitle { get; private set; }
+    public string? CustomAuthor { get; private set; }
+    public string? CustomSeries { get; private set; }
+
+    /// <summary>Sets (or clears, with null) the user's own title/author/series and shows the result.</summary>
+    public void SetCustomDetails(string? title, string? author, string? series)
+    {
+        CustomTitle = title;
+        CustomAuthor = author;
+        CustomSeries = series;
+        Title = CustomTitle ?? FileTitle;
+        Author = CustomAuthor ?? FileAuthor;
+        Series = CustomSeries ?? FileSeries;
+    }
     public double? SeriesIndex { get; set; }
     public string Publisher { get; set; } = "";
     public int? Year { get; set; }
@@ -143,6 +195,7 @@ public sealed class Book : ObservableObject
         LastOpenedUtc = s.LastOpenedUtc;
         FinishedUtc = s.FinishedUtc;
         StateUpdatedUtc = s.UpdatedUtc;
+        SetCustomDetails(s.CustomTitle, s.CustomAuthor, s.CustomSeries);
         _searchBlob = null;
     }
 
@@ -156,7 +209,10 @@ public sealed class Book : ObservableObject
         UserTags = UserTags,
         LastOpenedUtc = LastOpenedUtc,
         FinishedUtc = FinishedUtc,
-        UpdatedUtc = StateUpdatedUtc
+        UpdatedUtc = StateUpdatedUtc,
+        CustomTitle = CustomTitle,
+        CustomAuthor = CustomAuthor,
+        CustomSeries = CustomSeries
     };
 
     public void ResetSearchBlob() => _searchBlob = null;

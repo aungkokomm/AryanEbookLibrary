@@ -172,6 +172,14 @@ public sealed class Database : IDisposable
             Exec("ALTER TABLE books ADD COLUMN is_missing INTEGER NOT NULL DEFAULT 0;");
             Exec("PRAGMA user_version = 2;");
         }
+        if (version < 3)
+        {
+            // The user's own title/author/series. In book_state, not books, so a rescan never overwrites them.
+            Exec("ALTER TABLE book_state ADD COLUMN custom_title TEXT;");
+            Exec("ALTER TABLE book_state ADD COLUMN custom_author TEXT;");
+            Exec("ALTER TABLE book_state ADD COLUMN custom_series TEXT;");
+            Exec("PRAGMA user_version = 3;");
+        }
     }
 
     public void Dispose()

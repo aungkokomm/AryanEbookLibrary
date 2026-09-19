@@ -16,8 +16,16 @@ public sealed class BookState
     public DateTime? FinishedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
+    // The user's own title/author/series, shown instead of what the file says. Null = use the file's value
+    // (so clearing an edit brings the file's value back); "" for author/series = deliberately none.
+    // Kept with the personal state so a rescan never overwrites them and they travel with the drive.
+    public string? CustomTitle { get; set; }
+    public string? CustomAuthor { get; set; }
+    public string? CustomSeries { get; set; }
+
     public bool IsDefault =>
         !IsFavorite && Status == ReadStatus.Unread && Rating == 0 && Progress == 0 &&
         string.IsNullOrEmpty(Notes) && string.IsNullOrEmpty(UserTags) &&
-        LastOpenedUtc is null && FinishedUtc is null;
+        LastOpenedUtc is null && FinishedUtc is null &&
+        CustomTitle is null && CustomAuthor is null && CustomSeries is null;
 }

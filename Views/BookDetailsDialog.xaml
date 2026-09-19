@@ -42,6 +42,33 @@
                            Visibility="{x:Bind helpers:Fn.VisNotEmpty(Book.SeriesLine)}" />
                 <TextBlock Text="{x:Bind Book.InfoLine}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
 
+                <HyperlinkButton x:Name="EditDetailsLink" Content="Edit title, author and series" Padding="0"
+                                 Click="OnEditDetails" />
+                <Grid x:Name="EditPanel" Visibility="Collapsed" ColumnSpacing="12" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Title" VerticalAlignment="Center" />
+                    <TextBox x:Name="TitleBox" Grid.Row="0" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="1" Text="Author" VerticalAlignment="Center" />
+                    <TextBox x:Name="AuthorBox" Grid.Row="1" Grid.Column="1" PlaceholderText="No author" />
+
+                    <TextBlock Grid.Row="2" Text="Series" VerticalAlignment="Center" />
+                    <TextBox x:Name="SeriesBox" Grid.Row="2" Grid.Column="1" PlaceholderText="No series" />
+
+                    <HyperlinkButton x:Name="UseFileDetailsLink" Grid.Row="3" Grid.Column="1" Padding="0"
+                                     Content="Use the file's details" Click="OnUseFileDetails" />
+                </Grid>
+
                 <TextBlock Text="{x:Bind Book.Description}" TextWrapping="Wrap" MaxLines="9"
                            TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True"
                            Visibility="{x:Bind helpers:Fn.VisNotEmpty(Book.Description)}" />
