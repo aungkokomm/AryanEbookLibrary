@@ -248,8 +248,9 @@ public sealed class LibraryRepository
     private static DateTime? Dt(SqliteDataReader r, int i)
     {
         if (r.IsDBNull(i)) return null;
-        return DateTime.TryParse(r.GetString(i), CultureInfo.InvariantCulture,
-            DateTimeStyles.RoundtripKind | DateTimeStyles.AdjustToUniversal, out var d)
+        // Values are written by Iso() as UTC "o" strings, so RoundtripKind alone yields Kind=Utc.
+        // (Combining it with AdjustToUniversal throws ArgumentException on every call.)
+        return DateTime.TryParse(r.GetString(i), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var d)
             ? d
             : null;
     }
