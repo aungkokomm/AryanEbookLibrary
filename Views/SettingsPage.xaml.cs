@@ -19,6 +19,8 @@ public sealed partial class SettingsPage : Page
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         DataPathText.Text = "Stored in: " + AppPaths.DataDir;
+        // From <Version> in the csproj, so the About line can never show a stale number.
+        VersionText.Text = "Aryan eBook Library " + typeof(App).Assembly.GetName().Version?.ToString(3);
         _loading = false;
     }
 

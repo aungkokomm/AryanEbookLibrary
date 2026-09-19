@@ -46,7 +46,7 @@
 
             <StackPanel Spacing="4">
                 <TextBlock Text="About" FontWeight="SemiBold" />
-                <TextBlock Text="Aryan eBook Library 0.1.0" />
+                <TextBlock x:Name="VersionText" />
                 <TextBlock Text="Free, offline, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, and never modifies your files."
                            Opacity="0.7" TextWrapping="Wrap" />
             </StackPanel>
