@@ -125,6 +125,14 @@ public sealed partial class DrivesPage : Page
             var folder = await picker.PickSingleFolderAsync();
             if (folder is null) return;
 
+            // Picked a folder on another drive (easy to do from the picker): say where it really is and offer
+            // to add it there, instead of only refusing.
+            if (DriveRegistry.Identify(folder.Path) is { } owner && !string.Equals(owner.Id, driveId, StringComparison.OrdinalIgnoreCase))
+            {
+                await OfferOtherDriveAsync(folder.Path, owner, driveId);
+                return;
+            }
+
             var problem = Library.CheckNewFolder(driveId, folder.Path, out var relPath);
             if (problem is not null)
             {
@@ -136,6 +144,38 @@ public sealed partial class DrivesPage : Page
             await RunScanAsync(scope, p => Library.AddFolderAsync(driveId, relPath, p));
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    private async Task OfferOtherDriveAsync(string path, (string Id, string Root, string Label) owner, string pickedOnDriveId)
+    {
+        var known = _drives.FirstOrDefault(d => string.Equals(d.Id, owner.Id, StringComparison.OrdinalIgnoreCase));
+        var dialog = new ContentDialog
+        {
+            Title = "That folder is on another drive",
+            Content = $"'{path}' is on {known?.Label ?? owner.Label}, not on {DriveLabel(pickedOnDriveId)}. " +
+                      (known is not null ? $"Add it to {known.Label} instead?" : $"Add drive {owner.Label} to the library with this folder?"),
+            PrimaryButtonText = known is not null ? $"Add to {known.Label}" : "Add drive and folder",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        if (known is null)
+        {
+            await Library.AddDriveAsync(owner.Id, owner.Label, owner.Root);
+            Refresh();
+        }
+
+        var problem = Library.CheckNewFolder(owner.Id, path, out var relPath);
+        if (problem is not null)
+        {
+            await ShowInfoDialog("Cannot add this folder", problem);
+            return;
+        }
+
+        var scope = relPath.Length == 0 ? DriveLabel(owner.Id) : "…\\" + Path.GetFileName(relPath);
+        await RunScanAsync(scope, p => Library.AddFolderAsync(owner.Id, relPath, p));
     }
 
     // ── Remove folder ─────────────────────────────────────────────────────
