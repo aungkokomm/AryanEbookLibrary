@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace AryanEbookLibrary.Services;
 
-public sealed record ExistingBook(long Id, long Size, long ModifiedTicks);
+public sealed record ExistingBook(long Id, long Size, long ModifiedTicks, int MetaVersion, bool HasCover);
 
 /// <summary>All SQL lives here (CineLibrary keeps its SQLite queries in one service layer too).</summary>
 public sealed class LibraryRepository
@@ -184,9 +184,9 @@ public sealed class LibraryRepository
     }
 
     public Dictionary<string, ExistingBook> GetExistingForFolder(long folderId) =>
-        _db.Query("SELECT rel_path, id, file_size, modified_ticks FROM books WHERE folder_id=$f",
+        _db.Query("SELECT rel_path, id, file_size, modified_ticks, meta_version, cover_file FROM books WHERE folder_id=$f",
                 r => (Rel: r.GetString(0), Row: new ExistingBook(r.GetInt64(1),
-                    r.IsDBNull(2) ? 0 : r.GetInt64(2), r.IsDBNull(3) ? 0 : r.GetInt64(3))),
+                    r.IsDBNull(2) ? 0 : r.GetInt64(2), r.IsDBNull(3) ? 0 : r.GetInt64(3), r.GetInt32(4), !r.IsDBNull(5))),
                 ("$f", folderId))
             .GroupBy(x => x.Rel, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Row, StringComparer.OrdinalIgnoreCase);
@@ -196,9 +196,10 @@ public sealed class LibraryRepository
         _db.Exec("""
             INSERT INTO books (folder_id, drive_id, rel_path, state_key, format, title, author, series, series_index,
                                publisher, year, language, description, isbn, subjects, cover_file, file_size,
-                               modified_ticks, added_utc)
+                               modified_ticks, added_utc, meta_version, name_fields, cover_weak)
             VALUES ($folder, $drive, $rel, $key, $format, $title, $author, $series, $sindex,
-                    $publisher, $year, $lang, $desc, $isbn, $subjects, $cover, $size, $ticks, $added)
+                    $publisher, $year, $lang, $desc, $isbn, $subjects, $cover, $size, $ticks, $added,
+                    $mver, $nfields, $cweak)
             ON CONFLICT(drive_id, rel_path) DO UPDATE SET
                 folder_id = excluded.folder_id,
                 state_key = excluded.state_key,
@@ -216,13 +217,50 @@ public sealed class LibraryRepository
                 cover_file = COALESCE(excluded.cover_file, books.cover_file),
                 file_size = excluded.file_size,
                 modified_ticks = excluded.modified_ticks,
+                meta_version = excluded.meta_version,
+                name_fields = excluded.name_fields,
+                cover_weak = excluded.cover_weak,
                 is_missing = 0;
             """,
             ("$folder", b.FolderId), ("$drive", b.DriveId), ("$rel", b.RelPath), ("$key", b.StateKey),
             ("$format", (int)b.Format), ("$title", b.Title), ("$author", b.Author), ("$series", b.Series),
             ("$sindex", b.SeriesIndex), ("$publisher", b.Publisher), ("$year", b.Year), ("$lang", b.Language),
             ("$desc", b.Description), ("$isbn", b.Isbn), ("$subjects", b.Subjects), ("$cover", b.CoverFile),
-            ("$size", b.FileSize), ("$ticks", b.ModifiedTicks), ("$added", Iso(b.AddedUtc)));
+            ("$size", b.FileSize), ("$ticks", b.ModifiedTicks), ("$added", Iso(b.AddedUtc)),
+            ("$mver", b.MetaVersion), ("$nfields", b.NameFields), ("$cweak", b.CoverWeak ? 1 : 0));
+    }
+
+    // ------------------------------------------------------------ names from file names
+
+    /// <summary>Authors the books themselves declare, plus the ones the user typed in: what the name parser trusts.</summary>
+    public List<string> GetDeclaredAuthors() => _db.Query("""
+        SELECT author FROM books WHERE is_missing = 0 AND (name_fields & 2) = 0 AND COALESCE(author, '') <> ''
+        UNION SELECT custom_author FROM book_state WHERE COALESCE(custom_author, '') <> ''
+        """, r => r.GetString(0));
+
+    public List<string> GetAllRelPaths() => _db.Query("SELECT rel_path FROM books WHERE is_missing = 0", r => r.GetString(0));
+
+    public sealed record NameDerivedBook(long Id, string RelPath, int NameFields, string Title, string Author, string Series,
+        double? SeriesIndex, int? Year, string Publisher);
+
+    /// <summary>Books with at least one detail taken from the file name, or with no author.</summary>
+    public List<NameDerivedBook> GetNameDerivedBooks() => _db.Query(
+        "SELECT id, rel_path, name_fields, title, author, series, series_index, year, publisher FROM books WHERE is_missing = 0 AND (name_fields <> 0 OR COALESCE(author, '') = '')",
+        r => new NameDerivedBook(r.GetInt64(0), r.GetString(1), r.GetInt32(2), Str(r, 3), Str(r, 4), Str(r, 5),
+            r.IsDBNull(6) ? null : r.GetDouble(6), r.IsDBNull(7) ? null : r.GetInt32(7), Str(r, 8)));
+
+    public void UpdateNameDerived(IEnumerable<NameDerivedBook> changed)
+    {
+        _db.Transaction(() =>
+        {
+            foreach (var b in changed)
+                _db.Exec("""
+                    UPDATE books SET name_fields=$nf, title=$t, author=$a, series=$s, series_index=$si, year=$y, publisher=$p
+                    WHERE id=$id
+                    """,
+                    ("$nf", b.NameFields), ("$t", b.Title), ("$a", b.Author), ("$s", b.Series), ("$si", b.SeriesIndex),
+                    ("$y", b.Year), ("$p", b.Publisher), ("$id", b.Id));
+        });
     }
 
     public void DeleteBooks(IEnumerable<long> ids)

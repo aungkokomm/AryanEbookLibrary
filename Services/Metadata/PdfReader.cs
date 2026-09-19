@@ -15,11 +15,14 @@ namespace AryanEbookLibrary.Services.Metadata;
 ///    The earlier raw text scan took the last "/Title" anywhere in the file, which on a real library was
 ///    mostly bookmark headings, image names and scrambled bytes; measured on 1,534 PDFs, PdfPig finds 206
 ///    more real titles and 141 more authors. Nothing usable means the filename becomes the title.
+///  - ISBN: the text of the first 6 and last 2 pages (copyright page, back cover), checksum-validated, as
+///    Zotero does. 26% of a real library's PDFs without an ISBN in their metadata have one there.
+///  - Whether page 1 is a text page (a scan's notes, a copyright page) rather than a cover.
 ///  - Cover + page count: rendered by the built-in Windows.Data.Pdf renderer (page 1).
 /// </summary>
 public static class PdfReader
 {
-    public static async Task<BookMetadata> ReadAsync(string path)
+    public static async Task<BookMetadata> ReadAsync(string path, bool readCover = true)
     {
         var md = new BookMetadata();
 
@@ -33,7 +36,7 @@ public static class PdfReader
             Log.Write($"PDF metadata failed ({Path.GetFileName(path)}): {ex.Message}");
         }
 
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1; readCover; attempt++)
         {
             try
             {
@@ -140,6 +143,32 @@ public static class PdfReader
         if (title is not null && !LooksLikeJunkTitle(title)) md.Title = title;
         if (authors.Count > 0) md.Author = string.Join(", ", authors);   // same separator as EPUB authors
         if (XmlUtil.Clean(info.Keywords) is { } kw) md.Subjects = kw;
+
+        ReadPageText(doc, md);
+    }
+
+    /// <summary>ISBN from the first 6 and last 2 pages, and whether page 1 is a page of text.</summary>
+    private static void ReadPageText(PigDocument doc, BookMetadata md)
+    {
+        var count = doc.NumberOfPages;
+        if (count == 0) return;
+        var pages = Enumerable.Range(1, Math.Min(6, count)).Concat(Enumerable.Range(Math.Max(7, count - 1), Math.Max(0, Math.Min(2, count - 6))));
+        foreach (var number in pages)
+        {
+            string text;
+            try
+            {
+                text = doc.GetPage(number).Text;
+            }
+            catch
+            {
+                continue;   // one damaged page does not stop the others
+            }
+            if (number == 1) md.CoverIsTextPage = text.Count(char.IsLetter) > 600;
+            if (md.Isbn is null && Isbn.Find(text) is { } isbn) md.Isbn = isbn;
+            if (md.Isbn is not null) break;
+            if (number == 2 && md.Isbn is null && text.Length == 0 && !md.CoverIsTextPage) break;   // a scan: no text layer
+        }
     }
 
     /// <summary>Values of a Dublin Core element in XMP: the rdf:li entries of its Alt/Seq/Bag, or its text.</summary>
@@ -153,11 +182,9 @@ public static class PdfReader
         }
     }
 
-    /// <summary>"Stoltz, Dustin;Taylor, Marshall;" style lists become separate, cleaned names without junk.</summary>
+    /// <summary>"Stoltz, Dustin;Taylor, Marshall;" and "Arden, John B." become "Dustin Stoltz", "Marshall Taylor", "John B. Arden".</summary>
     private static List<string> SplitAuthors(string? raw) =>
-        (raw ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(XmlUtil.Clean)
-            .OfType<string>()
+        PeopleParser.Parse(XmlUtil.Clean(raw))
             .Where(a => !LooksLikeJunkAuthor(a))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -167,6 +194,11 @@ public static class PdfReader
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly string[] JunkTitlePrefixes = { "Microsoft Word", "Microsoft PowerPoint", "PowerPoint", "Untitled" };
+
+    /// <summary>Editor placeholders and machine names: "&lt;Name of Project&gt;", "Document1", "Layout 1", a path, a hash.</summary>
+    private static readonly Regex PlaceholderTitle = new(
+        @"^(<[^>]*>|(new\s+)?document\s*\d*|layout\s*\d+|book\s*\d+|title|no title|cover|ebook|[a-z]:\\.*|/.*|[0-9a-f]{16,})$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly HashSet<string> JunkAuthors = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -179,7 +211,7 @@ public static class PdfReader
         t = t.Trim();
         if (t.Count(char.IsLetter) < 2) return true;
         if (JunkTitlePrefixes.Any(p => t.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
-        return FileNameLike.IsMatch(t);
+        return FileNameLike.IsMatch(t) || PlaceholderTitle.IsMatch(t);
     }
 
     /// <summary>Account names that editors write as the author ("User", "OWadmin", "0008471").</summary>

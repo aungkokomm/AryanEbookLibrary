@@ -17,6 +17,17 @@ public sealed class BookMetadata
     public byte[]? Cover { get; set; }
     public string CoverExt { get; set; } = ".jpg";
 
+    /// <summary>Which details were taken from the file name rather than the book (<see cref="NameField"/> bits).</summary>
+    public int NameFields { get; set; }
+
+    /// <summary>The first page of a PDF is a page of text (a copyright page, a scan's notes), not a cover.</summary>
+    public bool CoverIsTextPage { get; set; }
+
+    public static class NameField
+    {
+        public const int Title = 1, Author = 2, Series = 4, Year = 8, Publisher = 16;
+    }
+
     /// <summary>Copy values from <paramref name="o"/>. With overwrite=false only empty fields are filled.</summary>
     public void MergeFrom(BookMetadata o, bool overwrite)
     {

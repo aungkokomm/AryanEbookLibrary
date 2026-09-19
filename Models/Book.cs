@@ -77,6 +77,9 @@ public sealed class Book : ObservableObject
     public string? CoverFile { get; set; }
     public long FileSize { get; set; }
     public long ModifiedTicks { get; set; }
+    public int MetaVersion { get; set; }
+    public int NameFields { get; set; }     // BookMetadata.NameField bits: details taken from the file name
+    public bool CoverWeak { get; set; }     // the "cover" is a page of text
     public DateTime AddedUtc { get; set; } = DateTime.UtcNow;
 
     // ---- Runtime ----

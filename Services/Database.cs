@@ -180,6 +180,38 @@ public sealed class Database : IDisposable
             Exec("ALTER TABLE book_state ADD COLUMN custom_series TEXT;");
             Exec("PRAGMA user_version = 3;");
         }
+        if (version < 4)
+        {
+            // meta_version: which metadata reader read the book (an older one means read it again).
+            // name_fields: which details came from the file name, not the book (bits, see BookMetadata.NameField).
+            // cover_weak: the "cover" is a text page (a PDF's first page full of text), so a real cover is better.
+            Exec("ALTER TABLE books ADD COLUMN meta_version INTEGER NOT NULL DEFAULT 0;");
+            Exec("ALTER TABLE books ADD COLUMN name_fields INTEGER NOT NULL DEFAULT 0;");
+            Exec("ALTER TABLE books ADD COLUMN cover_weak INTEGER NOT NULL DEFAULT 0;");
+            // What Open Library says about a book, kept apart from the file's own details so a rescan never
+            // loses it. Keyed like book_state (drive + path), so it follows the book, not the row.
+            Exec("""
+                CREATE TABLE book_online (
+                    key          TEXT PRIMARY KEY,
+                    status       TEXT NOT NULL,              -- found | suggested | none | error
+                    how          TEXT,                       -- isbn | match | picked
+                    source_key   TEXT,                       -- Open Library work or edition key
+                    isbn         TEXT,
+                    title        TEXT,
+                    author       TEXT,
+                    publisher    TEXT,
+                    year         INTEGER,
+                    language     TEXT,
+                    description  TEXT,
+                    subjects     TEXT,
+                    cover_file   TEXT,
+                    use_cover    INTEGER NOT NULL DEFAULT 0,
+                    tries        INTEGER NOT NULL DEFAULT 0,
+                    updated_utc  TEXT NOT NULL
+                );
+                """);
+            Exec("PRAGMA user_version = 4;");
+        }
     }
 
     public void Dispose()
