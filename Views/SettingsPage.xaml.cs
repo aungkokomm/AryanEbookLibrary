@@ -18,6 +18,7 @@ public sealed partial class SettingsPage : Page
 
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
+        LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
         DataPathText.Text = "Stored in: " + AppPaths.DataDir;
         // From <Version> in the csproj, so the About line can never show a stale number.
         VersionText.Text = "Aryan eBook Library " + typeof(App).Assembly.GetName().Version?.ToString(3);
@@ -37,6 +38,15 @@ public sealed partial class SettingsPage : Page
         if (_loading) return;
         AppServices.Settings.AutoScanOnStart = AutoScanSwitch.IsOn;
         AppServices.Settings.Save();
+    }
+
+    private void OnLookupOnlineToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.LookupOnline = LookupOnlineSwitch.IsOn;
+        AppServices.Settings.Save();
+        if (LookupOnlineSwitch.IsOn) AppServices.Library.StartOnlineLookups();
+        else AppServices.Online.Stop();
     }
 
     private async void OnRebuildCovers(object sender, RoutedEventArgs e)

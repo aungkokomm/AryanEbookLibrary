@@ -48,6 +48,7 @@ public sealed partial class LibraryPage : Page
         // One cached page instance lives for the whole session, so these are subscribed once.
         BookCardControl.DetailsRequested += b => _ = ShowDetailsAsync(b);
         BookCardControl.OpenRequested += b => _ = OpenAsync(b);
+        BookCardControl.FindOnlineRequested += b => _ = FindOnlineAsync(b);
         ViewModel.PropertyChanged += OnViewModelChanged;
         _ready = true;
     }
@@ -82,9 +83,10 @@ public sealed partial class LibraryPage : Page
         if (_dialogOpen || XamlRoot is null) return;   // only one ContentDialog can be open at a time
         _dialogOpen = true;
         ContentDialogResult result;
+        BookDetailsDialog dialog;
         try
         {
-            var dialog = new BookDetailsDialog(book, ViewModel) { XamlRoot = XamlRoot };
+            dialog = new BookDetailsDialog(book, ViewModel) { XamlRoot = XamlRoot };
             result = await dialog.ShowAsync();
         }
         finally
@@ -92,8 +94,33 @@ public sealed partial class LibraryPage : Page
             _dialogOpen = false;
         }
 
+        switch (dialog.Next)
+        {
+            case DetailsNext.FindOnline:   // one ContentDialog at a time: details close, the finder opens, details return
+                await FindOnlineAsync(book);
+                await ShowDetailsAsync(book);
+                return;
+            case DetailsNext.Reopen:
+                await ShowDetailsAsync(book);
+                return;
+        }
+
         if (result == ContentDialogResult.Primary) await OpenAsync(book);
         else if (result == ContentDialogResult.Secondary) BookLauncher.ShowInFolder(book);
+    }
+
+    private async Task FindOnlineAsync(Book book)
+    {
+        if (_dialogOpen || XamlRoot is null) return;
+        _dialogOpen = true;
+        try
+        {
+            await new FindOnlineDialog(book) { XamlRoot = XamlRoot }.ShowAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
     }
 
     private async Task OpenAsync(Book book)

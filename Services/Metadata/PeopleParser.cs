@@ -20,31 +20,44 @@ public static class PeopleParser
     // A degree written as its own comma piece: "Ian Stevenson, M.D.", "Mark F. Bear, Ph.D., Barry W. Connors, Ph.D."
     private static readonly Regex Degree = new(
         @"^(M\.?\s?D|Ph\.?\s?D|D\.?\s?Phil|D\.?\s?Litt|M\.?\s?Sc|M\.?\s?A|B\.?\s?A|MBBS|FRCP|FRS)\.?$", RegexOptions.IgnoreCase);
+    private static readonly Regex WholeNameRole = new(
+        @"[^\s,]\s+[^\s,]+\s*\((translator|trans|editor|ed|eds|illustrator|compiler|foreword)\.?\)", RegexOptions.IgnoreCase);
     private static readonly Regex Suffix = new(@"^(Jr|Sr|II|III|IV|LLC|Inc|Ltd)\.?$");   // belongs to the name before it
+    private static readonly Regex EtAl = new(@",?\s*\bet\.?\s*al\b\.?", RegexOptions.IgnoreCase);
+    // "by Matthew G. Naugle, PDFed by UncleVan": the "by" goes, and so does the scanner's credit.
+    private static readonly Regex LeadingBy = new(@"^by\s+", RegexOptions.IgnoreCase);
+    private static readonly Regex ScanCredit = new(
+        @"^(pdfed|scanned|ocr'?ed|converted|uploaded|ripped|typed|digiti[sz]ed)\s+by\b", RegexOptions.IgnoreCase);
 
     public static List<string> Parse(string? raw)
     {
         var people = new List<string>();
         if (string.IsNullOrWhiteSpace(raw)) return people;
 
-        var s = Parenthesised.Replace(raw, " ");
+        var s = raw.Trim();
+        if (s.StartsWith('(') && s.EndsWith(')') && s.IndexOf(')') == s.Length - 1) s = s[1..^1];   // "( Mg-Tun-Thu )"
+        // "Confucius, James Legge (Translator)": a role in brackets after a full name shows the names are whole
+        // names, not "Last, First" pairs.
+        var wholeNames = WholeNameRole.IsMatch(s);
+        s = Parenthesised.Replace(s, " ");
         s = LifeDates.Replace(s, " ");
         s = Roles.Replace(s, " ");
+        s = EtAl.Replace(s, " ");
 
         foreach (var chunk in s.Split(new[] { ';', '&' }, StringSplitOptions.RemoveEmptyEntries))
         {
             var pieces = new List<string>();
             foreach (var raw0 in Regex.Split(chunk, @",|\s+and\s+"))
             {
-                var p = Squash(raw0);
-                if (p.Length == 0 || Degree.IsMatch(p)) continue;
+                var p = LeadingBy.Replace(Squash(raw0), "");
+                if (p.Length == 0 || Degree.IsMatch(p) || ScanCredit.IsMatch(p)) continue;
                 if (Suffix.IsMatch(p) && pieces.Count > 0) { pieces[^1] += " " + p.TrimEnd('.') + (p.EndsWith('.') ? "." : ""); continue; }
                 pieces.Add(TrimDot(p));
             }
             if (pieces.Count == 0) continue;
 
             bool AllMultiWord() => pieces.All(p => p.Contains(' '));
-            if (pieces.Count == 1 || AllMultiWord() || pieces.Count % 2 == 1)
+            if (pieces.Count == 1 || AllMultiWord() || pieces.Count % 2 == 1 || wholeNames || !pieces.All(NameLike))
             {
                 people.AddRange(pieces);
                 continue;
@@ -55,7 +68,7 @@ public static class PeopleParser
         }
 
         return people
-            .Select(p => TrimDot(p.Trim(' ', ',', '-')))
+            .Select(p => FixCase(TrimDot(p.Trim(' ', ',', '-'))))
             .Select(p => p.EndsWith(" Jr", StringComparison.Ordinal) || Regex.IsMatch(p, @"\b[A-Z]$") ? p + "." : p)
             .Where(p => p.Count(char.IsLetter) >= 2)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -72,6 +85,18 @@ public static class PeopleParser
         var last = p[(p.LastIndexOf(' ') + 1)..].TrimEnd('.');
         return last.Length <= 1 || last.Contains('.') ? p : p.TrimEnd('.');
     }
+
+    /// <summary>"KAMALA CHANDRAKANT" and "shravasti dhammika" in the usual case; one word ("DK", "ISECOM") stays.</summary>
+    private static string FixCase(string p)
+    {
+        var letters = p.Where(char.IsLetter).ToList();
+        if (!p.Contains(' ') || letters.Count == 0 || letters.Any(c => c > 'ɏ')) return p;
+        if (letters.Any(char.IsUpper) && letters.Any(char.IsLower)) return p;
+        return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(p.ToLowerInvariant());
+    }
+
+    /// <summary>Only a name can be half of a "Last, First" pair: not "[D3$!B3B9]".</summary>
+    private static bool NameLike(string p) => p.All(c => char.IsLetter(c) || c is ' ' or '.' or '-' or '\'' or '’');
 
     private static string Squash(string s) => Regex.Replace(s, @"\s+", " ").Trim();
 }

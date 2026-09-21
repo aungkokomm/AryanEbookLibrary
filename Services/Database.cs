@@ -204,6 +204,7 @@ public sealed class Database : IDisposable
                     language     TEXT,
                     description  TEXT,
                     subjects     TEXT,
+                    cover_id     INTEGER,                    -- Open Library cover id, fetched when used
                     cover_file   TEXT,
                     use_cover    INTEGER NOT NULL DEFAULT 0,
                     tries        INTEGER NOT NULL DEFAULT 0,

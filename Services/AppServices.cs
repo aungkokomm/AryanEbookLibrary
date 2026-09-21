@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Services.Online;
 using AryanEbookLibrary.ViewModels;
 using Microsoft.UI.Xaml;
 
@@ -11,6 +12,7 @@ public static class AppServices
     public static LibraryRepository Repo { get; private set; } = null!;
     public static ScannerService Scanner { get; private set; } = null!;
     public static StateSyncService Sync { get; private set; } = null!;
+    public static OnlineLookupService Online { get; private set; } = null!;
     public static LibraryViewModel Library { get; set; } = null!;
 
     public static void Init()
@@ -21,6 +23,7 @@ public static class AppServices
         Repo = new LibraryRepository(Db);
         Sync = new StateSyncService(Repo);
         Scanner = new ScannerService(Repo);
+        Online = new OnlineLookupService(Repo);
     }
 
     public static void ApplyTheme()
@@ -40,6 +43,7 @@ public static class AppServices
     {
         try
         {
+            Online.Stop();
             Sync.FlushAll();
             Settings.Save();
             Db.Dispose();

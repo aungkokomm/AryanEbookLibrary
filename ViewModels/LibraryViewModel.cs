@@ -31,6 +31,7 @@ public sealed class LibraryViewModel : ObservableObject
         _sortIndex = (int)Settings.SortMode;
         _sortDescending = Settings.SortDescending;
         _viewMode = Settings.ViewMode;
+        AppServices.Online.StatusChanged += text => OnlineStatusText = text;
     }
 
     /// <summary>Raised when a drive is connected or disconnected (Drives page refreshes itself).</summary>
@@ -180,6 +181,15 @@ public sealed class LibraryViewModel : ObservableObject
     private string _emptyMessage = "";
     public string EmptyMessage { get => _emptyMessage; private set => SetProperty(ref _emptyMessage, value); }
 
+    private string _onlineStatusText = "";
+    /// <summary>Open Library's background progress, shown at the right of the status bar.</summary>
+    public string OnlineStatusText { get => _onlineStatusText; private set => SetProperty(ref _onlineStatusText, value); }
+
+    public Book? FindByKey(string key) => _all.FirstOrDefault(b => b.StateKey == key);
+
+    /// <summary>Fills missing details from Open Library in the background, when switched on in Settings.</summary>
+    public void StartOnlineLookups() => AppServices.Online.Start(_all);
+
     // ------------------------------------------------------------ lifecycle
 
     public async void Initialize()
@@ -197,7 +207,11 @@ public sealed class LibraryViewModel : ObservableObject
             return;
         }
 
-        if (!Settings.AutoScanOnStart || Repo.GetFolders().Count == 0) return;
+        if (!Settings.AutoScanOnStart || Repo.GetFolders().Count == 0)
+        {
+            StartOnlineLookups();
+            return;
+        }
         try
         {
             await ScanAsync();
@@ -505,6 +519,7 @@ public sealed class LibraryViewModel : ObservableObject
 
             StatusText = "Scan complete: " + total.Summary +
                          (total.OfflineFolders > 0 ? $"  ·  {total.OfflineFolders} folder(s) offline, kept in catalog" : "");
+            StartOnlineLookups();
             return total;
         }
         catch (OperationCanceledException)

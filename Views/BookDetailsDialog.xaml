@@ -42,8 +42,30 @@
                            Visibility="{x:Bind helpers:Fn.VisNotEmpty(Book.SeriesLine)}" />
                 <TextBlock Text="{x:Bind Book.InfoLine}" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
 
-                <HyperlinkButton x:Name="EditDetailsLink" Content="Edit title, author and series" Padding="0"
-                                 Click="OnEditDetails" />
+                <InfoBar x:Name="SuggestionBar" IsOpen="False" IsClosable="False" Severity="Informational"
+                         Title="Open Library may have this book">
+                    <InfoBar.Content>
+                        <StackPanel Spacing="8" Margin="0,0,0,12">
+                            <TextBlock x:Name="SuggestionText" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Use it" Click="OnUseSuggestion"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                <Button Content="Not this book" Click="OnRejectSuggestion" />
+                            </StackPanel>
+                        </StackPanel>
+                    </InfoBar.Content>
+                </InfoBar>
+
+                <StackPanel x:Name="OnlineNote" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                    <TextBlock x:Name="OnlineNoteText" FontSize="12" Opacity="0.6" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <HyperlinkButton Content="Remove" FontSize="12" Padding="0" Click="OnRemoveOnline" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="20">
+                    <HyperlinkButton x:Name="EditDetailsLink" Content="Edit title, author and series" Padding="0"
+                                     Click="OnEditDetails" />
+                    <HyperlinkButton Content="Find details online" Padding="0" Click="OnFindOnline" />
+                </StackPanel>
                 <Grid x:Name="EditPanel" Visibility="Collapsed" ColumnSpacing="12" RowSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />

@@ -1,0 +1,74 @@
+<ContentDialog
+    x:Class="AryanEbookLibrary.Views.FindOnlineDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AryanEbookLibrary.Views"
+    Title="Find details online"
+    PrimaryButtonText="Use these details"
+    CloseButtonText="Cancel"
+    DefaultButton="None"
+    IsPrimaryButtonEnabled="False">
+
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMaxWidth">860</x:Double>
+    </ContentDialog.Resources>
+
+    <Grid Width="740" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="320" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TitleBox" Header="Title" KeyDown="OnBoxKeyDown" />
+            <TextBox x:Name="AuthorBox" Grid.Column="1" Header="Author" PlaceholderText="Any author" KeyDown="OnBoxKeyDown" />
+            <Button x:Name="SearchButton" Grid.Column="2" Content="Search" VerticalAlignment="Bottom"
+                    Style="{StaticResource AccentButtonStyle}" Click="OnSearch" />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <ProgressRing x:Name="Busy" Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
+            <TextBlock x:Name="StatusText" Opacity="0.75" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <ListView x:Name="Results" Grid.Row="2" SelectionMode="Single" SelectionChanged="OnResultSelected"
+                  BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="6">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:OnlineResultItem">
+                    <Grid ColumnSpacing="12" Padding="0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="54" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="54" Height="80" CornerRadius="3" VerticalAlignment="Top"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                            <Image Source="{x:Bind Cover}" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Authors}" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Info}" FontSize="12" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Badge}" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                       Visibility="{x:Bind BadgeVisibility}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <StackPanel Grid.Row="3" Spacing="2">
+            <CheckBox x:Name="UseCoverBox" Content="Use its cover" />
+            <TextBlock Text="Details come from openlibrary.org, the Internet Archive's free book catalog. Your book file is not changed."
+                       FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+    </Grid>
+</ContentDialog>

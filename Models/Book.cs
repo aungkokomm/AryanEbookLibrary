@@ -50,12 +50,38 @@ public sealed class Book : ObservableObject
         }
     }
 
+    // What the file says (its metadata, else its name), what Open Library says, and the user's own edit.
     public string FileTitle { get; set; } = "";
     public string FileAuthor { get; set; } = "";
     public string FileSeries { get; set; } = "";
+    public string FilePublisher { get; set; } = "";
+    public int? FileYear { get; set; }
+    public string FileDescription { get; set; } = "";
+    public string FileSubjects { get; set; } = "";
+    public string? FileCoverFile { get; set; }
+    public OnlineDetails? Online { get; private set; }
     public string? CustomTitle { get; private set; }
     public string? CustomAuthor { get; private set; }
     public string? CustomSeries { get; private set; }
+
+    /// <summary>What would show without the user's edit: the file's details, or Open Library's where they apply.</summary>
+    public string BaseTitle { get; private set; } = "";
+    public string BaseAuthor { get; private set; } = "";
+
+    /// <summary>The loaded details are the file's own; call once after loading, before any edit or online details.</summary>
+    public void KeepFileDetails()
+    {
+        FileTitle = Title;
+        FileAuthor = Author;
+        FileSeries = Series;
+        FilePublisher = Publisher;
+        FileYear = Year;
+        FileDescription = Description;
+        FileSubjects = Subjects;
+        FileCoverFile = CoverFile;
+        BaseTitle = Title;
+        BaseAuthor = Author;
+    }
 
     /// <summary>Sets (or clears, with null) the user's own title/author/series and shows the result.</summary>
     public void SetCustomDetails(string? title, string? author, string? series)
@@ -63,18 +89,86 @@ public sealed class Book : ObservableObject
         CustomTitle = title;
         CustomAuthor = author;
         CustomSeries = series;
-        Title = CustomTitle ?? FileTitle;
-        Author = CustomAuthor ?? FileAuthor;
-        Series = CustomSeries ?? FileSeries;
+        ShowDetails();
     }
+
+    /// <summary>Sets (or clears) what Open Library says and shows the result.</summary>
+    public void SetOnline(OnlineDetails? online)
+    {
+        Online = online;
+        ShowDetails();
+        OnPropertyChanged(nameof(Online));
+    }
+
+    /// <summary>
+    /// The user's edit wins, then Open Library details the user picked, then the file's own details. Details
+    /// Open Library found by itself only fill what the file lacks: an empty field, an author read from the file
+    /// name, a title that is no title ("isbn 0671818325"), a missing cover or a page of text as the cover.
+    /// </summary>
+    private void ShowDetails()
+    {
+        var o = Online is { IsApplied: true } ? Online : null;
+        var picked = o?.IsPicked == true;
+        bool Use(string? online, bool fileIsWeak) => o is not null && !string.IsNullOrWhiteSpace(online) && (picked || fileIsWeak);
+
+        var nameTitle = (NameFields & BookMetadata.NameField.Title) != 0;
+        var nameAuthor = (NameFields & BookMetadata.NameField.Author) != 0;
+        // A title read from the file name gives way when it is no title at all, or when the book's own ISBN
+        // found the record and the name is mangled ("Design Thinking Diana Lakatos Crafting Docs for Success An End to").
+        var weakTitle = nameTitle && (Services.Online.OnlineMatcher.HasNoTitleWords(FileTitle) ||
+                                      o?.How == OnlineDetails.ByIsbn && !Services.Online.OnlineMatcher.SameWords(FileTitle, o.Title ?? ""));
+        BaseTitle = Use(o?.Title, weakTitle) ? o!.Title! : FileTitle;
+        BaseAuthor = Use(o?.Author, FileAuthor.Length == 0 || nameAuthor) ? o!.Author! : FileAuthor;
+
+        Title = CustomTitle ?? BaseTitle;
+        Author = CustomAuthor ?? BaseAuthor;
+        Series = CustomSeries ?? FileSeries;
+        Publisher = Use(o?.Publisher, FilePublisher.Length == 0) ? o!.Publisher! : FilePublisher;
+        Year = o?.Year is { } y && (picked || FileYear is null) ? y : FileYear;
+        Description = Use(o?.Description, FileDescription.Length == 0) ? o!.Description! : FileDescription;
+        Subjects = Use(o?.Subjects, FileSubjects.Length == 0) ? o!.Subjects! : FileSubjects;
+        // A picked record's cover shows only if the user ticked "Use its cover"; a found one fills a missing cover.
+        CoverFile = o is not null && !string.IsNullOrEmpty(o.CoverFile) && (picked ? o.UseCover : o.UseCover || NeedsCover)
+            ? o.CoverFile : FileCoverFile;
+        _searchBlob = null;
+    }
+
+    /// <summary>The book's cover is missing or is a page of text, so another one is better.</summary>
+    public bool NeedsCover => FileCoverFile is null || CoverWeak;
+
     public double? SeriesIndex { get; set; }
-    public string Publisher { get; set; } = "";
-    public int? Year { get; set; }
+
+    private string _publisher = "";
+    public string Publisher
+    {
+        get => _publisher;
+        set { if (SetProperty(ref _publisher, value ?? "")) OnPropertyChanged(nameof(InfoLine)); }
+    }
+
+    private int? _year;
+    public int? Year
+    {
+        get => _year;
+        set { if (SetProperty(ref _year, value)) OnPropertyChanged(nameof(InfoLine)); }
+    }
+
     public string Language { get; set; } = "";
-    public string Description { get; set; } = "";
+
+    private string _description = "";
+    public string Description { get => _description; set => SetProperty(ref _description, value ?? ""); }
+
     public string Isbn { get; set; } = "";
-    public string Subjects { get; set; } = "";
-    public string? CoverFile { get; set; }
+
+    private string _subjects = "";
+    public string Subjects { get => _subjects; set => SetProperty(ref _subjects, value ?? ""); }
+
+    private string? _coverFile;
+    public string? CoverFile
+    {
+        get => _coverFile;
+        set { if (SetProperty(ref _coverFile, value)) OnPropertyChanged(nameof(CoverPath)); }
+    }
+
     public long FileSize { get; set; }
     public long ModifiedTicks { get; set; }
     public int MetaVersion { get; set; }

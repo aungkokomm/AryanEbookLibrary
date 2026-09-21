@@ -79,7 +79,9 @@ public sealed partial class BookRowControl : UserControl
 
     private void OnBookPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (sender is Book b && ReferenceEquals(b, Book)) Populate(b);
+        if (sender is not Book b || !ReferenceEquals(b, Book)) return;
+        if (e.PropertyName == nameof(Book.CoverPath)) LoadThumb(b);   // a cover from Open Library arrived
+        Populate(b);
     }
 
     private void Populate(Book b)

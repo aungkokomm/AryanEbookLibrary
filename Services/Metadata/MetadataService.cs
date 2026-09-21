@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AryanEbookLibrary.Models;
 
 namespace AryanEbookLibrary.Services.Metadata;
@@ -50,6 +51,14 @@ public static class MetadataService
             }
         }
 
+        // Every reader's title without a download site's tag, and no title at all when it is only a web address.
+        if (md.Title is { } t)
+        {
+            t = FileNameParser.StripSiteTags(t);
+            md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://|www\.)\S+$", RegexOptions.IgnoreCase) ? null : t;
+        }
+        // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
+        if (!string.IsNullOrWhiteSpace(md.Author)) md.Author = PeopleParser.Tidy(md.Author);
         FillFromFileName(md, path);
         if (string.IsNullOrWhiteSpace(md.Title)) md.Title = "Untitled";
         return md;

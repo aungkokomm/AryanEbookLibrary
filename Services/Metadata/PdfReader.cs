@@ -140,7 +140,8 @@ public static class PdfReader
             }
         }
 
-        if (title is not null && !LooksLikeJunkTitle(title)) md.Title = title;
+        if (title is not null) md.Isbn = Isbn.Find(title.Replace('_', ' '));   // a title that is only "isbn_0671818325"
+        if (title is not null && !LooksLikeJunkTitle(title)) md.Title = CopyOf.Replace(title, "");
         if (authors.Count > 0) md.Author = string.Join(", ", authors);   // same separator as EPUB authors
         if (XmlUtil.Clean(info.Keywords) is { } kw) md.Subjects = kw;
 
@@ -190,15 +191,17 @@ public static class PdfReader
             .ToList();
 
     private static readonly Regex FileNameLike = new(
-        @"\.(docx?|indd|pages|rtf|tex|qxd|pub|odt|pdf|cdr|eps|ai|psd|jpe?g|png|tiff?|pptx?|xlsx?|html?)$",
+        @"\.(docx?|indd|pages|rtf|tex|dvi|ps|qxd|pub|odt|pdf|cdr|eps|ai|psd|jpe?g|png|tiff?|pptx?|xlsx?|html?)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly string[] JunkTitlePrefixes = { "Microsoft Word", "Microsoft PowerPoint", "PowerPoint", "Untitled" };
+    private static readonly string[] JunkTitlePrefixes = { "Microsoft Word", "Microsoft PowerPoint", "PowerPoint", "Untitled", "Scanned using", "Scanned by", "Scanned with" };
 
     /// <summary>Editor placeholders and machine names: "&lt;Name of Project&gt;", "Document1", "Layout 1", a path, a hash.</summary>
     private static readonly Regex PlaceholderTitle = new(
-        @"^(<[^>]*>|(new\s+)?document\s*\d*|layout\s*\d+|book\s*\d+|title|no title|cover|ebook|[a-z]:\\.*|/.*|[0-9a-f]{16,})$",
+        @"^(<[^>]*>|(new\s+)?document\s*\d*|layout\s*\d+|book\s*\d+|title|no title|cover|ebook|[a-z]:\\.*|/.*|[0-9a-f]{16,}|isbn[\s_:-]*[\dxX-]{10,17})$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CopyOf = new(@"^copy of\s+", RegexOptions.IgnoreCase);   // "Copy of ACK 303 Senapati Bapat"
 
     private static readonly HashSet<string> JunkAuthors = new(StringComparer.OrdinalIgnoreCase)
     {

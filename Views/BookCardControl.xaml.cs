@@ -32,9 +32,11 @@ public sealed partial class BookCardControl : UserControl
 
     public static event Action<Book>? DetailsRequested;
     public static event Action<Book>? OpenRequested;
+    public static event Action<Book>? FindOnlineRequested;
 
     public static void RequestDetails(Book b) => DetailsRequested?.Invoke(b);
     public static void RequestOpen(Book b) => OpenRequested?.Invoke(b);
+    public static void RequestFindOnline(Book b) => FindOnlineRequested?.Invoke(b);
 
     // ---- global card size (all cards resize together when the density changes) ----
 
@@ -160,7 +162,9 @@ public sealed partial class BookCardControl : UserControl
 
     private void OnBookPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (sender is Book b && ReferenceEquals(b, Book)) Populate(b);
+        if (sender is not Book b || !ReferenceEquals(b, Book)) return;
+        if (e.PropertyName == nameof(Book.CoverPath)) LoadCover(b);   // a cover from Open Library arrived
+        Populate(b);
     }
 
     private void Populate(Book b)

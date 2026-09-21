@@ -129,9 +129,10 @@ public sealed class LibraryRepository
     public List<Book> LoadAll()
     {
         var labels = GetDrives().ToDictionary(d => d.Id, d => d.Label, StringComparer.OrdinalIgnoreCase);
+        var online = GetAllOnline();
 
         return _db.Query(
-            $"SELECT {BookColumns} FROM books b LEFT JOIN book_state s ON s.key = b.state_key WHERE b.is_missing = 0",
+            $"SELECT {BookColumns}, b.name_fields, b.cover_weak FROM books b LEFT JOIN book_state s ON s.key = b.state_key WHERE b.is_missing = 0",
             r =>
             {
                 var b = new Book
@@ -154,12 +155,13 @@ public sealed class LibraryRepository
                     CoverFile = r.IsDBNull(15) ? null : r.GetString(15),
                     FileSize = r.IsDBNull(16) ? 0 : r.GetInt64(16),
                     ModifiedTicks = r.IsDBNull(17) ? 0 : r.GetInt64(17),
-                    AddedUtc = Dt(r, 18) ?? DateTime.UtcNow
+                    AddedUtc = Dt(r, 18) ?? DateTime.UtcNow,
+                    NameFields = r.GetInt32(31),
+                    CoverWeak = r.GetInt32(32) != 0
                 };
                 b.DriveLabel = labels.TryGetValue(b.DriveId, out var l) ? l : b.DriveId;
-                b.FileTitle = b.Title;
-                b.FileAuthor = b.Author;
-                b.FileSeries = b.Series;
+                b.KeepFileDetails();
+                if (online.TryGetValue(b.StateKey, out var o)) b.SetOnline(o);
 
                 if (!r.IsDBNull(19))
                 {
@@ -261,6 +263,45 @@ public sealed class LibraryRepository
                     ("$nf", b.NameFields), ("$t", b.Title), ("$a", b.Author), ("$s", b.Series), ("$si", b.SeriesIndex),
                     ("$y", b.Year), ("$p", b.Publisher), ("$id", b.Id));
         });
+    }
+
+    // ------------------------------------------------------------ Open Library
+
+    private const string OnlineColumns =
+        "key, status, how, source_key, isbn, title, author, publisher, year, description, subjects, cover_id, cover_file, use_cover, tries, updated_utc";
+
+    public Dictionary<string, OnlineDetails> GetAllOnline() =>
+        _db.Query($"SELECT {OnlineColumns} FROM book_online", r => (Key: r.GetString(0), Row: new OnlineDetails
+            {
+                Status = r.GetString(1),
+                How = NullableStr(r, 2),
+                SourceKey = NullableStr(r, 3),
+                Isbn = NullableStr(r, 4),
+                Title = NullableStr(r, 5),
+                Author = NullableStr(r, 6),
+                Publisher = NullableStr(r, 7),
+                Year = r.IsDBNull(8) ? null : r.GetInt32(8),
+                Description = NullableStr(r, 9),
+                Subjects = NullableStr(r, 10),
+                CoverId = r.IsDBNull(11) ? null : r.GetInt64(11),
+                CoverFile = NullableStr(r, 12),
+                UseCover = r.GetInt32(13) != 0,
+                Tries = r.GetInt32(14),
+                UpdatedUtc = Dt(r, 15) ?? DateTime.MinValue
+            }))
+            .ToDictionary(x => x.Key, x => x.Row);
+
+    public void UpsertOnline(string key, OnlineDetails o)
+    {
+        o.UpdatedUtc = DateTime.UtcNow;
+        _db.Exec($"""
+            INSERT OR REPLACE INTO book_online ({OnlineColumns})
+            VALUES ($key, $status, $how, $src, $isbn, $title, $author, $pub, $year, $desc, $subjects, $cid, $cfile, $use, $tries, $updated)
+            """,
+            ("$key", key), ("$status", o.Status), ("$how", o.How), ("$src", o.SourceKey), ("$isbn", o.Isbn),
+            ("$title", o.Title), ("$author", o.Author), ("$pub", o.Publisher), ("$year", o.Year), ("$desc", o.Description),
+            ("$subjects", o.Subjects), ("$cid", o.CoverId), ("$cfile", o.CoverFile), ("$use", o.UseCover ? 1 : 0),
+            ("$tries", o.Tries), ("$updated", Iso(o.UpdatedUtc)));
     }
 
     public void DeleteBooks(IEnumerable<long> ids)

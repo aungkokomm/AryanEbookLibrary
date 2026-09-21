@@ -66,18 +66,22 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <TextBlock Grid.Column="0" Text="{x:Bind Library.StatusText, Mode=OneWay}"
                        VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis" />
 
-            <ProgressBar Grid.Column="1" Width="220" Minimum="0"
+            <TextBlock Grid.Column="1" Text="{x:Bind Library.OnlineStatusText, Mode=OneWay}" MaxWidth="460"
+                       VerticalAlignment="Center" FontSize="12" Opacity="0.75" TextTrimming="CharacterEllipsis" />
+
+            <ProgressBar Grid.Column="2" Width="220" Minimum="0"
                          Maximum="{x:Bind Library.ScanTotal, Mode=OneWay}"
                          Value="{x:Bind Library.ScanDone, Mode=OneWay}"
                          Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
                          VerticalAlignment="Center" />
 
-            <Button Grid.Column="2" Content="Cancel" Padding="10,2"
+            <Button Grid.Column="3" Content="Cancel" Padding="10,2"
                     Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
                     Click="OnCancelScan" />
         </Grid>

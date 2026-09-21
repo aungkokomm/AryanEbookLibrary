@@ -36,6 +36,7 @@ public static class FileNameParser
         new(@"^pdfcoffee(\.|\s)com\s*", RegexOptions.IgnoreCase),
         new(@"[\s-]*NoRestriction$", RegexOptions.IgnoreCase),   // Myanmar ebook site tag
         new(@"\s\(\d\)$"),                                     // "name (1)" copies
+        new(@"^copy of\s+|\s-\s*copy(\s*\(\d+\))?$", RegexOptions.IgnoreCase),   // Windows copies: "Copy of X", "X - Copy (2)"
         new(@"[\s_-]+\d{12,14}$"),                             // "-20260212144009" download timestamps
         new(@"\s(decrypted|unlocked|ocr(ed)?|compressed)$", RegexOptions.IgnoreCase),
         new(@"\(\s*(etc\.?|et al\.?)?\s*\)|\[\s*\]"),         // brackets emptied by the removals above, "( etc.)"
@@ -119,6 +120,7 @@ public static class FileNameParser
         name = Squash(SiteTag.Replace(name, " "));
         foreach (var rx in Noise) name = Squash(rx.Replace(name, " "));
         name = ArchiveOrgId.Replace(name, "");
+        md.Isbn = Isbn.Find(name);   // "isbn_0671818325", "9780596008949"
 
         if (CatalogueNumber.Match(name) is { Success: true } number)
         {
@@ -656,6 +658,9 @@ public static class FileNameParser
     }
 
     internal static string Squash(string s) => Regex.Replace(s, @"\s+", " ").Trim();
+
+    /// <summary>A title written inside a book can carry a download site too: "Principles of Neural Science - PDFDrive.com".</summary>
+    public static string StripSiteTags(string title) => Squash(SiteTag.Replace(title, " ")).Trim(' ', '-', ':', '|');
 }
 
 /// <summary>

@@ -24,6 +24,10 @@ internal static class BookMenu
         details.Click += (_, _) => BookCardControl.RequestDetails(book);
         flyout.Items.Add(details);
 
+        var online = new MenuFlyoutItem { Text = "Find details online...", Icon = new SymbolIcon(Symbol.World) };
+        online.Click += (_, _) => BookCardControl.RequestFindOnline(book);
+        flyout.Items.Add(online);
+
         flyout.Items.Add(new MenuFlyoutSeparator());
 
         var favorite = new ToggleMenuFlyoutItem { Text = "Favorite", IsChecked = book.IsFavorite };

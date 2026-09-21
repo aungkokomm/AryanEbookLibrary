@@ -1,12 +1,23 @@
 using AryanEbookLibrary.Models;
+using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace AryanEbookLibrary.Views;
 
+/// <summary>What the library page does after the details dialog closes.</summary>
+public enum DetailsNext { None, FindOnline, Reopen }
+
 public sealed partial class BookDetailsDialog : ContentDialog
 {
     private readonly LibraryViewModel _vm;
+    // The shown title and author before any edit, as the dialog opened: typing them back means "no edit",
+    // even if Open Library details are added or removed while the dialog is open.
+    private readonly string _openBaseTitle;
+    private readonly string _openBaseAuthor;
+
+    public DetailsNext Next { get; private set; }
 
     public Book Book { get; }
     public string OfflineText => $"Offline: connect \"{Book.DriveLabel}\" to open this book.";
@@ -24,8 +35,10 @@ public sealed partial class BookDetailsDialog : ContentDialog
         FavoriteSwitch.IsOn = book.IsFavorite;
         TagsBox.Text = book.UserTags;
         NotesBox.Text = book.Notes;
+        _openBaseTitle = book.BaseTitle;
+        _openBaseAuthor = book.BaseAuthor;
         TitleBox.Text = book.Title;
-        TitleBox.PlaceholderText = book.FileTitle;
+        TitleBox.PlaceholderText = book.BaseTitle;
         AuthorBox.Text = book.Author;
         SeriesBox.Text = book.Series;
         if (book.CustomTitle is not null || book.CustomAuthor is not null || book.CustomSeries is not null)
@@ -35,10 +48,14 @@ public sealed partial class BookDetailsDialog : ContentDialog
             EditPanel.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         }
 
+        ShowOnlineState();
+
         IsPrimaryButtonEnabled = book.IsAvailable;
         IsSecondaryButtonEnabled = book.IsAvailable;
 
         Closing += OnClosing;
+        // Focus starts on Open, not on the first link: Enter must never remove details or open the editor.
+        Opened += (_, _) => (GetTemplateChild("PrimaryButton") as Control)?.Focus(FocusState.Programmatic);
     }
 
     private void OnEditDetails(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
@@ -55,6 +72,67 @@ public sealed partial class BookDetailsDialog : ContentDialog
         SeriesBox.Text = Book.FileSeries;
     }
 
+    // ---- Open Library ----
+
+    private void ShowOnlineState()
+    {
+        var o = Book.Online;
+        if (o is { Status: OnlineDetails.Suggested })
+        {
+            var by = string.IsNullOrWhiteSpace(o.Author) ? "" : " by " + o.Author;
+            var year = o.Year is { } y ? $" ({y})" : "";
+            SuggestionText.Text = $"“{o.Title}”{by}{year}" +
+                                  (o.How == OnlineDetails.ByIsbn ? ", found by the ISBN printed in the book." : ".");
+            SuggestionBar.IsOpen = true;
+        }
+        if (o is { IsApplied: true })
+        {
+            OnlineNoteText.Text = o.How switch
+            {
+                OnlineDetails.ByIsbn => "Some details are from Open Library, found by the ISBN in the book.",
+                OnlineDetails.ByMatch => "Some details are from Open Library, matched by title and author.",
+                _ => "Details from Open Library, chosen by you."
+            };
+            OnlineNote.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnFindOnline(object sender, RoutedEventArgs e)
+    {
+        Next = DetailsNext.FindOnline;
+        Hide();
+    }
+
+    /// <summary>The suggestion is this book: fetch its description and cover and show it as picked.</summary>
+    private void OnUseSuggestion(object sender, RoutedEventArgs e)
+    {
+        if (Book.Online is not { Status: OnlineDetails.Suggested } s) return;
+        var o = s.Copy();
+        o.Status = OnlineDetails.Found;
+        o.How = OnlineDetails.ByPick;
+        o.UseCover = Book.NeedsCover;
+        AppServices.Online.ApplyPicked(Book, o);   // the description and cover follow when they arrive
+        Next = DetailsNext.Reopen;                 // show the new details
+        Hide();
+    }
+
+    private void OnRejectSuggestion(object sender, RoutedEventArgs e)
+    {
+        var o = new OnlineDetails { Status = OnlineDetails.None };   // remembered, so it is not suggested again
+        AppServices.Repo.UpsertOnline(Book.StateKey, o);
+        Book.SetOnline(o);
+        SuggestionBar.IsOpen = false;
+    }
+
+    private void OnRemoveOnline(object sender, RoutedEventArgs e)
+    {
+        var o = new OnlineDetails { Status = OnlineDetails.None };   // and not looked up again by itself
+        AppServices.Repo.UpsertOnline(Book.StateKey, o);
+        Book.SetOnline(o);
+        Next = DetailsNext.Reopen;
+        Hide();
+    }
+
     /// <summary>Saves the personal state when the dialog closes (whichever button was pressed).</summary>
     private void OnClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
@@ -68,9 +146,9 @@ public sealed partial class BookDetailsDialog : ContentDialog
         // An edit equal to the file's value is no edit (null), so a later rescan's better value shows through.
         // An empty title is not allowed, an empty author or series means "none".
         var title = (TitleBox.Text ?? "").Trim();
-        var customTitle = title.Length == 0 || title == Book.FileTitle ? null : title;
+        var customTitle = title.Length == 0 || title == _openBaseTitle ? null : title;
         var author = (AuthorBox.Text ?? "").Trim();
-        var customAuthor = author == Book.FileAuthor ? null : author;
+        var customAuthor = author == _openBaseAuthor ? null : author;
         var series = (SeriesBox.Text ?? "").Trim();
         var customSeries = series == Book.FileSeries ? null : series;
         var detailsChanged = customTitle != Book.CustomTitle || customAuthor != Book.CustomAuthor ||

@@ -11,9 +11,9 @@ public static class CoverStore
 {
     private const uint MaxHeight = 600;
 
-    public static async Task<string> SaveAsync(byte[] bytes, string ext, string key)
+    public static async Task<string> SaveAsync(byte[] bytes, string ext, string key, string prefix = "")
     {
-        var name = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key))).ToLowerInvariant()[..20] + ext;
+        var name = prefix + Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key))).ToLowerInvariant()[..20] + ext;
         var path = Path.Combine(AppPaths.Covers, name);
 
         var data = await TryDownscaleAsync(bytes) ?? bytes;
@@ -51,10 +51,16 @@ public static class CoverStore
         }
     }
 
+    /// <summary>Open Library's covers, named apart so rebuilding the books' own covers keeps them.</summary>
+    public static Task<string> SaveOnlineAsync(byte[] bytes, string key) => SaveAsync(bytes, ".jpg", key, OnlinePrefix);
+
+    private const string OnlinePrefix = "ol-";
+
     public static void ClearAll()
     {
         foreach (var f in Directory.EnumerateFiles(AppPaths.Covers))
         {
+            if (Path.GetFileName(f).StartsWith(OnlinePrefix, StringComparison.Ordinal)) continue;
             try { File.Delete(f); } catch { /* in use */ }
         }
     }

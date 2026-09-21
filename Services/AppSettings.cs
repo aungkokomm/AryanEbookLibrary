@@ -11,6 +11,7 @@ public sealed class AppSettings
     public SortMode SortMode { get; set; } = SortMode.Title;
     public bool SortDescending { get; set; }
     public string GridDensity { get; set; } = "M";     // S | M | L | XL card size
+    public bool LookupOnline { get; set; }               // fill missing details from Open Library in the background
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
