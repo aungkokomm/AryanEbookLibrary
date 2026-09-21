@@ -48,16 +48,33 @@
                 <NavigationViewItem Content="Finished" Tag="finished">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItemHeader Content="Browse" />
                 <NavigationViewItem Content="Authors" Tag="authors">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE77B;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Duplicates" Tag="duplicates"
-                                    ToolTipService.ToolTip="Books that look like they are in the library twice">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C8;" /></NavigationViewItem.Icon>
+                <NavigationViewItem Content="Series" Tag="series">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE82D;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Needs Details" Tag="needs"
-                                    ToolTipService.ToolTip="Books with no author, no real cover, or a name that is not a title">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
+                <NavigationViewItem Content="Tags" Tag="tags">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8EC;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Check" Tag="check"
+                                    ToolTipService.ToolTip="Duplicates, missing files and books that need details">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D5;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.MenuItems>
+                        <NavigationViewItem Content="Duplicates" Tag="duplicates"
+                                            ToolTipService.ToolTip="Books that look like they are in the library twice">
+                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C8;" /></NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem Content="Missing" Tag="missing"
+                                            ToolTipService.ToolTip="Books whose file the last scan could not find">
+                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9CE;" /></NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem Content="Needs Details" Tag="needs"
+                                            ToolTipService.ToolTip="Books with no author, no real cover, or a name that is not a title">
+                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                    </NavigationViewItem.MenuItems>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 

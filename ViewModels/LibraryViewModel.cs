@@ -60,7 +60,37 @@ public sealed class LibraryViewModel : ObservableObject
         }
     }
 
-    public string HeaderText => Filter switch
+    private string _seriesFilter = "";
+    /// <summary>One series only, chosen on the Series page. Empty means every book.</summary>
+    public string SeriesFilter
+    {
+        get => _seriesFilter;
+        set
+        {
+            if (!SetProperty(ref _seriesFilter, value ?? "")) return;
+            if (_seriesFilter.Length > 0) _tagFilter = "";
+            OnPropertyChanged(nameof(HeaderText));
+            ApplyFilter();
+        }
+    }
+
+    private string _tagFilter = "";
+    /// <summary>One of the user's tags, chosen on the Tags page. Empty means every book.</summary>
+    public string TagFilter
+    {
+        get => _tagFilter;
+        set
+        {
+            if (!SetProperty(ref _tagFilter, value ?? "")) return;
+            if (_tagFilter.Length > 0) _seriesFilter = "";
+            OnPropertyChanged(nameof(HeaderText));
+            ApplyFilter();
+        }
+    }
+
+    public string HeaderText => SeriesFilter.Length > 0 ? "Series: " + SeriesFilter
+        : TagFilter.Length > 0 ? "Tag: " + TagFilter
+        : Filter switch
     {
         LibraryFilter.ContinueReading => "Continue Reading",
         LibraryFilter.RecentlyAdded => "Recently Added",
@@ -301,6 +331,11 @@ public sealed class LibraryViewModel : ObservableObject
             _ => q
         };
 
+        if (SeriesFilter.Length > 0)
+            q = q.Where(b => string.Equals(b.Series, SeriesFilter, StringComparison.CurrentCultureIgnoreCase));
+        if (TagFilter.Length > 0)
+            q = q.Where(b => Tags.Has(b, TagFilter));
+
         var tokens = SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var token in tokens)
         {
@@ -309,7 +344,9 @@ public sealed class LibraryViewModel : ObservableObject
         }
 
         IEnumerable<Book> sorted;
-        if (Filter == LibraryFilter.ContinueReading)
+        if (SeriesFilter.Length > 0)
+            sorted = q.OrderBy(b => b.SeriesIndex ?? double.MaxValue).ThenBy(b => b.SortTitle, StringComparer.CurrentCultureIgnoreCase);
+        else if (Filter == LibraryFilter.ContinueReading)
             sorted = q.OrderByDescending(b => b.LastOpenedUtc ?? DateTime.MinValue);
         else if (Filter == LibraryFilter.RecentlyAdded)
             sorted = q.OrderByDescending(b => b.AddedUtc).Take(200);
@@ -580,6 +617,144 @@ public sealed class LibraryViewModel : ObservableObject
 
     /// <summary>The library's authors, and the names that look like one person written differently.</summary>
     public List<AuthorEntry> GetAuthors() => AuthorIndex.Build(_all, Repo.GetAllAuthorsOnline());
+
+    /// <summary>The library's series, with the volumes that are missing between the ones you have.</summary>
+    public List<SeriesEntry> GetSeries() => SeriesIndex.Build(_all);
+
+    /// <summary>The user's own tags, most used first.</summary>
+    public List<TagEntry> GetTags() => Tags.Build(_all);
+
+    /// <summary>Adds or removes one tag on one book (the Tags page, the book's own menu).</summary>
+    public void SetTag(Book book, string tag, bool wanted)
+    {
+        var now = wanted ? MergeTags(book.UserTags, tag) : Tags.Remove(book.UserTags, tag);
+        if (now == book.UserTags) return;
+        book.UserTags = now;
+        SaveState(book);
+        if (TagFilter.Length > 0) ApplyFilter();
+    }
+
+    // ------------------------------------------------------------ working on many books at once
+
+    private bool _selectionMode;
+    /// <summary>In selection mode a click ticks a book instead of opening it, and the action bar is shown.</summary>
+    public bool SelectionMode
+    {
+        get => _selectionMode;
+        set
+        {
+            if (!SetProperty(ref _selectionMode, value)) return;
+            if (!value) ClearSelection();
+            SelectionModeChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The cards and rows follow this to show or hide their tick.</summary>
+    public event EventHandler? SelectionModeChanged;
+
+    private int _selectedCount;
+    public int SelectedCount
+    {
+        get => _selectedCount;
+        private set
+        {
+            if (SetProperty(ref _selectedCount, value)) OnPropertyChanged(nameof(SelectedText));
+        }
+    }
+
+    public string SelectedText => SelectedCount switch
+    {
+        0 => "Nothing selected",
+        1 => "1 book selected",
+        _ => $"{SelectedCount:N0} books selected"
+    };
+
+    public List<Book> Selected => _all.Where(b => b.IsSelected).ToList();
+
+    public void Select(Book book, bool selected)
+    {
+        if (book.IsSelected == selected) return;
+        book.IsSelected = selected;
+        SelectedCount += selected ? 1 : -1;
+    }
+
+    public void ToggleSelect(Book book) => Select(book, !book.IsSelected);
+
+    /// <summary>Ticks every book the current filter and search show, not the whole catalogue.</summary>
+    public void SelectAllShown()
+    {
+        foreach (var b in Books) b.IsSelected = true;
+        SelectedCount = _all.Count(b => b.IsSelected);
+    }
+
+    public void ClearSelection()
+    {
+        foreach (var b in _all.Where(b => b.IsSelected)) b.IsSelected = false;
+        SelectedCount = 0;
+    }
+
+    /// <summary>
+    /// The same edit on every selected book: an author, a series, tags to add. Empty fields are left alone,
+    /// and the files are never touched (these are the user's own details, as in the book's own dialog).
+    /// </summary>
+    public int EditSelected(string? author, string? series, string? addTags)
+    {
+        var changed = 0;
+        foreach (var book in Selected)
+        {
+            var before = (book.CustomAuthor, book.CustomSeries, book.UserTags);
+
+            if (!string.IsNullOrWhiteSpace(author) || !string.IsNullOrWhiteSpace(series))
+                book.SetCustomDetails(book.CustomTitle,
+                    string.IsNullOrWhiteSpace(author) ? book.CustomAuthor : author.Trim(),
+                    string.IsNullOrWhiteSpace(series) ? book.CustomSeries : series.Trim());
+
+            if (!string.IsNullOrWhiteSpace(addTags)) book.UserTags = MergeTags(book.UserTags, addTags);
+
+            if (before == (book.CustomAuthor, book.CustomSeries, book.UserTags)) continue;
+            SaveState(book);
+            changed++;
+        }
+        if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
+    /// <summary>Tags the user already has, plus the new ones, each once, in the order they were added.</summary>
+    public static string MergeTags(string current, string added)
+    {
+        var tags = Tags.Split(current).ToList();
+        foreach (var tag in Tags.Split(added))
+            if (!tags.Contains(tag, StringComparer.CurrentCultureIgnoreCase))
+                tags.Add(tag);
+        return string.Join(", ", tags);
+    }
+
+    public int SetStatusForSelected(ReadStatus status)
+    {
+        var books = Selected;
+        foreach (var book in books) SetStatus(book, status);
+        return books.Count;
+    }
+
+    public int SetFavoriteForSelected(bool favorite)
+    {
+        var books = Selected.Where(b => b.IsFavorite != favorite).ToList();
+        foreach (var book in books)
+        {
+            book.IsFavorite = favorite;
+            SaveState(book);
+        }
+        if (Filter == LibraryFilter.Favorites) ApplyFilter();
+        return books.Count;
+    }
+
+    /// <summary>Looks the selected books up online now, whether or not the background fill is switched on.</summary>
+    public int LookUpSelectedOnline()
+    {
+        var books = Selected;
+        AppServices.Online.Start(books, force: true);
+        return books.Count;
+    }
 
     public void SaveState(Book book)
     {

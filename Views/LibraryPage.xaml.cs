@@ -60,6 +60,8 @@ public sealed partial class LibraryPage : Page
             case nameof(LibraryViewModel.Filter):
             case nameof(LibraryViewModel.FormatIndex):
             case nameof(LibraryViewModel.SearchText):
+            case nameof(LibraryViewModel.SeriesFilter):
+            case nameof(LibraryViewModel.TagFilter):
             case nameof(LibraryViewModel.SortIndex):
                 // A new question starts at the top; an edit or toggle (which also refreshes the list) keeps the place.
                 _scrollToTopOnNextResult = true;
@@ -145,6 +147,95 @@ public sealed partial class LibraryPage : Page
         }
     }
 
+    // ---- working on several books at once ----
+
+    private void OnSelectMode(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SelectionMode = !ViewModel.SelectionMode;
+        SelectionBar.Visibility = ViewModel.SelectionMode ? Visibility.Visible : Visibility.Collapsed;
+        SelectButton.Content = ViewModel.SelectionMode ? "Done" : "Select";
+    }
+
+    private void OnSelectAll(object sender, RoutedEventArgs e) => ViewModel.SelectAllShown();
+
+    private void OnClearSelection(object sender, RoutedEventArgs e) => ViewModel.ClearSelection();
+
+    private async void OnBulkEdit(object sender, RoutedEventArgs e)
+    {
+        if (!await HaveSelection()) return;
+        _dialogOpen = true;
+        BulkEditDialog dialog;
+        ContentDialogResult result;
+        try
+        {
+            dialog = new BulkEditDialog(ViewModel.SelectedCount) { XamlRoot = XamlRoot };
+            result = await dialog.ShowAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+        if (result != ContentDialogResult.Primary) return;
+
+        var changed = ViewModel.EditSelected(dialog.Author, dialog.Series, dialog.AddTags);
+        await Say("Books changed", changed == 0
+            ? "Nothing to change."
+            : $"{changed} book(s) updated. Every change can be undone in that book's own details.");
+    }
+
+    private async void OnBulkFinished(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Finished, "finished");
+
+    private async void OnBulkReading(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Reading, "being read");
+
+    private async void OnBulkUnread(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Unread, "unread");
+
+    private async Task Mark(ReadStatus status, string what)
+    {
+        if (!await HaveSelection()) return;
+        var count = ViewModel.SetStatusForSelected(status);
+        await Say("Books marked", $"{count} book(s) marked {what}.");
+    }
+
+    private async void OnBulkFavorite(object sender, RoutedEventArgs e) => await Favorite(true);
+
+    private async void OnBulkUnfavorite(object sender, RoutedEventArgs e) => await Favorite(false);
+
+    private async Task Favorite(bool favorite)
+    {
+        if (!await HaveSelection()) return;
+        var count = ViewModel.SetFavoriteForSelected(favorite);
+        await Say("Favorites", count == 0 ? "Nothing to change." : $"{count} book(s) {(favorite ? "added to" : "removed from")} favorites.");
+    }
+
+    private async void OnBulkOnline(object sender, RoutedEventArgs e)
+    {
+        if (!await HaveSelection()) return;
+        var count = ViewModel.LookUpSelectedOnline();
+        await Say("Looking online", $"{count} book(s) are being looked up on Open Library, Wikidata and Wikipedia. " +
+                                    "The status bar shows how it goes, and details appear as answers arrive.");
+    }
+
+    private async Task<bool> HaveSelection()
+    {
+        if (ViewModel.SelectedCount > 0) return true;
+        await Say("Nothing selected", "Tick a few books first.");
+        return false;
+    }
+
+    private async Task Say(string title, string message)
+    {
+        if (_dialogOpen || XamlRoot is null) return;
+        _dialogOpen = true;
+        try
+        {
+            await new ContentDialog { Title = title, Content = message, CloseButtonText = "OK", XamlRoot = XamlRoot }.ShowAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+
     // ---- search ----
 
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -188,6 +279,8 @@ public sealed partial class LibraryPage : Page
         SearchBox.Text = "";
         ViewModel.SearchText = "";
         ViewModel.FormatIndex = 0;
+        ViewModel.SeriesFilter = "";
+        ViewModel.TagFilter = "";
     }
 
     private void SyncFilterBar()
@@ -196,7 +289,8 @@ public sealed partial class LibraryPage : Page
         for (var i = 0; i < pills.Length; i++)
             pills[i].Style = (Style)Application.Current.Resources[i == ViewModel.FormatIndex ? "PillButtonActiveStyle" : "PillButtonStyle"];
 
-        ClearFiltersBtn.Visibility = ViewModel.FormatIndex > 0 || ViewModel.SearchText.Length > 0
+        ClearFiltersBtn.Visibility = ViewModel.FormatIndex > 0 || ViewModel.SearchText.Length > 0 ||
+                                     ViewModel.SeriesFilter.Length > 0 || ViewModel.TagFilter.Length > 0
             ? Visibility.Visible
             : Visibility.Collapsed;
     }

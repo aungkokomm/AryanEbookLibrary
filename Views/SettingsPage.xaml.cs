@@ -119,6 +119,27 @@ public sealed partial class SettingsPage : Page
         await new ContentDialog { Title = "Rebuild covers", Content = text, CloseButtonText = "OK", XamlRoot = XamlRoot }
             .ShowAsync();
 
+    private async void OnExportCatalog(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileSavePicker { SuggestedFileName = $"Aryan-library-{DateTime.Now:yyyyMMdd}" };
+        picker.FileTypeChoices.Add("Spreadsheet", new List<string> { ".csv" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            var books = AppServices.Library.AllBooks;
+            var count = await Task.Run(() => CatalogExport.Csv(file.Path, books));
+            CatalogResult.Text = $"{count:N0} books written to {file.Name}.";
+        }
+        catch (Exception ex)
+        {
+            CatalogResult.Text = "Export failed: " + ex.Message;
+        }
+    }
+
     private async void OnExport(object sender, RoutedEventArgs e)
     {
         var picker = new FileSavePicker { SuggestedFileName = $"AryanLibrary-backup-{DateTime.Now:yyyyMMdd}" };

@@ -1,0 +1,56 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.SeriesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="using:AryanEbookLibrary.Helpers"
+    xmlns:services="using:AryanEbookLibrary.Services">
+
+    <Grid Padding="28,20,28,20" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Series" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="SummaryText" Grid.Column="1" Opacity="0.7" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="2" PlaceholderText="Search series"
+                            QueryIcon="Find" TextChanged="OnSearchChanged" VerticalAlignment="Center" />
+        </Grid>
+
+        <ListView x:Name="SeriesList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
+                  ItemClick="OnSeriesClick" ShowsScrollingPlaceholders="False">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="services:SeriesEntry">
+                    <Grid ColumnSpacing="14" Padding="0,8" ColumnDefinitions="44,*,Auto">
+                        <Border Width="44" Height="62" CornerRadius="4"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                            <Image Source="{x:Bind helpers:Fn.CoverThumb(CoverPath)}" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Authors}" FontSize="12" Opacity="0.7"
+                                       TextTrimming="CharacterEllipsis"
+                                       Visibility="{x:Bind helpers:Fn.VisNotEmpty(Authors)}" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
+                                <TextBlock Text="{x:Bind CountText}" FontSize="12" Opacity="0.6" />
+                                <TextBlock Text="{x:Bind NumbersText}" FontSize="12" Opacity="0.6"
+                                           Visibility="{x:Bind helpers:Fn.VisNotEmpty(NumbersText)}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Border Grid.Column="2" CornerRadius="4" Padding="8,3" VerticalAlignment="Center"
+                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                Visibility="{x:Bind helpers:Fn.Vis(HasGaps)}">
+                            <TextBlock Text="{x:Bind GapsText}" FontSize="12" />
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>

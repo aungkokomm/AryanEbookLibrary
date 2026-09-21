@@ -185,6 +185,43 @@ public sealed class LibraryRepository
             });
     }
 
+    /// <summary>Every book the last scan could not find, on any drive.</summary>
+    public List<MissingEntry> GetMissing() => _db.Query(
+        "SELECT id, drive_id, rel_path, title, author, file_size, format FROM books WHERE is_missing = 1",
+        r => new MissingEntry(r.GetInt64(0), r.GetString(1), "", r.GetString(2), Str(r, 3), Str(r, 4),
+            r.IsDBNull(5) ? 0 : r.GetInt64(5), (BookFormat)r.GetInt32(6)));
+
+    public sealed record PlacedFile(string RelPath, long FileSize, long FolderId);
+
+    /// <summary>Where this drive's books are now, for matching a missing book to the file that moved.</summary>
+    public List<PlacedFile> GetPlaced(string driveId) => _db.Query(
+        "SELECT rel_path, file_size, folder_id FROM books WHERE drive_id=$d AND is_missing = 0",
+        r => new PlacedFile(r.GetString(0), r.IsDBNull(1) ? 0 : r.GetInt64(1), r.GetInt64(2)),
+        ("$d", driveId));
+
+    /// <summary>
+    /// The same book at a new path: the catalogue row moves and so does the personal state row, so a file
+    /// that was only moved keeps its favorite, notes, tags and the user's own title.
+    /// </summary>
+    public void MoveBook(long id, string driveId, string oldRelPath, string newRelPath, long folderId)
+    {
+        var oldKey = Book.MakeKey(driveId, oldRelPath);
+        var newKey = Book.MakeKey(driveId, newRelPath);
+        _db.Transaction(() =>
+        {
+            // A row may already sit at the new path (it was scanned there before): the moved book wins.
+            _db.Exec("DELETE FROM books WHERE drive_id=$d AND rel_path=$new AND id<>$id",
+                ("$d", driveId), ("$new", newRelPath), ("$id", id));
+            _db.Exec("UPDATE books SET rel_path=$new, folder_id=$folder, state_key=$newkey, is_missing=0 WHERE id=$id",
+                ("$new", newRelPath), ("$folder", folderId), ("$newkey", newKey), ("$id", id));
+            // The old state row is the one the user built up, so it takes the new key.
+            _db.Exec("DELETE FROM book_state WHERE key=$newkey AND EXISTS (SELECT 1 FROM book_state WHERE key=$oldkey)",
+                ("$newkey", newKey), ("$oldkey", oldKey));
+            _db.Exec("UPDATE book_state SET key=$newkey, rel_path=$new WHERE key=$oldkey",
+                ("$newkey", newKey), ("$new", newRelPath), ("$oldkey", oldKey));
+        });
+    }
+
     public Dictionary<string, ExistingBook> GetExistingForFolder(long folderId) =>
         _db.Query("SELECT rel_path, id, file_size, modified_ticks, meta_version, cover_file FROM books WHERE folder_id=$f",
                 r => (Rel: r.GetString(0), Row: new ExistingBook(r.GetInt64(1),

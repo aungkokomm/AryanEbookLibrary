@@ -61,7 +61,7 @@ public static class AuthorIndex
     }
 
     /// <summary>"[D3$!B3B9]" and "www.oshoworld.com" are marks a file carried, not people: they go last.</summary>
-    private static bool LooksLikeName(string name) =>
+    public static bool LooksLikeName(string name) =>
         name.Length > 0 && char.IsLetter(name[0]) && !name.Contains('@') &&
         !name.Contains("www.", StringComparison.OrdinalIgnoreCase);
 

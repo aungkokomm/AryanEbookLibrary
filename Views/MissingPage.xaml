@@ -1,0 +1,88 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.MissingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="using:AryanEbookLibrary.Helpers"
+    xmlns:services="using:AryanEbookLibrary.Services">
+
+    <Grid Padding="28,20,28,20" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Missing" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock x:Name="SummaryText" Opacity="0.7" TextWrapping="Wrap" />
+            <TextBlock Text="A book is missing when the last scan of a connected drive could not find its file. Books on a drive you unplugged are not missing, only offline."
+                       FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
+            <Button x:Name="FindMovedButton" Content="Look for moved files" Click="OnFindMoved"
+                    Style="{StaticResource AccentButtonStyle}" />
+            <Button x:Name="ForgetButton" Content="Remove all from catalogue" Click="OnForgetAll" />
+            <ProgressRing x:Name="Busy" IsActive="False" Width="20" Height="20" VerticalAlignment="Center" />
+            <TextBlock x:Name="ResultText" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel Spacing="12">
+                <TextBlock x:Name="EmptyText" Visibility="Collapsed" Opacity="0.7"
+                           Text="Nothing is missing. Every book in the catalogue was where it should be." />
+
+                <!-- Files found somewhere else on the same drive -->
+                <Border x:Name="MovedPanel" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <TextBlock x:Name="MovedHeader" FontWeight="SemiBold" />
+                        <TextBlock Text="Relinking keeps the book's favorite, rating, notes, tags and your own title."
+                                   FontSize="12" Opacity="0.6" />
+                        <ItemsControl x:Name="MovedList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="services:MovedBook">
+                                    <Grid ColumnSpacing="12" Margin="0,4" ColumnDefinitions="*,Auto,Auto">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Book.Title}" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind NewRelPath}" FontSize="12" Opacity="0.7"
+                                                       TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
+                                        </StackPanel>
+                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,2" VerticalAlignment="Center"
+                                                Background="{ThemeResource LayerFillColorDefaultBrush}">
+                                            <TextBlock Text="{x:Bind Why}" FontSize="12" />
+                                        </Border>
+                                        <Button Grid.Column="2" Content="Relink" Click="OnRelink" Tag="{x:Bind}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button x:Name="RelinkAllButton" Content="Relink all" Click="OnRelinkAll"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
+                <!-- The missing books themselves -->
+                <ItemsControl x:Name="MissingList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="services:MissingEntry">
+                            <Grid ColumnSpacing="12" Margin="0,3" ColumnDefinitions="*,Auto,Auto">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Where}" FontSize="12" Opacity="0.6"
+                                               TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{x:Bind SizeText}" FontSize="12" Opacity="0.6"
+                                           VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Content="Remove from catalogue" FontSize="12" Padding="10,4"
+                                        Click="OnForget" Tag="{x:Bind}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

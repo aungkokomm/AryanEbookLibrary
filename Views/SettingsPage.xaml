@@ -67,6 +67,16 @@
             </StackPanel>
 
             <StackPanel Spacing="6">
+                <TextBlock Text="Catalogue" FontWeight="SemiBold" />
+                <TextBlock Text="Every book with its details, reading state and where the file is, as one CSV file for a spreadsheet."
+                           Opacity="0.7" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Export catalogue..." Click="OnExportCatalog" />
+                    <TextBlock x:Name="CatalogResult" VerticalAlignment="Center" Opacity="0.7" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
                 <TextBlock Text="Backup" FontWeight="SemiBold" />
                 <TextBlock Text="Favorites, reading status, ratings, tags and notes can be exported to one portable JSON file."
                            Opacity="0.7" TextWrapping="Wrap" />

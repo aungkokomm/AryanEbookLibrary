@@ -33,6 +33,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -67,6 +68,10 @@
                         ToolTipService.ToolTip="Surprise me: a random pick from what is shown">
                     <FontIcon Glyph="&#xE8B1;" FontSize="15" />
                 </Button>
+
+                <Button x:Name="SelectButton" Height="36" Padding="12,0" CornerRadius="8" Click="OnSelectMode"
+                        Content="Select" AutomationProperties.Name="Select books"
+                        ToolTipService.ToolTip="Work on several books at once" />
 
                 <!-- View mode: grid / list -->
                 <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -129,8 +134,47 @@
                     Style="{StaticResource PillButtonStyle}" Margin="12,0,0,0" Visibility="Collapsed" />
         </StackPanel>
 
+        <!-- ═══ SELECTION BAR: what to do with the ticked books ═══ -->
+        <Border x:Name="SelectionBar" Grid.Row="2" Margin="24,0,24,10"
+                Padding="12,8" CornerRadius="8" Visibility="Collapsed"
+                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid ColumnDefinitions="*,Auto">
+                <!-- The actions scroll sideways when the window is narrow, so Done is never covered. -->
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollMode="Auto" VerticalScrollMode="Disabled" Margin="0,0,12,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind ViewModel.SelectedText, Mode=OneWay}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" Margin="4,0,8,0" />
+                        <Button Content="Select all" Click="OnSelectAll"
+                                ToolTipService.ToolTip="Tick every book this page shows" />
+                        <Button Content="Clear" Click="OnClearSelection" />
+                        <Rectangle Width="1" Height="22" Margin="4,0" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+                        <Button x:Name="BulkEditButton" Content="Edit..." Click="OnBulkEdit"
+                                ToolTipService.ToolTip="Author, series and tags for every ticked book" />
+                        <Button x:Name="BulkMarkButton" Content="Mark"
+                                ToolTipService.ToolTip="Finished, reading, unread or favorite">
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="Finished" Click="OnBulkFinished" />
+                                <MenuFlyoutItem Text="Reading" Click="OnBulkReading" />
+                                <MenuFlyoutItem Text="Unread" Click="OnBulkUnread" />
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Text="Favorite" Click="OnBulkFavorite" />
+                                <MenuFlyoutItem Text="Not favorite" Click="OnBulkUnfavorite" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                        <Button x:Name="BulkOnlineButton" Content="Find online" Click="OnBulkOnline"
+                                ToolTipService.ToolTip="Look the ticked books up on Open Library, Wikidata and Wikipedia" />
+                    </StackPanel>
+                </ScrollViewer>
+                <Button Grid.Column="1" Content="Done" Click="OnSelectMode" Style="{StaticResource AccentButtonStyle}" />
+            </Grid>
+        </Border>
+
         <!-- ═══ BOOK GRID / LIST ═══ -->
-        <ScrollViewer x:Name="MainScroller" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="MainScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <Grid>
                 <!-- Grid view: CineLibrary's UniformGridLayout. The cards are sized in code (FitCards) so each row
                      fills the width exactly with even gaps: no empty band on the right, no loose gaps. -->
@@ -166,7 +210,7 @@
         </ScrollViewer>
 
         <!-- Empty state -->
-        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
+        <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
                     Margin="24,0,24,80" MaxWidth="440"
                     Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
             <TextBlock Text="📚" FontSize="56" Opacity="0.5" HorizontalAlignment="Center" />
