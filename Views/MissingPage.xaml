@@ -13,18 +13,20 @@
         </Grid.RowDefinitions>
 
         <StackPanel Spacing="4">
-            <TextBlock Text="Missing" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock x:Name="SummaryText" Opacity="0.7" TextWrapping="Wrap" />
+            <TextBlock Text="Missing" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock x:Name="SummaryText" Style="{StaticResource PageSubtitleStyle}" />
             <TextBlock Text="A book is missing when the last scan of a connected drive could not find its file. Books on a drive you unplugged are not missing, only offline."
-                       FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+                       Style="{StaticResource PageHintStyle}" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
-            <Button x:Name="FindMovedButton" Content="Look for moved files" Click="OnFindMoved"
-                    Style="{StaticResource AccentButtonStyle}" />
-            <Button x:Name="ForgetButton" Content="Remove all from catalogue" Click="OnForgetAll" />
-            <ProgressRing x:Name="Busy" IsActive="False" Width="20" Height="20" VerticalAlignment="Center" />
-            <TextBlock x:Name="ResultText" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+        <StackPanel Grid.Row="1" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button x:Name="FindMovedButton" Content="Look for moved files" Click="OnFindMoved"
+                        Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Name="ForgetButton" Content="Remove all from catalogue" Click="OnForgetAll" />
+                <ProgressRing x:Name="Busy" IsActive="False" Width="20" Height="20" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="ResultText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="2">
@@ -33,13 +35,12 @@
                            Text="Nothing is missing. Every book in the catalogue was where it should be." />
 
                 <!-- Files found somewhere else on the same drive -->
-                <Border x:Name="MovedPanel" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border x:Name="MovedPanel" Visibility="Collapsed" Style="{StaticResource CardPanelStyle}">
                     <StackPanel Spacing="10">
                         <TextBlock x:Name="MovedHeader" FontWeight="SemiBold" />
                         <TextBlock Text="Relinking keeps the book's favorite, rating, notes, tags and your own title."
-                                   FontSize="12" Opacity="0.6" />
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         <ItemsControl x:Name="MovedList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="services:MovedBook">
@@ -47,11 +48,10 @@
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{x:Bind Book.Title}" FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{x:Bind NewRelPath}" FontSize="12" Opacity="0.7"
+                                            <TextBlock Text="{x:Bind NewRelPath}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                        TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
                                         </StackPanel>
-                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,2" VerticalAlignment="Center"
-                                                Background="{ThemeResource LayerFillColorDefaultBrush}">
+                                        <Border Grid.Column="1" Style="{StaticResource ChipStyle}" VerticalAlignment="Center">
                                             <TextBlock Text="{x:Bind Why}" FontSize="12" />
                                         </Border>
                                         <Button Grid.Column="2" Content="Relink" Click="OnRelink" Tag="{x:Bind}" />
@@ -71,10 +71,10 @@
                             <Grid ColumnSpacing="12" Margin="0,3" ColumnDefinitions="*,Auto,Auto">
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{x:Bind Where}" FontSize="12" Opacity="0.6"
+                                    <TextBlock Text="{x:Bind Where}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                                TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{x:Bind SizeText}" FontSize="12" Opacity="0.6"
+                                <TextBlock Grid.Column="1" Text="{x:Bind SizeText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button Grid.Column="2" Content="Remove from catalogue" FontSize="12" Padding="10,4"
                                         Click="OnForget" Tag="{x:Bind}" />

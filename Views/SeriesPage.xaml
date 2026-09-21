@@ -11,15 +11,14 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="320" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Series" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <TextBlock x:Name="SummaryText" Grid.Column="1" Opacity="0.7" VerticalAlignment="Bottom" Margin="0,0,0,4" />
-            <AutoSuggestBox x:Name="SearchBox" Grid.Column="2" PlaceholderText="Search series"
+        <Grid ColumnSpacing="16" ColumnDefinitions="*,Auto">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Series" Style="{StaticResource PageTitleStyle}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SummaryText" Style="{StaticResource PageSubtitleStyle}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Width="240" PlaceholderText="Search series"
                             QueryIcon="Find" TextChanged="OnSearchChanged" VerticalAlignment="Center" />
         </Grid>
 
@@ -34,17 +33,16 @@
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{x:Bind Authors}" FontSize="12" Opacity="0.7"
+                            <TextBlock Text="{x:Bind Authors}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis"
                                        Visibility="{x:Bind helpers:Fn.VisNotEmpty(Authors)}" />
                             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
-                                <TextBlock Text="{x:Bind CountText}" FontSize="12" Opacity="0.6" />
-                                <TextBlock Text="{x:Bind NumbersText}" FontSize="12" Opacity="0.6"
+                                <TextBlock Text="{x:Bind CountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="{x:Bind NumbersText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            Visibility="{x:Bind helpers:Fn.VisNotEmpty(NumbersText)}" />
                             </StackPanel>
                         </StackPanel>
-                        <Border Grid.Column="2" CornerRadius="4" Padding="8,3" VerticalAlignment="Center"
-                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                        <Border Grid.Column="2" Style="{StaticResource ChipStyle}" VerticalAlignment="Center"
                                 Visibility="{x:Bind helpers:Fn.Vis(HasGaps)}">
                             <TextBlock Text="{x:Bind GapsText}" FontSize="12" />
                         </Border>

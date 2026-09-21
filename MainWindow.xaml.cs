@@ -2,8 +2,13 @@ using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
 using AryanEbookLibrary.Views;
+using Microsoft.UI;
+using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Windows.UI;
 
 namespace AryanEbookLibrary;
 
@@ -17,8 +22,18 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         Title = "Aryan eBook Library";
+        // Mica, so the title bar and the sidebar sit on the desktop's own material, as Windows 11 apps do.
+        // It follows the app's theme, not Windows', which matters when the user picks Dark on a light system.
+        if (MicaController.IsSupported()) SystemBackdrop = new MicaBackdrop();
+        else RootGrid.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
         ExtendsContentIntoTitleBar = true;
+        AppWindow.TitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
         SetTitleBar(AppTitleBar);
+        PaintCaptionButtons();
+        RootGrid.ActualThemeChanged += (_, _) => PaintCaptionButtons();
+        AppWindow.Changed += (_, e) => { if (e.DidSizeChange) SyncTitleBar(); };
+        AppTitleBar.Loaded += (_, _) => SyncTitleBar();
+        Library.PropertyChanged += OnLibraryChanged;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
 
@@ -35,7 +50,107 @@ public sealed partial class MainWindow : Window
 
         NavView.SelectedItem = NavView.MenuItems[0];
         ContentFrame.Navigate(typeof(LibraryPage));
+        // The search box must not be what the app opens with a caret in.
+        // Pointer focus, not Programmatic: it keeps the search box from taking focus at startup without
+        // painting a focus rectangle on the pane button.
+        RootGrid.Loaded += (_, _) => NavView.Focus(FocusState.Pointer);
         Library.Initialize();
+    }
+
+    // ---- title bar ----
+
+    /// <summary>
+    /// Windows draws the minimise, maximise and close buttons itself, over the right of the title bar.
+    /// Their colours have to be given to it, or a dark app shows nearly invisible glyphs on light Windows.
+    /// </summary>
+    private void PaintCaptionButtons()
+    {
+        var bar = AppWindow.TitleBar;
+        var dark = RootGrid.ActualTheme == ElementTheme.Dark;
+        var text = dark ? Colors.White : Colors.Black;
+
+        bar.ButtonBackgroundColor = Colors.Transparent;
+        bar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        bar.ButtonForegroundColor = text;
+        bar.ButtonInactiveForegroundColor = dark ? Color.FromArgb(0xFF, 0x9A, 0x9A, 0x9A) : Color.FromArgb(0xFF, 0x6E, 0x6E, 0x6E);
+        bar.ButtonHoverForegroundColor = text;
+        bar.ButtonHoverBackgroundColor = dark ? Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x14, 0x00, 0x00, 0x00);
+        bar.ButtonPressedForegroundColor = text;
+        bar.ButtonPressedBackgroundColor = dark ? Color.FromArgb(0x35, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x24, 0x00, 0x00, 0x00);
+    }
+
+    /// <summary>
+    /// Keeps the search box clear of the caption buttons, and cuts its rectangle out of the window's drag
+    /// region. Without that second part the whole title bar drags the window and the box can never be
+    /// clicked: the framework's own drag rectangle covers it (proved in the log, "TITLEBAR" lines).
+    /// </summary>
+    private void SyncTitleBar()
+    {
+        var scale = AppTitleBar.XamlRoot?.RasterizationScale ?? 1.0;
+        if (scale <= 0) scale = 1.0;
+        CaptionColumn.Width = new GridLength(Math.Max(AppWindow.TitleBar.RightInset / scale + 8, 56));
+
+        if (TitleSearch.ActualWidth <= 0) return;
+        try
+        {
+            var at = TitleSearch.TransformToVisual(RootGrid).TransformPoint(new Windows.Foundation.Point(0, 0));
+            var box = new Windows.Graphics.RectInt32(
+                (int)Math.Round(at.X * scale), (int)Math.Round(at.Y * scale),
+                (int)Math.Round(TitleSearch.ActualWidth * scale), (int)Math.Round(TitleSearch.ActualHeight * scale));
+
+            var id = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var source = Microsoft.UI.Input.InputNonClientPointerSource.GetForWindowId(id);
+            source.SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.Passthrough, new[] { box });
+
+        }
+        catch (Exception ex)
+        {
+            Log.Write("TITLEBAR passthrough failed: " + ex.Message);
+        }
+    }
+
+    private void OnTitleBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // On a narrow window the name gives way to the search box, as Windows' own apps do.
+        AppNameText.Visibility = e.NewSize.Width < 760 ? Visibility.Collapsed : Visibility.Visible;
+        SyncTitleBar();
+    }
+
+    private void OnSearchSizeChanged(object sender, SizeChangedEventArgs e) => SyncTitleBar();
+
+    // ---- search ----
+
+    private bool _syncingSearch;
+
+    private void OnTitleSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (_syncingSearch || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        Library.SearchText = sender.Text ?? "";
+        if (Library.SearchText.Length > 0) Navigate(typeof(LibraryPage));   // searching means books
+    }
+
+    private void OnTitleSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Escape) return;
+        TitleSearch.Text = "";
+        Library.SearchText = "";
+        e.Handled = true;
+    }
+
+    /// <summary>The page cleared the search (its "Clear filters"), so the box follows.</summary>
+    private void OnLibraryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(LibraryViewModel.SearchText)) return;
+        if (TitleSearch.Text == Library.SearchText) return;
+        _syncingSearch = true;
+        TitleSearch.Text = Library.SearchText;
+        _syncingSearch = false;
+    }
+
+    private void OnFindAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        TitleSearch.Focus(FocusState.Programmatic);
+        args.Handled = true;
     }
 
     private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)

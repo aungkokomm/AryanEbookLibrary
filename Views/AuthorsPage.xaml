@@ -12,15 +12,14 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="320" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Authors" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <TextBlock x:Name="SummaryText" Grid.Column="1" Opacity="0.7" VerticalAlignment="Bottom" Margin="0,0,0,4" />
-            <AutoSuggestBox x:Name="SearchBox" Grid.Column="2" PlaceholderText="Search authors"
+        <Grid ColumnSpacing="16" ColumnDefinitions="*,Auto">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Authors" Style="{StaticResource PageTitleStyle}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SummaryText" Style="{StaticResource PageSubtitleStyle}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Width="240" PlaceholderText="Search authors"
                             QueryIcon="Find" TextChanged="OnSearchChanged" VerticalAlignment="Center" />
         </Grid>
 
@@ -35,12 +34,12 @@
                         <DataTemplate x:DataType="services:AuthorVariants">
                             <Grid ColumnSpacing="12" Margin="0,4" ColumnDefinitions="*,Auto,Auto">
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock>
+                                    <TextBlock TextWrapping="NoWrap" TextTrimming="CharacterEllipsis">
                                         <Run Text="{x:Bind Canonical}" FontWeight="SemiBold" />
                                         <Run Text="and" />
                                         <Run Text="{x:Bind Others}" />
                                     </TextBlock>
-                                    <TextBlock Text="{x:Bind BookCountText}" FontSize="12" Opacity="0.6" />
+                                    <TextBlock Text="{x:Bind BookCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="Same person" Click="OnMerge" Tag="{x:Bind}"
                                         Style="{StaticResource AccentButtonStyle}" />
@@ -64,7 +63,7 @@
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{x:Bind CountText}" FontSize="12" Opacity="0.6" />
+                            <TextBlock Text="{x:Bind CountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         </StackPanel>
                         <FontIcon Grid.Column="2" Glyph="&#xE946;" FontSize="14" Opacity="0.55"
                                   Visibility="{x:Bind HasQid}" VerticalAlignment="Center"

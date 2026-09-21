@@ -20,26 +20,24 @@
                 <TextBlock Text="Library" FontWeight="SemiBold" />
                 <ToggleSwitch x:Name="AutoScanSwitch" Header="Scan connected folders when the app starts"
                               Toggled="OnAutoScanToggled" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <Button Content="Rebuild covers" Click="OnRebuildCovers" />
-                    <TextBlock Text="Clears the cover cache and re-reads every book on the next scan."
-                               VerticalAlignment="Center" Opacity="0.6" />
-                </StackPanel>
+                <TextBlock Text="Clears the cover cache and re-reads every book on the next scan."
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                <Button Content="Rebuild covers" Click="OnRebuildCovers" HorizontalAlignment="Left" />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Online details" FontWeight="SemiBold" />
                 <ToggleSwitch x:Name="LookupOnlineSwitch" Header="Fill in missing details from Open Library"
                               Toggled="OnLookupOnlineToggled" />
-                <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
                            Text="Looks up books that have no author, description or real cover: first on openlibrary.org, the Internet Archive's free book catalogue, then on Wikidata and Wikipedia, which have the descriptions, series numbers and many covers Open Library lacks. Only a book's title, author or ISBN is sent. Details are filled in only when a source clearly has the same book; likely matches wait in the book's details for you to accept, and each detail says where it came from. Your book files are never changed." />
-                <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
                            Text="With this off, any book can still be looked up by hand: right-click it and choose Find details online." />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Duplicates" FontWeight="SemiBold" />
-                <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
                            Text="When the same book is in the library more than once, the Duplicates page marks the copy to keep. Your language comes first, then your format, then the biggest file. You can always pick another copy there, and nothing is ever deleted." />
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <ComboBox x:Name="LanguageBox" Header="Preferred language" Width="200" SelectionChanged="OnPreferredLanguageChanged">
@@ -60,36 +58,33 @@
                         <ComboBoxItem Content="CBR" Tag="CBR" />
                     </ComboBox>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <Button x:Name="ForgetKeptButton" Content="Forget my choices" Click="OnForgetKeptCopies" />
-                    <TextBlock x:Name="KeptCopiesText" VerticalAlignment="Center" Opacity="0.6" />
-                </StackPanel>
+                <TextBlock x:Name="KeptCopiesText" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                <Button x:Name="ForgetKeptButton" Content="Forget my choices" Click="OnForgetKeptCopies"
+                        HorizontalAlignment="Left" />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Catalogue" FontWeight="SemiBold" />
                 <TextBlock Text="Every book with its details, reading state and where the file is, as one CSV file for a spreadsheet."
-                           Opacity="0.7" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <Button Content="Export catalogue..." Click="OnExportCatalog" />
-                    <TextBlock x:Name="CatalogResult" VerticalAlignment="Center" Opacity="0.7" />
-                </StackPanel>
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <Button Content="Export catalogue..." Click="OnExportCatalog" HorizontalAlignment="Left" />
+                <TextBlock x:Name="CatalogResult" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Backup" FontWeight="SemiBold" />
                 <TextBlock Text="Favorites, reading status, ratings, tags and notes can be exported to one portable JSON file."
-                           Opacity="0.7" TextWrapping="Wrap" />
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button Content="Export backup..." Click="OnExport" />
                     <Button Content="Restore backup..." Click="OnRestore" />
                 </StackPanel>
-                <TextBlock x:Name="BackupResult" Opacity="0.7" />
+                <TextBlock x:Name="BackupResult" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Data" FontWeight="SemiBold" />
-                <TextBlock x:Name="DataPathText" IsTextSelectionEnabled="True" Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock x:Name="DataPathText" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                 <Button Content="Open data folder" Click="OnOpenDataFolder" />
             </StackPanel>
 
@@ -97,7 +92,7 @@
                 <TextBlock Text="About" FontWeight="SemiBold" />
                 <TextBlock x:Name="VersionText" />
                 <TextBlock Text="Free, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, never modifies your files, and goes online only to look up details on Open Library, Wikidata and Wikipedia, when you ask or switch it on above."
-                           Opacity="0.7" TextWrapping="Wrap" />
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

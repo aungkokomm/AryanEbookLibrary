@@ -236,21 +236,6 @@ public sealed partial class LibraryPage : Page
         }
     }
 
-    // ---- search ----
-
-    private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput) ViewModel.SearchText = sender.Text;
-    }
-
-    private void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key != Windows.System.VirtualKey.Escape || SearchBox.Text.Length == 0) return;
-        SearchBox.Text = "";
-        ViewModel.SearchText = "";
-        e.Handled = true;
-    }
-
     // ---- sort ----
 
     private void SyncSortCombo()
@@ -276,8 +261,7 @@ public sealed partial class LibraryPage : Page
 
     private void OnClearFilters(object sender, RoutedEventArgs e)
     {
-        SearchBox.Text = "";
-        ViewModel.SearchText = "";
+        ViewModel.SearchText = "";        // the title bar's search box follows this
         ViewModel.FormatIndex = 0;
         ViewModel.SeriesFilter = "";
         ViewModel.TagFilter = "";
@@ -368,18 +352,37 @@ public sealed partial class LibraryPage : Page
         GridLayout.MinItemHeight = height;
     }
 
-    /// <summary>Narrow page: the search box gets its own row under the title instead of being squeezed.</summary>
+    /// <summary>
+    /// Narrow page: the tools get their own row under the title instead of squeezing it away, and when
+    /// even that is too tight the card sizes go (the least needed of them). Both decisions are made from
+    /// the width the tools want with everything showing, so they cannot flip back and forth.
+    /// </summary>
     private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var narrow = e.NewSize.Width < 1000;
-        Grid.SetRow(SearchBox, narrow ? 1 : 0);
-        Grid.SetColumn(SearchBox, narrow ? 0 : 1);
-        Grid.SetColumnSpan(SearchBox, narrow ? 3 : 1);
-        SearchBox.Margin = narrow ? new Thickness(0, 12, 0, 0) : new Thickness(20, 0, 20, 0);
-        SearchBox.MaxWidth = narrow ? double.PositiveInfinity : 520;
-        TitleColumn.Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
-        SearchColumn.Width = narrow ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        if (_toolsWanted <= 0 && DensityGroup.Visibility == Visibility.Visible)
+            _toolsWanted = ToolsPanel.DesiredSize.Width;
+        if (_toolsWanted <= 0) return;
+        var room = e.NewSize.Width - TopBar.Padding.Left - TopBar.Padding.Right;
+
+        var stacked = room - _toolsWanted < 160;    // no room left for the title beside them
+        if (stacked != _toolsStacked)
+        {
+            _toolsStacked = stacked;
+            Grid.SetRow(ToolsPanel, stacked ? 1 : 0);
+            Grid.SetColumn(ToolsPanel, stacked ? 0 : 1);
+            Grid.SetColumnSpan(ToolsPanel, stacked ? 2 : 1);
+            ToolsPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            ToolsPanel.Margin = stacked ? new Thickness(0, 12, 0, 0) : new Thickness(0);
+        }
+
+        var hideDensity = room < _toolsWanted;      // not even on a row of their own
+        if (hideDensity == _densityHidden) return;
+        _densityHidden = hideDensity;
+        DensityGroup.Visibility = hideDensity ? Visibility.Collapsed : Visibility.Visible;
     }
+
+    private double _toolsWanted;
+    private bool _toolsStacked, _densityHidden;
 
     // ---- surprise ----
 

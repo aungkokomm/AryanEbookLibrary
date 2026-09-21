@@ -12,9 +12,9 @@
         </Grid.RowDefinitions>
 
         <StackPanel Spacing="4">
-            <TextBlock Text="Duplicates" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock x:Name="SummaryText" Opacity="0.7" TextWrapping="Wrap" />
-            <TextBlock x:Name="RuleText" FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+            <TextBlock Text="Duplicates" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock x:Name="SummaryText" Style="{StaticResource PageSubtitleStyle}" />
+            <TextBlock x:Name="RuleText" Style="{StaticResource PageHintStyle}" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1">
@@ -23,23 +23,21 @@
                 <ItemsControl x:Name="GroupList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="services:DuplicateGroup">
-                            <Border CornerRadius="8" Padding="16,12" Margin="0,0,0,10"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <Border Style="{StaticResource CardPanelStyle}" Margin="0,0,0,10">
                                 <StackPanel Spacing="8">
                                     <Grid ColumnSpacing="10" ColumnDefinitions="*,Auto,Auto">
                                         <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,2"
-                                                Background="{ThemeResource LayerFillColorDefaultBrush}">
+                                        <Border Grid.Column="1" Style="{StaticResource ChipStyle}">
                                             <TextBlock Text="{x:Bind Reason}" FontSize="12" />
                                         </Border>
-                                        <TextBlock Grid.Column="2" Text="{x:Bind CountText}" FontSize="12" Opacity="0.6" />
+                                        <TextBlock Grid.Column="2" Text="{x:Bind CountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                     </Grid>
-                                    <TextBlock Text="{x:Bind KeepLine, Mode=OneWay}" FontSize="12" Opacity="0.6" />
+                                    <TextBlock Text="{x:Bind KeepLine, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                     <ItemsControl ItemsSource="{x:Bind Copies, Mode=OneWay}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="services:DuplicateCopy">
-                                                <Grid ColumnSpacing="10" Margin="0,3" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                                <!-- The Keep badge keeps its width when it is not there, so every path starts at the same place -->
+                                                <Grid ColumnSpacing="10" Margin="0,3" ColumnDefinitions="52,*,Auto,Auto,Auto">
                                                     <Border CornerRadius="4" Padding="8,2" VerticalAlignment="Center"
                                                             Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                             Visibility="{x:Bind helpers:Fn.Vis(IsKeep)}">
@@ -49,15 +47,24 @@
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                         <TextBlock Text="{x:Bind Book.RelPath}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                                    IsTextSelectionEnabled="True" />
-                                                        <TextBlock Text="{x:Bind Book.InfoLine}" FontSize="11" Opacity="0.6" />
+                                                        <TextBlock Text="{x:Bind Book.InfoLine}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                                     </StackPanel>
                                                     <Button Grid.Column="2" Content="Keep this one" FontSize="12" Padding="10,4"
                                                             Visibility="{x:Bind helpers:Fn.VisNot(IsKeep)}"
                                                             Click="OnKeepThisOne" Tag="{x:Bind Book}" />
-                                                    <Button Grid.Column="3" Content="Show in folder" FontSize="12" Padding="10,4"
-                                                            Click="OnShowInFolder" Tag="{x:Bind Book}" />
-                                                    <Button Grid.Column="4" Content="Details" FontSize="12" Padding="10,4"
-                                                            Click="OnDetails" Tag="{x:Bind Book}" />
+                                                    <!-- The two side actions are icons: the path needs the room more than the words do -->
+                                                    <Button Grid.Column="3" Width="32" Height="30" Padding="0"
+                                                            Click="OnShowInFolder" Tag="{x:Bind Book}"
+                                                            AutomationProperties.Name="Show in folder"
+                                                            ToolTipService.ToolTip="Show in folder">
+                                                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                                    </Button>
+                                                    <Button Grid.Column="4" Width="32" Height="30" Padding="0"
+                                                            Click="OnDetails" Tag="{x:Bind Book}"
+                                                            AutomationProperties.Name="Details"
+                                                            ToolTipService.ToolTip="Details">
+                                                        <FontIcon Glyph="&#xE946;" FontSize="14" />
+                                                    </Button>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

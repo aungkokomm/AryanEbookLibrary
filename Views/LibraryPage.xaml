@@ -37,28 +37,30 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ═══ TOP BAR ═══ -->
-        <!-- When the page is narrow the search box moves to its own row under the title (see OnTopBarSizeChanged) -->
-        <Grid x:Name="TopBar" Grid.Row="0" Padding="24,18,24,8" SizeChanged="OnTopBarSizeChanged">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TitleColumn" Width="Auto" />
-                <ColumnDefinition x:Name="SearchColumn" Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!-- ═══ TOP BAR ═══ (search lives in the title bar) -->
+        <!-- The tools keep their natural width, so the title is the part that has to give way: it is
+             trimmed, and when there is no room left for it the tools drop to a line of their own. -->
+        <Grid x:Name="TopBar" Grid.Row="0" Padding="28,16,28,8" ColumnSpacing="16"
+              SizeChanged="OnTopBarSizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-            <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}" FontSize="24" FontWeight="SemiBold"
-                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
+                           Style="{StaticResource PageTitleStyle}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}"
+                           Style="{StaticResource PageHintStyle}" Margin="0,2,0,0"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
 
-            <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Margin="20,0" MaxWidth="520"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                            PlaceholderText="Search title, author, series, tags…" QueryIcon="Find"
-                            CornerRadius="8" TextChanged="OnSearchTextChanged" KeyDown="OnSearchKeyDown" />
-
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <StackPanel x:Name="ToolsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <ComboBox x:Name="SortCombo" MinWidth="140" Height="36" CornerRadius="8"
                           VerticalAlignment="Center" SelectionChanged="OnSortChanged"
                           AutomationProperties.Name="Sort by" />
@@ -122,9 +124,7 @@
         </Grid>
 
         <!-- ═══ FILTER BAR: count + format pills ═══ -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="24,0,24,12">
-            <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="13" Opacity="0.7"
-                       VerticalAlignment="Center" Margin="0,0,12,0" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="28,4,28,14">
             <Button x:Name="PillAll" Content="All" Tag="0" Click="OnFormatPill" />
             <Button x:Name="PillEpub" Content="EPUB" Tag="1" Click="OnFormatPill" />
             <Button x:Name="PillPdf" Content="PDF" Tag="2" Click="OnFormatPill" />
@@ -135,7 +135,7 @@
         </StackPanel>
 
         <!-- ═══ SELECTION BAR: what to do with the ticked books ═══ -->
-        <Border x:Name="SelectionBar" Grid.Row="2" Margin="24,0,24,10"
+        <Border x:Name="SelectionBar" Grid.Row="2" Margin="28,0,28,12"
                 Padding="12,8" CornerRadius="8" Visibility="Collapsed"
                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
@@ -178,7 +178,7 @@
             <Grid>
                 <!-- Grid view: CineLibrary's UniformGridLayout. The cards are sized in code (FitCards) so each row
                      fills the width exactly with even gaps: no empty band on the right, no loose gaps. -->
-                <Border x:Name="GridArea" Padding="24,0,24,24" SizeChanged="OnGridAreaSizeChanged"
+                <Border x:Name="GridArea" Padding="28,0,28,28" SizeChanged="OnGridAreaSizeChanged"
                         Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
@@ -194,7 +194,7 @@
                 </Border>
 
                 <!-- List view -->
-                <Border Padding="24,0,24,24" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
+                <Border Padding="28,0,28,28" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
