@@ -31,9 +31,13 @@ public sealed class OnlineLookupService
     public OnlineLookupService(LibraryRepository repo) => _repo = repo;
 
     /// <summary>Looks up the books that miss details and were not looked up yet. Call on the UI thread.</summary>
-    public void Start(IReadOnlyList<Book> books)
+    /// <summary>
+    /// Fills in what these books are missing, in the background. <paramref name="force"/> is the user asking
+    /// for it by hand (the books they picked), which does not need the setting to be on.
+    /// </summary>
+    public void Start(IReadOnlyList<Book> books, bool force = false)
     {
-        if (!AppServices.Settings.LookupOnline || _running) return;
+        if (!force && !AppServices.Settings.LookupOnline || _running) return;
         var now = DateTime.UtcNow;
         var queue = books.Where(b => NeedsLookup(b, now))
             .OrderBy(b => b.Isbn.Length > 0 ? 0 : b.FileAuthor.Length == 0 ? 1 : 2)   // surest first

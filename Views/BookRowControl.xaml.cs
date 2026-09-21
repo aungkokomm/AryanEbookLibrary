@@ -43,10 +43,17 @@ public sealed partial class BookRowControl : UserControl
         flyout.Opening += (_, _) => BookMenu.Build(flyout, Book);
         ContextFlyout = flyout;
 
-        Loaded += (_, _) => Watch(Book);
+        Loaded += (_, _) =>
+        {
+            Watch(Book);
+            AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
+            AppServices.Library.SelectionModeChanged += OnSelectionModeChanged;
+            ShowSelection();
+        };
         Unloaded += (_, _) =>
         {
             Watch(null);
+            AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
             HoverFill.Opacity = 0;
         };
         KeyDown += (_, e) =>
@@ -67,6 +74,7 @@ public sealed partial class BookRowControl : UserControl
         {
             r.Populate(b);
             r.LoadThumb(b);
+            r.ShowSelection();
         }
     }
 
@@ -81,6 +89,7 @@ public sealed partial class BookRowControl : UserControl
     {
         if (sender is not Book b || !ReferenceEquals(b, Book)) return;
         if (e.PropertyName == nameof(Book.CoverPath)) LoadThumb(b);   // a cover from Open Library arrived
+        if (e.PropertyName == nameof(Book.IsSelected)) { ShowSelection(); return; }
         Populate(b);
     }
 
@@ -152,10 +161,30 @@ public sealed partial class BookRowControl : UserControl
 
     private void OnThumbFailed(object sender, ExceptionRoutedEventArgs e) => ThumbPlaceholder.Visibility = Visibility.Visible;
 
+    private void OnSelectionModeChanged(object? sender, EventArgs e) => ShowSelection();
+
+    /// <summary>The tick takes the thumbnail's place while several books are being worked on at once.</summary>
+    private void ShowSelection()
+    {
+        var on = AppServices.Library.SelectionMode;
+        var picked = on && Book is { IsSelected: true };
+        SelectBadge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        Thumb.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        SelectTick.Text = picked ? "✓" : "";
+        SelectTick.Foreground = Blue;
+        SelectBadge.BorderBrush = picked ? Blue : Grey;
+    }
+
     private void OnTapped(object sender, TappedRoutedEventArgs e)
     {
         if (BookCardControl.TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
         if (Book is not { } book) return;
+        if (AppServices.Library.SelectionMode)
+        {
+            AppServices.Library.ToggleSelect(book);
+            e.Handled = true;
+            return;
+        }
 
         _pendingSingleTap?.Cancel();
         var cts = new CancellationTokenSource();
@@ -175,6 +204,7 @@ public sealed partial class BookRowControl : UserControl
     private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         if (BookCardControl.TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
+        if (AppServices.Library.SelectionMode) { e.Handled = true; return; }
         _pendingSingleTap?.Cancel();
         _pendingSingleTap = null;
         if (Book is { } b) BookCardControl.RequestOpen(b);

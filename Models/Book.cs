@@ -271,6 +271,10 @@ public sealed class Book : ObservableObject
     }
     public bool IsOffline => !_isAvailable;
 
+    private bool _isSelected;
+    /// <summary>Ticked in the grid or list while the user works on several books at once. Never stored.</summary>
+    public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+
     // ---- Personal state ----
     private bool _isFavorite;
     public bool IsFavorite { get => _isFavorite; set => SetProperty(ref _isFavorite, value); }

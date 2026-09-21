@@ -88,15 +88,23 @@ public sealed partial class BookCardControl : UserControl
         };
 
         // Single tap opens details after a short delay, so a double tap can cancel it and open the book.
+        // While several books are being worked on at once, a tap ticks the book instead.
         Tapped += (_, e) =>
         {
             if (TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
-            if (Book is null) return;
+            if (Book is not { } book) return;
+            if (AppServices.Library.SelectionMode)
+            {
+                AppServices.Library.ToggleSelect(book);
+                e.Handled = true;
+                return;
+            }
             ScheduleSingleTap();
         };
         DoubleTapped += (_, e) =>
         {
             if (TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
+            if (AppServices.Library.SelectionMode) { e.Handled = true; return; }
             _pendingSingleTap?.Cancel();
             _pendingSingleTap = null;
             if (Book is { } b) RequestOpen(b);
@@ -115,13 +123,34 @@ public sealed partial class BookCardControl : UserControl
     {
         GlobalSizeChanged -= OnGlobalSizeChanged;
         GlobalSizeChanged += OnGlobalSizeChanged;
+        AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
+        AppServices.Library.SelectionModeChanged += OnSelectionModeChanged;
         ApplySize();
         Watch(Book);
+        ShowSelection();
+    }
+
+    private void OnSelectionModeChanged(object? sender, EventArgs e) => ShowSelection();
+
+    /// <summary>The tick and the highlight follow both the mode and this book's own state.</summary>
+    private void ShowSelection()
+    {
+        var on = AppServices.Library.SelectionMode;
+        var picked = on && Book is { IsSelected: true };
+        SelectBadge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        SelectTick.Text = picked ? "✓" : "";
+        SelectBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            picked ? Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x18, 0x6B, 0xD5) : Microsoft.UI.ColorHelper.FromArgb(0xCC, 0, 0, 0));
+        CardBorder.BorderThickness = new Thickness(picked ? 3 : 1);
+        CardBorder.BorderBrush = picked
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x18, 0x6B, 0xD5))
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
     }
 
     private void OnCardUnloaded(object sender, RoutedEventArgs e)
     {
         GlobalSizeChanged -= OnGlobalSizeChanged;
+        AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
         Watch(null);
         // A card recycled mid-hover would otherwise come back lifted with the overlay showing.
         HoverOverlay.Opacity = 0;
@@ -150,6 +179,7 @@ public sealed partial class BookCardControl : UserControl
         {
             c.Populate(b);
             c.LoadCover(b);
+            c.ShowSelection();
         }
     }
 
@@ -164,6 +194,7 @@ public sealed partial class BookCardControl : UserControl
     {
         if (sender is not Book b || !ReferenceEquals(b, Book)) return;
         if (e.PropertyName == nameof(Book.CoverPath)) LoadCover(b);   // a cover from Open Library arrived
+        if (e.PropertyName == nameof(Book.IsSelected)) { ShowSelection(); return; }
         Populate(b);
     }
 

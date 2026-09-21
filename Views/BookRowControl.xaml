@@ -25,8 +25,16 @@
                     <ColumnDefinition Width="80" />
                 </Grid.ColumnDefinitions>
 
+                <!-- Tick, shown only while several books are being worked on at once -->
+                <Border x:Name="SelectBadge" Width="24" Height="24" CornerRadius="12"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"
+                        Background="Transparent" BorderBrush="{ThemeResource TextFillColorSecondaryBrush}" BorderThickness="1.5">
+                    <TextBlock x:Name="SelectTick" Text="" FontSize="13" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
                 <!-- Thumbnail -->
-                <Border Width="44" Height="62" CornerRadius="4">
+                <Border x:Name="Thumb" Width="44" Height="62" CornerRadius="4">
                     <Grid>
                         <Grid.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">

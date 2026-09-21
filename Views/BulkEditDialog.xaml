@@ -1,0 +1,18 @@
+<ContentDialog
+    x:Class="AryanEbookLibrary.Views.BulkEditDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Edit several books"
+    PrimaryButtonText="Apply"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary">
+
+    <StackPanel Spacing="12" Width="420">
+        <TextBlock x:Name="CountText" Opacity="0.75" TextWrapping="Wrap" />
+        <TextBox x:Name="AuthorBox" Header="Author" PlaceholderText="Leave empty to keep each book's own" />
+        <TextBox x:Name="SeriesBox" Header="Series" PlaceholderText="Leave empty to keep each book's own" />
+        <TextBox x:Name="TagsBox" Header="Add tags" PlaceholderText="comma, separated" />
+        <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap"
+                   Text="These are your own details, kept beside the books. The files are never changed, and any book's details can be cleared again one by one." />
+    </StackPanel>
+</ContentDialog>
