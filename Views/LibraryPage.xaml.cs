@@ -177,7 +177,7 @@ public sealed partial class LibraryPage : Page
         }
         if (result != ContentDialogResult.Primary) return;
 
-        var changed = ViewModel.EditSelected(dialog.Author, dialog.Series, dialog.AddTags);
+        var changed = ViewModel.EditSelected(dialog.Author, dialog.Series, dialog.AddTags, dialog.RemoveTags);
         await Say("Books changed", changed == 0
             ? "Nothing to change."
             : $"{changed} book(s) updated. Every change can be undone in that book's own details.");

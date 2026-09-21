@@ -624,10 +624,37 @@ public sealed class LibraryViewModel : ObservableObject
     /// <summary>The user's own tags, most used first.</summary>
     public List<TagEntry> GetTags() => Tags.Build(_all);
 
+    /// <summary>Tags the library can work out by itself, minus the ones the user turned down.</summary>
+    public List<TagSuggestion> GetTagSuggestions() => TagSuggester.Build(_all, Settings.NoTags);
+
+    /// <summary>Writes a suggested tag onto its books. Returns how many books took it.</summary>
+    public int ApplyTagSuggestion(TagSuggestion suggestion)
+    {
+        var changed = 0;
+        foreach (var book in suggestion.Books)
+        {
+            var now = Tags.Merge(book.UserTags, suggestion.Tag);
+            if (now == book.UserTags) continue;
+            book.UserTags = now;
+            SaveState(book);
+            changed++;
+        }
+        if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
+    /// <summary>Not that one: it is not offered again until the user forgets the refusals in Settings.</summary>
+    public void RefuseTagSuggestion(TagSuggestion suggestion)
+    {
+        if (Settings.NoTags.Contains(suggestion.Key, StringComparer.OrdinalIgnoreCase)) return;
+        Settings.NoTags.Add(suggestion.Key);
+        Settings.Save();
+    }
+
     /// <summary>Adds or removes one tag on one book (the Tags page, the book's own menu).</summary>
     public void SetTag(Book book, string tag, bool wanted)
     {
-        var now = wanted ? MergeTags(book.UserTags, tag) : Tags.Remove(book.UserTags, tag);
+        var now = wanted ? Tags.Merge(book.UserTags, tag) : Tags.Remove(book.UserTags, tag);
         if (now == book.UserTags) return;
         book.UserTags = now;
         SaveState(book);
@@ -697,7 +724,7 @@ public sealed class LibraryViewModel : ObservableObject
     /// The same edit on every selected book: an author, a series, tags to add. Empty fields are left alone,
     /// and the files are never touched (these are the user's own details, as in the book's own dialog).
     /// </summary>
-    public int EditSelected(string? author, string? series, string? addTags)
+    public int EditSelected(string? author, string? series, string? addTags, string? removeTags = null)
     {
         var changed = 0;
         foreach (var book in Selected)
@@ -709,7 +736,10 @@ public sealed class LibraryViewModel : ObservableObject
                     string.IsNullOrWhiteSpace(author) ? book.CustomAuthor : author.Trim(),
                     string.IsNullOrWhiteSpace(series) ? book.CustomSeries : series.Trim());
 
-            if (!string.IsNullOrWhiteSpace(addTags)) book.UserTags = MergeTags(book.UserTags, addTags);
+            if (!string.IsNullOrWhiteSpace(addTags)) book.UserTags = Tags.Merge(book.UserTags, addTags);
+            if (!string.IsNullOrWhiteSpace(removeTags))
+                foreach (var tag in Tags.Split(removeTags))
+                    book.UserTags = Tags.Remove(book.UserTags, tag);
 
             if (before == (book.CustomAuthor, book.CustomSeries, book.UserTags)) continue;
             SaveState(book);
@@ -717,16 +747,6 @@ public sealed class LibraryViewModel : ObservableObject
         }
         if (changed > 0) ApplyFilter();
         return changed;
-    }
-
-    /// <summary>Tags the user already has, plus the new ones, each once, in the order they were added.</summary>
-    public static string MergeTags(string current, string added)
-    {
-        var tags = Tags.Split(current).ToList();
-        foreach (var tag in Tags.Split(added))
-            if (!tags.Contains(tag, StringComparer.CurrentCultureIgnoreCase))
-                tags.Add(tag);
-        return string.Join(", ", tags);
     }
 
     public int SetStatusForSelected(ReadStatus status)

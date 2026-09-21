@@ -21,7 +21,44 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Spacing="12">
                 <TextBlock x:Name="EmptyText" Visibility="Collapsed" Opacity="0.7" TextWrapping="Wrap"
-                           Text="No tags yet. Open a book's details and add one, or tick several books and use Edit details." />
+                           Text="No tags yet. Take one of the suggestions below, open a book's details, or tick several books and use Edit..." />
+
+                <!-- Tags the library worked out by itself -->
+                <Border x:Name="SuggestPanel" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnSpacing="10" ColumnDefinitions="*,Auto,Auto">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="SuggestHeader" FontWeight="SemiBold" />
+                                <TextBlock Text="From the folder a book sits in, what it is written in, what the book says about itself, and words that keep coming back in the titles. Nothing is written until you say so."
+                                           FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="AddAllButton" Content="Add them all" Click="OnAddAll" />
+                            <Button Grid.Column="2" Content="Hide" Click="OnHideSuggestions" />
+                        </Grid>
+                        <ItemsControl x:Name="SuggestList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="services:TagSuggestion">
+                                    <Grid ColumnSpacing="12" Margin="0,5" ColumnDefinitions="*,Auto,Auto">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock>
+                                                <Run Text="{x:Bind Tag}" FontWeight="SemiBold" />
+                                                <Run Text="{x:Bind CountText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{x:Bind Why}" FontSize="12" Opacity="0.6" />
+                                            <TextBlock Text="{x:Bind Sample}" FontSize="12" Opacity="0.5"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Add" Click="OnAddSuggestion" Tag="{x:Bind}"
+                                                Style="{StaticResource AccentButtonStyle}" />
+                                        <Button Grid.Column="2" Content="Not this one" Click="OnRefuseSuggestion" Tag="{x:Bind}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
                 <ItemsRepeater x:Name="TagList">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="240" MinItemHeight="88"

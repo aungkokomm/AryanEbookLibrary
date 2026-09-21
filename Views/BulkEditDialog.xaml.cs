@@ -18,4 +18,5 @@ public sealed partial class BulkEditDialog : ContentDialog
     public string Author => AuthorBox.Text.Trim();
     public string Series => SeriesBox.Text.Trim();
     public string AddTags => TagsBox.Text.Trim();
+    public string RemoveTags => RemoveTagsBox.Text.Trim();
 }

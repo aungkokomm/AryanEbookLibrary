@@ -12,6 +12,7 @@
         <TextBox x:Name="AuthorBox" Header="Author" PlaceholderText="Leave empty to keep each book's own" />
         <TextBox x:Name="SeriesBox" Header="Series" PlaceholderText="Leave empty to keep each book's own" />
         <TextBox x:Name="TagsBox" Header="Add tags" PlaceholderText="comma, separated" />
+        <TextBox x:Name="RemoveTagsBox" Header="Remove tags" PlaceholderText="comma, separated" />
         <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap"
                    Text="These are your own details, kept beside the books. The files are never changed, and any book's details can be cleared again one by one." />
     </StackPanel>

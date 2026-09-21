@@ -39,6 +39,16 @@ public static class Tags
             .ToList();
     }
 
+    /// <summary>The tags already there, plus the new ones, each once, in the order they were added.</summary>
+    public static string Merge(string current, string added)
+    {
+        var tags = Split(current).ToList();
+        foreach (var tag in Split(added))
+            if (!tags.Contains(tag, StringComparer.CurrentCultureIgnoreCase))
+                tags.Add(tag);
+        return string.Join(", ", tags);
+    }
+
     /// <summary>True when the book wears this tag (whole tag, not part of a longer one).</summary>
     public static bool Has(Book book, string tag) =>
         Split(book.UserTags).Any(t => string.Equals(t, tag, StringComparison.CurrentCultureIgnoreCase));

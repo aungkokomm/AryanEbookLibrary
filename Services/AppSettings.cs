@@ -18,6 +18,8 @@ public sealed class AppSettings
     public string PreferredLanguage { get; set; } = "";        // en | hi | my ...
     // Groups where the user picked the copy themselves: group key -> that file's key.
     public Dictionary<string, string> KeptCopies { get; set; } = new();
+    // Tags the library suggested and the user turned down, so they are not offered again.
+    public List<string> NoTags { get; set; } = new();
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
