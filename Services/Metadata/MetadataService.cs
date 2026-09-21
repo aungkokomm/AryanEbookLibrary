@@ -15,8 +15,9 @@ public static class MetadataService
     /// (without re-rendering covers), so an improvement reaches the whole library by itself.
     /// 2: file-name parser with library context, author lists tidied, ISBN from PDF text, text-page covers.
     /// 3: scanner stamps ("ACDSee", "GonVisor", "Full page photo") and bare domains are not titles.
+    /// 4: Burmese written in Zawgyi, or with ေ and ြ out of order, is shown in Unicode.
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
 
     public static async Task<BookMetadata> ReadAsync(string path, BookFormat format, bool useCalibre, bool readCover = true)
     {
@@ -61,8 +62,25 @@ public static class MetadataService
         // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
         if (!string.IsNullOrWhiteSpace(md.Author)) md.Author = PeopleParser.Tidy(md.Author);
         FillFromFileName(md, path);
+        FixBurmese(md);
         if (string.IsNullOrWhiteSpace(md.Title)) md.Title = "Untitled";
         return md;
+    }
+
+    /// <summary>
+    /// Burmese that a file (or its name) carries in Zawgyi, or with ေ and ြ in front of their consonant,
+    /// shown in Unicode instead. The file itself is never changed.
+    /// </summary>
+    private static void FixBurmese(BookMetadata md)
+    {
+        md.Title = Burmese(md.Title);
+        md.Author = Burmese(md.Author);
+        md.Series = Burmese(md.Series);
+        md.Publisher = Burmese(md.Publisher);
+        md.Subjects = Burmese(md.Subjects);
+        md.Description = Burmese(md.Description);
+
+        static string? Burmese(string? s) => string.IsNullOrEmpty(s) ? s : Zawgyi.Fix(s);
     }
 
     /// <summary>Whatever the book itself did not say, from the file name, remembering which details those were.</summary>

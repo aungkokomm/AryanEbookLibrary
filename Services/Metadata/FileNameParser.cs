@@ -109,7 +109,8 @@ public static class FileNameParser
     {
         var md = new BookMetadata();
         var ctx = Context;
-        var name = Path.GetFileNameWithoutExtension(path);
+        // A Burmese file name written in Zawgyi is read in Unicode; the file itself is untouched.
+        var name = Zawgyi.Fix(Path.GetFileNameWithoutExtension(path));
         var hadUnderscores = name.Contains('_');
 
         name = Regex.Replace(name, @"(?<=[A-Za-z])_s(?=[_ ]|$)", "'s");   // "valmiki_s_ramayana", "The Queen_s Necklace"
@@ -200,7 +201,7 @@ public static class FileNameParser
         name = Squash(string.Join(' ', name.Split(' ').Select(SplitCamelCase))).Trim(' ', '-', ',', '.', ':');
         if (IsSingleCaseLatin(name)) name = TitleCase(name);
 
-        md.Title = name.Length > 0 ? name : Path.GetFileNameWithoutExtension(path);
+        md.Title = name.Length > 0 ? name : Zawgyi.Fix(Path.GetFileNameWithoutExtension(path));
         if (md.Author is not null)
         {
             md.Author = AuthorSuffixes.Replace(md.Author, "");
