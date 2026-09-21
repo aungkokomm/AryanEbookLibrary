@@ -657,7 +657,7 @@ public static class FileNameParser
         return string.Join(' ', words);
     }
 
-    internal static string Squash(string s) => Regex.Replace(s, @"\s+", " ").Trim();
+    public static string Squash(string s) => Regex.Replace(s, @"\s+", " ").Trim();
 
     /// <summary>A title written inside a book can carry a download site too: "Principles of Neural Science - PDFDrive.com".</summary>
     public static string StripSiteTags(string title) => Squash(SiteTag.Replace(title, " ")).Trim(' ', '-', ':', '|');

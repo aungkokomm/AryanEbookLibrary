@@ -12,6 +12,12 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public string GridDensity { get; set; } = "M";     // S | M | L | XL card size
     public bool LookupOnline { get; set; }               // fill missing details from Open Library in the background
+    public List<string> NotSamePeople { get; set; } = new();   // name pairs the user said are different people
+    // When the same book is in the library twice, which copy to keep. "" means no preference.
+    public string PreferredFormat { get; set; } = "";          // EPUB | PDF | MOBI | AZW3 | CBZ | CBR
+    public string PreferredLanguage { get; set; } = "";        // en | hi | my ...
+    // Groups where the user picked the copy themselves: group key -> that file's key.
+    public Dictionary<string, string> KeptCopies { get; set; } = new();
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

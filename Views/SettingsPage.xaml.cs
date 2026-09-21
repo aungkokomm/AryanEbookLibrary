@@ -19,6 +19,9 @@ public sealed partial class SettingsPage : Page
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
+        Select(LanguageBox, AppServices.Settings.PreferredLanguage);
+        Select(FormatBox, AppServices.Settings.PreferredFormat);
+        ShowKeptCopies();
         DataPathText.Text = "Stored in: " + AppPaths.DataDir;
         // From <Version> in the csproj, so the About line can never show a stale number.
         VersionText.Text = "Aryan eBook Library " + typeof(App).Assembly.GetName().Version?.ToString(3);
@@ -47,6 +50,44 @@ public sealed partial class SettingsPage : Page
         AppServices.Settings.Save();
         if (LookupOnlineSwitch.IsOn) AppServices.Library.StartOnlineLookups();
         else AppServices.Online.Stop();
+    }
+
+    private static void Select(ComboBox box, string tag)
+    {
+        box.SelectedIndex = Math.Max(0, box.Items.OfType<ComboBoxItem>().ToList()
+            .FindIndex(i => string.Equals(i.Tag as string, tag, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string TagOf(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+
+    private void OnPreferredLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.PreferredLanguage = TagOf(LanguageBox);
+        AppServices.Settings.Save();
+    }
+
+    private void OnPreferredFormatChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.PreferredFormat = TagOf(FormatBox);
+        AppServices.Settings.Save();
+    }
+
+    private void ShowKeptCopies()
+    {
+        var count = AppServices.Settings.KeptCopies.Count;
+        KeptCopiesText.Text = count == 0
+            ? "You have not picked a copy in any group yet."
+            : count == 1 ? "You picked the copy to keep in 1 group." : $"You picked the copy to keep in {count} groups.";
+        ForgetKeptButton.IsEnabled = count > 0;
+    }
+
+    private void OnForgetKeptCopies(object sender, RoutedEventArgs e)
+    {
+        AppServices.Settings.KeptCopies.Clear();
+        AppServices.Settings.Save();
+        ShowKeptCopies();
     }
 
     private async void OnRebuildCovers(object sender, RoutedEventArgs e)

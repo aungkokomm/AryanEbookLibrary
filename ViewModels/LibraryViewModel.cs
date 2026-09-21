@@ -67,6 +67,7 @@ public sealed class LibraryViewModel : ObservableObject
         LibraryFilter.Favorites => "Favorites",
         LibraryFilter.Unread => "Unread",
         LibraryFilter.Finished => "Finished",
+        LibraryFilter.NeedsDetails => "Needs Details",
         _ => "All Books"
     };
 
@@ -185,6 +186,9 @@ public sealed class LibraryViewModel : ObservableObject
     /// <summary>Open Library's background progress, shown at the right of the status bar.</summary>
     public string OnlineStatusText { get => _onlineStatusText; private set => SetProperty(ref _onlineStatusText, value); }
 
+    /// <summary>Every book in the catalogue, whatever the current filter shows.</summary>
+    public IReadOnlyList<Book> AllBooks => _all;
+
     public Book? FindByKey(string key) => _all.FirstOrDefault(b => b.StateKey == key);
 
     /// <summary>Fills missing details from Open Library in the background, when switched on in Settings.</summary>
@@ -293,6 +297,7 @@ public sealed class LibraryViewModel : ObservableObject
             LibraryFilter.Favorites => q.Where(b => b.IsFavorite),
             LibraryFilter.Unread => q.Where(b => b.Status == ReadStatus.Unread),
             LibraryFilter.Finished => q.Where(b => b.Status == ReadStatus.Finished),
+            LibraryFilter.NeedsDetails => q.Where(b => b.NeedsDetails),
             _ => q
         };
 
@@ -547,6 +552,34 @@ public sealed class LibraryViewModel : ObservableObject
     public void CancelScan() => _scanCts?.Cancel();
 
     // ------------------------------------------------------------ personal state
+
+    /// <summary>
+    /// Writes one person's name the same way on every book that names them ("S. Dhammika" → "Shravasti
+    /// Dhammika"). It is an edit like any other: the user's name is kept in book_state, the files are untouched,
+    /// and a book with several authors keeps the others.
+    /// </summary>
+    public int RenamePerson(string from, string to)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to) || from == to) return 0;
+        var changed = 0;
+        foreach (var book in _all)
+        {
+            var people = AuthorIndex.Split(book.Author).ToList();
+            var index = people.FindIndex(p => string.Equals(p, from, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) continue;
+            people[index] = to;
+            var author = string.Join(", ", people.Distinct(StringComparer.OrdinalIgnoreCase));
+            if (author == book.Author) continue;
+            book.SetCustomDetails(book.CustomTitle, author, book.CustomSeries);
+            SaveState(book);
+            changed++;
+        }
+        if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
+    /// <summary>The library's authors, and the names that look like one person written differently.</summary>
+    public List<AuthorEntry> GetAuthors() => AuthorIndex.Build(_all, Repo.GetAllAuthorsOnline());
 
     public void SaveState(Book book)
     {

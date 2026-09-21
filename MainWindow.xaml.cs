@@ -54,6 +54,9 @@ public sealed partial class MainWindow : Window
             case "favorites": ShowLibrary(LibraryFilter.Favorites); break;
             case "unread": ShowLibrary(LibraryFilter.Unread); break;
             case "finished": ShowLibrary(LibraryFilter.Finished); break;
+            case "needs": ShowLibrary(LibraryFilter.NeedsDetails); break;
+            case "authors": Navigate(typeof(AuthorsPage)); break;
+            case "duplicates": Navigate(typeof(DuplicatesPage)); break;
             case "drives": Navigate(typeof(DrivesPage)); break;
         }
     }
@@ -61,6 +64,15 @@ public sealed partial class MainWindow : Window
     private void ShowLibrary(LibraryFilter filter)
     {
         Library.Filter = filter;
+        Navigate(typeof(LibraryPage));
+    }
+
+    /// <summary>Shows every book naming this person (from the Authors page).</summary>
+    public void ShowBooksBy(string author)
+    {
+        Library.Filter = LibraryFilter.All;
+        Library.SearchText = author;
+        NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string?)i.Tag == "all");
         Navigate(typeof(LibraryPage));
     }
 

@@ -210,6 +210,15 @@ public sealed class Book : ObservableObject
     /// <summary>The book's cover is missing or is a page of text, so another one is better.</summary>
     public bool NeedsCover => FileCoverFile is null || CoverWeak;
 
+    /// <summary>
+    /// The catalogue looks wrong for this book: no author, no real cover, or a "title" that is no title
+    /// ("isbn 0671818325"). These are the books worth looking up or editing, and the Needs Details view.
+    /// </summary>
+    public bool NeedsDetails =>
+        Author.Length == 0 ||
+        CoverFile is null || CoverWeak && CoverSource is null ||
+        Services.Online.OnlineMatcher.HasNoTitleWords(Title);
+
     public double? SeriesIndex { get; set; }
 
     private string _publisher = "";

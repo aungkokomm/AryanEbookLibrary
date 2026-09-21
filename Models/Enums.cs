@@ -25,7 +25,8 @@ public enum LibraryFilter
     RecentlyAdded,
     Favorites,
     Unread,
-    Finished
+    Finished,
+    NeedsDetails
 }
 
 public enum SortMode

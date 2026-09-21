@@ -14,8 +14,9 @@ public static class MetadataService
     /// Bumped whenever the readers get better. Books read by an older version are read again by the next scan
     /// (without re-rendering covers), so an improvement reaches the whole library by itself.
     /// 2: file-name parser with library context, author lists tidied, ISBN from PDF text, text-page covers.
+    /// 3: scanner stamps ("ACDSee", "GonVisor", "Full page photo") and bare domains are not titles.
     /// </summary>
-    public const int Version = 2;
+    public const int Version = 3;
 
     public static async Task<BookMetadata> ReadAsync(string path, BookFormat format, bool useCalibre, bool readCover = true)
     {
@@ -55,7 +56,7 @@ public static class MetadataService
         if (md.Title is { } t)
         {
             t = FileNameParser.StripSiteTags(t);
-            md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://|www\.)\S+$", RegexOptions.IgnoreCase) ? null : t;
+            md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://\S+|www\.\S+|[\w-]+\.(com|net|org|info|biz|ru|cc|to))$", RegexOptions.IgnoreCase) ? null : t;
         }
         // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
         if (!string.IsNullOrWhiteSpace(md.Author)) md.Author = PeopleParser.Tidy(md.Author);

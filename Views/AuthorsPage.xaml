@@ -1,0 +1,77 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.AuthorsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:AryanEbookLibrary.Services">
+
+    <Grid Padding="28,20,28,20" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Authors" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock x:Name="SummaryText" Grid.Column="1" Opacity="0.7" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="2" PlaceholderText="Search authors"
+                            QueryIcon="Find" TextChanged="OnSearchChanged" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Names that look like one person -->
+        <Border x:Name="MergePanel" Grid.Row="1" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="10">
+                <TextBlock x:Name="MergeHeader" FontWeight="SemiBold" />
+                <ItemsControl x:Name="MergeList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="services:AuthorVariants">
+                            <Grid ColumnSpacing="12" Margin="0,4" ColumnDefinitions="*,Auto,Auto">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock>
+                                        <Run Text="{x:Bind Canonical}" FontWeight="SemiBold" />
+                                        <Run Text="and" />
+                                        <Run Text="{x:Bind Others}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{x:Bind BookCountText}" FontSize="12" Opacity="0.6" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Same person" Click="OnMerge" Tag="{x:Bind}"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                <Button Grid.Column="2" Content="Different people" Click="OnNotSame" Tag="{x:Bind}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- The authors -->
+        <ListView x:Name="AuthorList" Grid.Row="2" SelectionMode="None" IsItemClickEnabled="True"
+                  ItemClick="OnAuthorClick" ShowsScrollingPlaceholders="False">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="services:AuthorEntry">
+                    <Grid ColumnSpacing="14" Padding="0,8" ColumnDefinitions="40,*,Auto">
+                        <Border Width="40" Height="40" CornerRadius="20" Background="{ThemeResource AccentFillColorDefaultBrush}">
+                            <TextBlock Text="{x:Bind Initial}" Foreground="White" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind CountText}" FontSize="12" Opacity="0.6" />
+                        </StackPanel>
+                        <FontIcon Grid.Column="2" Glyph="&#xE946;" FontSize="14" Opacity="0.55"
+                                  Visibility="{x:Bind HasQid}" VerticalAlignment="Center"
+                                  ToolTipService.ToolTip="Wikidata knows this person" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>

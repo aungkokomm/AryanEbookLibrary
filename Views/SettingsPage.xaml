@@ -38,6 +38,35 @@
             </StackPanel>
 
             <StackPanel Spacing="6">
+                <TextBlock Text="Duplicates" FontWeight="SemiBold" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                           Text="When the same book is in the library more than once, the Duplicates page marks the copy to keep. Your language comes first, then your format, then the biggest file. You can always pick another copy there, and nothing is ever deleted." />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <ComboBox x:Name="LanguageBox" Header="Preferred language" Width="200" SelectionChanged="OnPreferredLanguageChanged">
+                        <ComboBoxItem Content="No preference" Tag="" />
+                        <ComboBoxItem Content="English" Tag="en" />
+                        <ComboBoxItem Content="Hindi" Tag="hi" />
+                        <ComboBoxItem Content="Myanmar" Tag="my" />
+                        <ComboBoxItem Content="Marathi" Tag="mr" />
+                        <ComboBoxItem Content="Sanskrit" Tag="sa" />
+                    </ComboBox>
+                    <ComboBox x:Name="FormatBox" Header="Preferred format" Width="200" SelectionChanged="OnPreferredFormatChanged">
+                        <ComboBoxItem Content="No preference" Tag="" />
+                        <ComboBoxItem Content="EPUB" Tag="EPUB" />
+                        <ComboBoxItem Content="PDF" Tag="PDF" />
+                        <ComboBoxItem Content="MOBI" Tag="MOBI" />
+                        <ComboBoxItem Content="AZW3" Tag="AZW3" />
+                        <ComboBoxItem Content="CBZ" Tag="CBZ" />
+                        <ComboBoxItem Content="CBR" Tag="CBR" />
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="ForgetKeptButton" Content="Forget my choices" Click="OnForgetKeptCopies" />
+                    <TextBlock x:Name="KeptCopiesText" VerticalAlignment="Center" Opacity="0.6" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
                 <TextBlock Text="Backup" FontWeight="SemiBold" />
                 <TextBlock Text="Favorites, reading status, ratings, tags and notes can be exported to one portable JSON file."
                            Opacity="0.7" TextWrapping="Wrap" />

@@ -194,7 +194,11 @@ public static class PdfReader
         @"\.(docx?|indd|pages|rtf|tex|dvi|ps|qxd|pub|odt|pdf|cdr|eps|ai|psd|jpe?g|png|tiff?|pptx?|xlsx?|html?)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly string[] JunkTitlePrefixes = { "Microsoft Word", "Microsoft PowerPoint", "PowerPoint", "Untitled", "Scanned using", "Scanned by", "Scanned with" };
+    private static readonly string[] JunkTitlePrefixes = {
+        "Microsoft Word", "Microsoft PowerPoint", "PowerPoint", "Untitled", "Scanned using", "Scanned by", "Scanned with",
+        // stamps left by scanners and readers, found on 36 books of a real library
+        "ACDSee", "GonVisor", "Full page photo", "Print Job"
+    };
 
     /// <summary>Editor placeholders and machine names: "&lt;Name of Project&gt;", "Document1", "Layout 1", a path, a hash.</summary>
     private static readonly Regex PlaceholderTitle = new(
