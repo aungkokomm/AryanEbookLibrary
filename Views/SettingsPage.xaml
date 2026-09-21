@@ -32,7 +32,7 @@
                 <ToggleSwitch x:Name="LookupOnlineSwitch" Header="Fill in missing details from Open Library"
                               Toggled="OnLookupOnlineToggled" />
                 <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                           Text="Looks up books that have no author, description or real cover on openlibrary.org, the Internet Archive's free book catalog. Only a book's title, author or ISBN is sent. Details are filled in only when Open Library clearly has the same book; likely matches wait in the book's details for you to accept. Your book files are never changed." />
+                           Text="Looks up books that have no author, description or real cover: first on openlibrary.org, the Internet Archive's free book catalogue, then on Wikidata and Wikipedia, which have the descriptions, series numbers and many covers Open Library lacks. Only a book's title, author or ISBN is sent. Details are filled in only when a source clearly has the same book; likely matches wait in the book's details for you to accept, and each detail says where it came from. Your book files are never changed." />
                 <TextBlock Opacity="0.7" TextWrapping="Wrap"
                            Text="With this off, any book can still be looked up by hand: right-click it and choose Find details online." />
             </StackPanel>
@@ -57,7 +57,7 @@
             <StackPanel Spacing="4">
                 <TextBlock Text="About" FontWeight="SemiBold" />
                 <TextBlock x:Name="VersionText" />
-                <TextBlock Text="Free, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, never modifies your files, and goes online only to look up details on Open Library, when you ask or switch it on above."
+                <TextBlock Text="Free, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, never modifies your files, and goes online only to look up details on Open Library, Wikidata and Wikipedia, when you ask or switch it on above."
                            Opacity="0.7" TextWrapping="Wrap" />
             </StackPanel>
         </StackPanel>

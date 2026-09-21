@@ -161,7 +161,7 @@ public sealed class LibraryRepository
                 };
                 b.DriveLabel = labels.TryGetValue(b.DriveId, out var l) ? l : b.DriveId;
                 b.KeepFileDetails();
-                if (online.TryGetValue(b.StateKey, out var o)) b.SetOnline(o);
+                if (online.TryGetValue(b.StateKey, out var sources)) b.SetOnline(sources);
 
                 if (!r.IsDBNull(19))
                 {
@@ -265,44 +265,70 @@ public sealed class LibraryRepository
         });
     }
 
-    // ------------------------------------------------------------ Open Library
+    // ------------------------------------------------------------ online details (one row per source)
 
     private const string OnlineColumns =
-        "key, status, how, source_key, isbn, title, author, publisher, year, description, subjects, cover_id, cover_file, use_cover, tries, updated_utc";
+        "key, source, status, how, source_key, isbn, title, author, publisher, year, series, series_index, " +
+        "description, subjects, page_title, cover_id, cover_url, cover_file, use_cover, tries, updated_utc";
 
-    public Dictionary<string, OnlineDetails> GetAllOnline() =>
+    public Dictionary<string, List<OnlineDetails>> GetAllOnline() =>
         _db.Query($"SELECT {OnlineColumns} FROM book_online", r => (Key: r.GetString(0), Row: new OnlineDetails
             {
-                Status = r.GetString(1),
-                How = NullableStr(r, 2),
-                SourceKey = NullableStr(r, 3),
-                Isbn = NullableStr(r, 4),
-                Title = NullableStr(r, 5),
-                Author = NullableStr(r, 6),
-                Publisher = NullableStr(r, 7),
-                Year = r.IsDBNull(8) ? null : r.GetInt32(8),
-                Description = NullableStr(r, 9),
-                Subjects = NullableStr(r, 10),
-                CoverId = r.IsDBNull(11) ? null : r.GetInt64(11),
-                CoverFile = NullableStr(r, 12),
-                UseCover = r.GetInt32(13) != 0,
-                Tries = r.GetInt32(14),
-                UpdatedUtc = Dt(r, 15) ?? DateTime.MinValue
+                Source = r.GetString(1),
+                Status = r.GetString(2),
+                How = NullableStr(r, 3),
+                SourceKey = NullableStr(r, 4),
+                Isbn = NullableStr(r, 5),
+                Title = NullableStr(r, 6),
+                Author = NullableStr(r, 7),
+                Publisher = NullableStr(r, 8),
+                Year = r.IsDBNull(9) ? null : r.GetInt32(9),
+                Series = NullableStr(r, 10),
+                SeriesIndex = r.IsDBNull(11) ? null : r.GetDouble(11),
+                Description = NullableStr(r, 12),
+                Subjects = NullableStr(r, 13),
+                PageTitle = NullableStr(r, 14),
+                CoverId = r.IsDBNull(15) ? null : r.GetInt64(15),
+                CoverUrl = NullableStr(r, 16),
+                CoverFile = NullableStr(r, 17),
+                UseCover = r.GetInt32(18) != 0,
+                Tries = r.GetInt32(19),
+                UpdatedUtc = Dt(r, 20) ?? DateTime.MinValue
             }))
-            .ToDictionary(x => x.Key, x => x.Row);
+            .GroupBy(x => x.Key)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Row).ToList());
 
     public void UpsertOnline(string key, OnlineDetails o)
     {
         o.UpdatedUtc = DateTime.UtcNow;
         _db.Exec($"""
             INSERT OR REPLACE INTO book_online ({OnlineColumns})
-            VALUES ($key, $status, $how, $src, $isbn, $title, $author, $pub, $year, $desc, $subjects, $cid, $cfile, $use, $tries, $updated)
+            VALUES ($key, $source, $status, $how, $src, $isbn, $title, $author, $pub, $year, $series, $sindex,
+                    $desc, $subjects, $page, $cid, $curl, $cfile, $use, $tries, $updated)
             """,
-            ("$key", key), ("$status", o.Status), ("$how", o.How), ("$src", o.SourceKey), ("$isbn", o.Isbn),
-            ("$title", o.Title), ("$author", o.Author), ("$pub", o.Publisher), ("$year", o.Year), ("$desc", o.Description),
-            ("$subjects", o.Subjects), ("$cid", o.CoverId), ("$cfile", o.CoverFile), ("$use", o.UseCover ? 1 : 0),
-            ("$tries", o.Tries), ("$updated", Iso(o.UpdatedUtc)));
+            ("$key", key), ("$source", o.Source), ("$status", o.Status), ("$how", o.How), ("$src", o.SourceKey),
+            ("$isbn", o.Isbn), ("$title", o.Title), ("$author", o.Author), ("$pub", o.Publisher), ("$year", o.Year),
+            ("$series", o.Series), ("$sindex", o.SeriesIndex), ("$desc", o.Description), ("$subjects", o.Subjects),
+            ("$page", o.PageTitle), ("$cid", o.CoverId), ("$curl", o.CoverUrl), ("$cfile", o.CoverFile),
+            ("$use", o.UseCover ? 1 : 0), ("$tries", o.Tries), ("$updated", Iso(o.UpdatedUtc)));
     }
+
+    /// <summary>What Wikidata said about one author: their id and their catalogue, looked up once and kept.</summary>
+    public sealed record AuthorOnline(string NameKey, string Name, string? Qid, string Status, string? WorksJson, int Tries, DateTime UpdatedUtc);
+
+    public Dictionary<string, AuthorOnline> GetAllAuthorsOnline() =>
+        _db.Query("SELECT name_key, name, qid, status, works_json, tries, updated_utc FROM author_online",
+                r => new AuthorOnline(r.GetString(0), r.GetString(1), NullableStr(r, 2), r.GetString(3),
+                    NullableStr(r, 4), r.GetInt32(5), Dt(r, 6) ?? DateTime.MinValue))
+            .ToDictionary(a => a.NameKey, a => a, StringComparer.OrdinalIgnoreCase);
+
+    public void UpsertAuthorOnline(AuthorOnline a) =>
+        _db.Exec("""
+            INSERT OR REPLACE INTO author_online (name_key, name, qid, status, works_json, tries, updated_utc)
+            VALUES ($key, $name, $qid, $status, $works, $tries, $updated)
+            """,
+            ("$key", a.NameKey), ("$name", a.Name), ("$qid", a.Qid), ("$status", a.Status),
+            ("$works", a.WorksJson), ("$tries", a.Tries), ("$updated", Iso(DateTime.UtcNow)));
 
     public void DeleteBooks(IEnumerable<long> ids)
     {

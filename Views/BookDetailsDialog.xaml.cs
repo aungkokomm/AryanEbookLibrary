@@ -85,17 +85,29 @@ public sealed partial class BookDetailsDialog : ContentDialog
                                   (o.How == OnlineDetails.ByIsbn ? ", found by the ISBN printed in the book." : ".");
             SuggestionBar.IsOpen = true;
         }
+        // What came from where: Open Library's record, plus anything Wikidata or Wikipedia filled in.
+        var from = new List<string>();
         if (o is { IsApplied: true })
-        {
-            OnlineNoteText.Text = o.How switch
+            from.Add(o.How switch
             {
-                OnlineDetails.ByIsbn => "Some details are from Open Library, found by the ISBN in the book.",
-                OnlineDetails.ByMatch => "Some details are from Open Library, matched by title and author.",
-                _ => "Details from Open Library, chosen by you."
-            };
+                OnlineDetails.ByIsbn => "Open Library, found by the ISBN in the book",
+                OnlineDetails.ByMatch => "Open Library, matched by title and author",
+                _ => "Open Library, chosen by you"
+            });
+        if (Book.DescriptionSource is { } d && d != OnlineSource.OpenLibrary) from.Add("the description from " + OnlineSource.Name(d));
+        if (Book.SeriesSource is { } s) from.Add("the series from " + OnlineSource.Name(s));
+        if (Book.CoverSource is { } c && c != OnlineSource.OpenLibrary) from.Add("the cover from " + OnlineSource.Name(c));
+        if (Book.YearSource is { } y2 && from.Count == 0) from.Add("the year from " + OnlineSource.Name(y2));
+
+        if (from.Count > 0)
+        {
+            OnlineNoteText.Text = "Details from " + Join(from) + ".";
             OnlineNote.Visibility = Visibility.Visible;
         }
     }
+
+    private static string Join(List<string> parts) =>
+        parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
 
     private void OnFindOnline(object sender, RoutedEventArgs e)
     {
@@ -124,11 +136,15 @@ public sealed partial class BookDetailsDialog : ContentDialog
         SuggestionBar.IsOpen = false;
     }
 
+    /// <summary>Drops every online detail for this book, and remembers not to look it up again by itself.</summary>
     private void OnRemoveOnline(object sender, RoutedEventArgs e)
     {
-        var o = new OnlineDetails { Status = OnlineDetails.None };   // and not looked up again by itself
-        AppServices.Repo.UpsertOnline(Book.StateKey, o);
-        Book.SetOnline(o);
+        foreach (var source in new[] { OnlineSource.OpenLibrary, OnlineSource.Wikidata, OnlineSource.Wikipedia })
+        {
+            var o = new OnlineDetails { Source = source, Status = OnlineDetails.None };
+            AppServices.Repo.UpsertOnline(Book.StateKey, o);
+            Book.SetOnline(o);
+        }
         Next = DetailsNext.Reopen;
         Hide();
     }

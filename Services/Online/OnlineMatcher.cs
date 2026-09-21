@@ -63,14 +63,17 @@ public static class OnlineMatcher
     /// A short main title says little ("Software Architecture"), so when the book has a subtitle that Open
     /// Library's record does not share ("visual lecture notes"), the record may be another book by the author.
     /// </summary>
-    public static bool SubtitleUnconfirmed(LookupBook b, OnlineCandidate c)
+    public static bool SubtitleUnconfirmed(LookupBook b, OnlineCandidate c) =>
+        SubtitleUnconfirmed(b, c.Title + " " + c.Subtitle);
+
+    public static bool SubtitleUnconfirmed(LookupBook b, string otherFullTitle)
     {
         var main = Tokens(MainTitleOf(b));
         var sub = Tokens(b.Title);
         sub.ExceptWith(main);
         if (main.Count > 2 || sub.Count < 2) return false;
-        var olFull = Tokens(c.Title + " " + c.Subtitle);
-        return sub.Count(olFull.Contains) * 2 < sub.Count;
+        var theirs = Tokens(otherFullTitle);
+        return sub.Count(theirs.Contains) * 2 < sub.Count;
     }
 
     private static bool NamesSeries(LookupBook b, OnlineCandidate c)
@@ -79,6 +82,33 @@ public static class OnlineMatcher
         if (series.Count == 0) return true;
         var said = Tokens(c.Title + " " + c.Subtitle + " " + c.Publisher);
         return series.Any(said.Contains);
+    }
+
+    /// <summary>
+    /// The same book by title alone, used for a work in an author's catalogue (the author is already known
+    /// to be theirs): the book's main title is in the work's title, and the work's main title is in the
+    /// book's title or file name.
+    /// </summary>
+    public static bool WorkTitleAgrees(LookupBook b, string workTitle)
+    {
+        var bookMain = Tokens(MainTitleOf(b));
+        var workMain = Tokens(MainTitle(workTitle));
+        if (bookMain.Count == 0 || workMain.Count == 0) return false;
+        var have = Tokens(b.Title + " " + b.FileName);
+        return bookMain.IsSubsetOf(Tokens(workTitle)) && workMain.IsSubsetOf(have) && !SubtitleUnconfirmed(b, workTitle);
+    }
+
+    /// <summary>
+    /// The agreeing work that looks most like this book, since an author writes several books with the same
+    /// first word: "Sapiens: A Graphic History" must not take "Sapiens: A Brief History of Humankind".
+    /// </summary>
+    public static double TitleOverlap(LookupBook b, string otherTitle)
+    {
+        var mine = Tokens(b.Title);
+        var theirs = Tokens(otherTitle);
+        if (mine.Count == 0 || theirs.Count == 0) return 0;
+        var shared = mine.Count(theirs.Contains);
+        return shared / (double)(mine.Count + theirs.Count - shared);
     }
 
     /// <summary>The same words, whatever the case and punctuation: "The art of SQL" and "The Art of SQL".</summary>
@@ -176,7 +206,9 @@ public static class OnlineMatcher
     private static readonly HashSet<string> Ignored = new(StringComparer.Ordinal)
     {
         "the", "a", "an", "of", "and", "to", "in", "on", "for", "with", "by", "from", "at", "or", "its",
-        "edition", "revised", "updated", "expanded", "unabridged", "illustrated", "annotated", "ebook", "pdf", "epub"
+        "edition", "revised", "updated", "expanded", "unabridged", "illustrated", "annotated", "ebook", "pdf", "epub",
+        // edition markers, not part of a title: "Sapiens [Tenth Anniversary Edition]"
+        "anniversary", "reprint", "deluxe", "paperback", "hardcover", "kindle", "tenth", "twentieth", "fiftieth"
     };
 
     /// <summary>Lower-case words without accents, articles, edition words or ordinals ("2nd").</summary>

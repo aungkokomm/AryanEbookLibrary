@@ -213,6 +213,59 @@ public sealed class Database : IDisposable
                 """);
             Exec("PRAGMA user_version = 4;");
         }
+        if (version < 5)
+        {
+            // More than one place can know about a book (Open Library, Wikidata, Wikipedia), so the table
+            // holds one row per book PER SOURCE and the display picks the best value per field.
+            Exec("""
+                CREATE TABLE book_online_new (
+                    key          TEXT NOT NULL,
+                    source       TEXT NOT NULL,              -- openlibrary | wikidata | wikipedia
+                    status       TEXT NOT NULL,              -- found | suggested | none | error
+                    how          TEXT,                       -- isbn | match | picked
+                    source_key   TEXT,
+                    isbn         TEXT,
+                    title        TEXT,
+                    author       TEXT,
+                    publisher    TEXT,
+                    year         INTEGER,
+                    series       TEXT,
+                    series_index REAL,
+                    description  TEXT,
+                    subjects     TEXT,
+                    page_title   TEXT,                       -- the Wikipedia article, when there is one
+                    cover_id     INTEGER,
+                    cover_url    TEXT,
+                    cover_file   TEXT,
+                    use_cover    INTEGER NOT NULL DEFAULT 0,
+                    tries        INTEGER NOT NULL DEFAULT 0,
+                    updated_utc  TEXT NOT NULL,
+                    PRIMARY KEY (key, source)
+                );
+                """);
+            Exec("""
+                INSERT INTO book_online_new (key, source, status, how, source_key, isbn, title, author, publisher,
+                                             year, description, subjects, cover_id, cover_file, use_cover, tries, updated_utc)
+                SELECT key, 'openlibrary', status, how, source_key, isbn, title, author, publisher,
+                       year, description, subjects, cover_id, cover_file, use_cover, tries, updated_utc
+                FROM book_online;
+                """);
+            Exec("DROP TABLE book_online;");
+            Exec("ALTER TABLE book_online_new RENAME TO book_online;");
+            // One author looked up once: their Wikidata id and their catalogue, which many books share.
+            Exec("""
+                CREATE TABLE author_online (
+                    name_key    TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL,
+                    qid         TEXT,
+                    status      TEXT NOT NULL,               -- found | none | error
+                    works_json  TEXT,
+                    tries       INTEGER NOT NULL DEFAULT 0,
+                    updated_utc TEXT NOT NULL
+                );
+                """);
+            Exec("PRAGMA user_version = 5;");
+        }
     }
 
     public void Dispose()

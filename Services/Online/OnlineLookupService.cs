@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services.Metadata;
 using Microsoft.UI.Dispatching;
@@ -13,12 +14,16 @@ public sealed class OnlineLookupService
 {
     private sealed record Item(LookupBook Book, bool NeedsCover, int Tries);
 
+    private sealed record AuthorJob(string Key, string Name, string? Qid, string? WorksJson, int Tries, List<Item> Books);
+
     private readonly LibraryRepository _repo;
     private CancellationTokenSource? _cts;
     private int _held;
     private volatile bool _running;
 
     public OpenLibraryClient Client { get; } = new();
+    public WikidataClient Wikidata { get; } = new();
+    public WikipediaClient Wikipedia { get; } = new();
 
     /// <summary>Background progress for the status bar, "" when there is nothing to say. Raised on the UI thread.</summary>
     public event Action<string>? StatusChanged;
@@ -34,12 +39,65 @@ public sealed class OnlineLookupService
             .OrderBy(b => b.Isbn.Length > 0 ? 0 : b.FileAuthor.Length == 0 ? 1 : 2)   // surest first
             .Select(b => new Item(ToLookup(b), b.NeedsCover, b.Online?.Tries ?? 0))
             .ToList();
-        if (queue.Count == 0) return;
+        var authors = AuthorJobs(books, now);
+        if (queue.Count == 0 && authors.Count == 0) return;
 
         _running = true;
         _cts = new CancellationTokenSource();
-        _ = RunAsync(queue, DispatcherQueue.GetForCurrentThread(), _cts.Token);
+        var ui = DispatcherQueue.GetForCurrentThread();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (queue.Count > 0) await RunAsync(queue, ui, _cts.Token);
+                if (authors.Count > 0) await RunAuthorsAsync(authors, ui, _cts.Token);
+            }
+            finally
+            {
+                _running = false;
+            }
+        });
     }
+
+    /// <summary>
+    /// Wikidata is asked once per author, not once per book: one query gives their whole catalogue with
+    /// series numbers and the Wikipedia page of each work, which many books of that author then share.
+    /// </summary>
+    private List<AuthorJob> AuthorJobs(IReadOnlyList<Book> books, DateTime now)
+    {
+        var known = _repo.GetAllAuthorsOnline();
+        var jobs = new List<AuthorJob>();
+        foreach (var group in books.Where(WantsWikidata).GroupBy(FirstAuthor, StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Key.Length < 4) continue;
+            var key = group.Key.ToLowerInvariant();
+            if (known.TryGetValue(key, out var seen))
+            {
+                var retry = seen.Status == OnlineDetails.Error && seen.Tries < 3 && now - seen.UpdatedUtc > TimeSpan.FromHours(1);
+                var books2 = group.Where(b => b.OnlineFrom(OnlineSource.Wikidata) is null).ToList();
+                if (!retry && books2.Count == 0) continue;
+                jobs.Add(new AuthorJob(key, group.Key, seen.Qid, seen.WorksJson, seen.Tries,
+                    books2.Select(b => new Item(ToLookup(b), b.NeedsCover, 0)).ToList()));
+                continue;
+            }
+            jobs.Add(new AuthorJob(key, group.Key, null, null, 0,
+                group.Select(b => new Item(ToLookup(b), b.NeedsCover, 0)).ToList()));
+        }
+        return jobs.OrderByDescending(j => j.Books.Count).ToList();
+    }
+
+    private static string FirstAuthor(Book b) => b.Author.Split(',')[0].Trim();
+
+    /// <summary>A book whose author is a Latin-script person's name and which still lacks a description, cover or series.</summary>
+    private static bool WantsWikidata(Book b)
+    {
+        if (b.Author.Length == 0 || Myanmar(b.Author) || Myanmar(b.Title)) return false;
+        if (b.Author.Contains('.') || b.Author.Contains('@')) return false;          // "www.oshoworld.com", an e-mail
+        if (!b.Author.Trim().Contains(' ')) return false;                            // "ISECOM", "CamScanner", "gnv64"
+        return b.Description.Length == 0 || b.NeedsCover || b.Series.Length == 0;
+    }
+
+    private static bool Myanmar(string s) => s.Any(c => c is >= 'က' and <= '႟');
 
     public void Stop() => _cts?.Cancel();
 
@@ -190,7 +248,156 @@ public sealed class OnlineLookupService
         finally
         {
             Log.Write($"Open Library: {done} of {queue.Count} looked up, {filled} filled in, {suggested} suggested");
-            _running = false;
         }
+    }
+
+    /// <summary>
+    /// Wikidata author by author (their id and catalogue are kept, so a second run costs nothing), then
+    /// Wikipedia for the works it names a page for: that is where descriptions and many covers come from.
+    /// </summary>
+    private async Task RunAuthorsAsync(List<AuthorJob> jobs, DispatcherQueue ui, CancellationToken ct)
+    {
+        int done = 0, matched = 0, described = 0, failuresInARow = 0;
+        void Report(string text) => ui.TryEnqueue(() => StatusChanged?.Invoke(text));
+        Report($"Wikidata: looking up {jobs.Count:N0} authors");
+        try
+        {
+            foreach (var job in jobs)
+            {
+                while (Volatile.Read(ref _held) > 0) await Task.Delay(500, ct);
+                ct.ThrowIfCancellationRequested();
+                done++;
+                Report($"Wikidata: {done:N0} of {jobs.Count:N0} authors, {matched:N0} books matched, {described:N0} described");
+
+                List<WikidataWork> works;
+                try
+                {
+                    works = await AuthorWorksAsync(job, ct);
+                    failuresInARow = 0;
+                }
+                catch (OnlineUnavailableException)
+                {
+                    _repo.UpsertAuthorOnline(new LibraryRepository.AuthorOnline(
+                        job.Key, job.Name, job.Qid, OnlineDetails.Error, job.WorksJson, job.Tries + 1, DateTime.UtcNow));
+                    if (++failuresInARow >= 3)
+                    {
+                        Report("Wikidata isn't answering. Aryan will try again after the next scan.");
+                        return;
+                    }
+                    continue;
+                }
+
+                foreach (var item in job.Books)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var work = works.Where(w => OnlineMatcher.WorkTitleAgrees(item.Book, w.Title))
+                        .MaxBy(w => OnlineMatcher.TitleOverlap(item.Book, w.Title));
+                    var facts = work is null
+                        ? new OnlineDetails { Source = OnlineSource.Wikidata, Status = OnlineDetails.None }
+                        : new OnlineDetails
+                        {
+                            Source = OnlineSource.Wikidata,
+                            Status = OnlineDetails.Found,
+                            How = OnlineDetails.ByMatch,
+                            SourceKey = work.Key,
+                            Title = work.Title,
+                            Year = work.Year,
+                            Series = work.Series,
+                            SeriesIndex = work.SeriesIndex,
+                            PageTitle = work.WikipediaTitle
+                        };
+                    _repo.UpsertOnline(item.Book.Key, facts);
+                    var key = item.Book.Key;
+                    ui.TryEnqueue(() => AppServices.Library.FindByKey(key)?.SetOnline(facts));
+                    if (work is null) continue;
+                    matched++;
+
+                    if (work.WikipediaTitle is null) continue;
+                    OnlineDetails? article;
+                    try
+                    {
+                        article = await ArticleAsync(key, work.WikipediaTitle, item.NeedsCover, ct);
+                        failuresInARow = 0;
+                    }
+                    catch (OnlineUnavailableException)
+                    {
+                        if (++failuresInARow >= 3)
+                        {
+                            Report("Wikipedia isn't answering. Aryan will try again after the next scan.");
+                            return;
+                        }
+                        continue;
+                    }
+                    if (article is null) continue;
+                    described++;
+                    _repo.UpsertOnline(key, article);
+                    ui.TryEnqueue(() => AppServices.Library.FindByKey(key)?.SetOnline(article));
+                }
+            }
+            Report($"Wikidata and Wikipedia: {matched:N0} books matched, {described:N0} with a description");
+        }
+        catch (OperationCanceledException)
+        {
+            Report("");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Wikidata lookups failed: " + ex);
+            Report("");
+        }
+        finally
+        {
+            Log.Write($"Wikidata: {done} of {jobs.Count} authors, {matched} books matched, {described} described");
+        }
+    }
+
+    /// <summary>The author's catalogue, from the kept copy when there is one.</summary>
+    private async Task<List<WikidataWork>> AuthorWorksAsync(AuthorJob job, CancellationToken ct)
+    {
+        if (job.WorksJson is { Length: > 0 } saved)
+            return JsonSerializer.Deserialize<List<WikidataWork>>(saved) ?? new List<WikidataWork>();
+
+        var qid = job.Qid ?? await Wikidata.FindAuthorAsync(job.Name, ct);
+        if (qid is null)
+        {
+            _repo.UpsertAuthorOnline(new LibraryRepository.AuthorOnline(
+                job.Key, job.Name, null, OnlineDetails.None, null, job.Tries, DateTime.UtcNow));
+            return new List<WikidataWork>();
+        }
+
+        var works = await Wikidata.WorksByAuthorAsync(qid, ct);
+        _repo.UpsertAuthorOnline(new LibraryRepository.AuthorOnline(
+            job.Key, job.Name, qid, OnlineDetails.Found, JsonSerializer.Serialize(works), job.Tries, DateTime.UtcNow));
+        return works;
+    }
+
+    /// <summary>The Wikipedia article about this book: its opening paragraphs, and its picture when a cover is wanted.</summary>
+    private async Task<OnlineDetails?> ArticleAsync(string key, string pageTitle, bool wantCover, CancellationToken ct)
+    {
+        var article = await Wikipedia.ArticleAsync(pageTitle, ct);
+        if (article is null) return null;
+        var details = new OnlineDetails
+        {
+            Source = OnlineSource.Wikipedia,
+            Status = OnlineDetails.Found,
+            How = OnlineDetails.ByMatch,
+            SourceKey = article.Title,
+            PageTitle = article.Title,
+            Description = article.Summary,
+            CoverUrl = article.ImageUrl
+        };
+        if (wantCover && article.ImageUrl is { } url)
+        {
+            try
+            {
+                if (await Wikipedia.ImageAsync(url, ct) is { } bytes)
+                    details.CoverFile = await CoverStore.SaveOnlineAsync(bytes, key + "|wikipedia");
+            }
+            catch (OnlineUnavailableException)
+            {
+                // the text is worth keeping even when the picture fails
+            }
+        }
+        return details;
     }
 }

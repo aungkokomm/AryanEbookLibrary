@@ -59,14 +59,27 @@ public sealed class Book : ObservableObject
     public string FileDescription { get; set; } = "";
     public string FileSubjects { get; set; } = "";
     public string? FileCoverFile { get; set; }
-    public OnlineDetails? Online { get; private set; }
+    public double? FileSeriesIndex { get; set; }
     public string? CustomTitle { get; private set; }
     public string? CustomAuthor { get; private set; }
     public string? CustomSeries { get; private set; }
 
-    /// <summary>What would show without the user's edit: the file's details, or Open Library's where they apply.</summary>
+    private readonly Dictionary<string, OnlineDetails> _online = new(StringComparer.Ordinal);
+
+    /// <summary>What Open Library says: the source the user searches and picks from by hand.</summary>
+    public OnlineDetails? Online => _online.GetValueOrDefault(OnlineSource.OpenLibrary);
+
+    public OnlineDetails? OnlineFrom(string source) => _online.GetValueOrDefault(source);
+
+    /// <summary>What would show without the user's edit: the file's details, or an online one where it applies.</summary>
     public string BaseTitle { get; private set; } = "";
     public string BaseAuthor { get; private set; } = "";
+
+    /// <summary>Which source each shown detail came from, null when it is the file's own.</summary>
+    public string? SeriesSource { get; private set; }
+    public string? YearSource { get; private set; }
+    public string? DescriptionSource { get; private set; }
+    public string? CoverSource { get; private set; }
 
     /// <summary>The loaded details are the file's own; call once after loading, before any edit or online details.</summary>
     public void KeepFileDetails()
@@ -74,6 +87,7 @@ public sealed class Book : ObservableObject
         FileTitle = Title;
         FileAuthor = Author;
         FileSeries = Series;
+        FileSeriesIndex = SeriesIndex;
         FilePublisher = Publisher;
         FileYear = Year;
         FileDescription = Description;
@@ -92,10 +106,18 @@ public sealed class Book : ObservableObject
         ShowDetails();
     }
 
-    /// <summary>Sets (or clears) what Open Library says and shows the result.</summary>
+    /// <summary>Sets what one source says (replacing what it said before) and shows the result.</summary>
     public void SetOnline(OnlineDetails? online)
     {
-        Online = online;
+        if (online is null) return;
+        _online[online.Source] = online;
+        ShowDetails();
+        OnPropertyChanged(nameof(Online));
+    }
+
+    public void SetOnline(IEnumerable<OnlineDetails> sources)
+    {
+        foreach (var o in sources) _online[o.Source] = o;
         ShowDetails();
         OnPropertyChanged(nameof(Online));
     }
@@ -107,7 +129,9 @@ public sealed class Book : ObservableObject
     /// </summary>
     private void ShowDetails()
     {
-        var o = Online is { IsApplied: true } ? Online : null;
+        var o = _online.GetValueOrDefault(OnlineSource.OpenLibrary) is { IsApplied: true } a ? a : null;
+        var wikidata = _online.GetValueOrDefault(OnlineSource.Wikidata) is { IsApplied: true } b ? b : null;
+        var wikipedia = _online.GetValueOrDefault(OnlineSource.Wikipedia) is { IsApplied: true } c ? c : null;
         var picked = o?.IsPicked == true;
         bool Use(string? online, bool fileIsWeak) => o is not null && !string.IsNullOrWhiteSpace(online) && (picked || fileIsWeak);
 
@@ -122,15 +146,65 @@ public sealed class Book : ObservableObject
 
         Title = CustomTitle ?? BaseTitle;
         Author = CustomAuthor ?? BaseAuthor;
-        Series = CustomSeries ?? FileSeries;
         Publisher = Use(o?.Publisher, FilePublisher.Length == 0) ? o!.Publisher! : FilePublisher;
-        Year = o?.Year is { } y && (picked || FileYear is null) ? y : FileYear;
-        Description = Use(o?.Description, FileDescription.Length == 0) ? o!.Description! : FileDescription;
         Subjects = Use(o?.Subjects, FileSubjects.Length == 0) ? o!.Subjects! : FileSubjects;
+
+        // Series: the user's, then the file's, then Wikidata's (name and number always together), then Open Library's.
+        SeriesSource = null;
+        if (CustomSeries is not null)
+        {
+            Series = CustomSeries;
+        }
+        else if (FileSeries.Length > 0)
+        {
+            Series = FileSeries;
+            SeriesIndex = FileSeriesIndex;
+        }
+        else if (First(wikidata, o, x => x.Series) is { } series)
+        {
+            Series = series.Series!;
+            SeriesIndex = series.SeriesIndex;
+            SeriesSource = series.Source;
+        }
+        else
+        {
+            Series = "";
+            SeriesIndex = FileSeriesIndex;
+        }
+
+        YearSource = null;
+        Year = FileYear;
+        if ((FileYear is null || picked) && First(o, wikidata, x => x.Year?.ToString()) is { } year)
+        {
+            Year = year.Year;
+            YearSource = year.Source;
+        }
+
+        // Wikipedia's opening paragraphs beat Open Library's synopsis, which most records do not have.
+        DescriptionSource = null;
+        Description = FileDescription;
+        if ((FileDescription.Length == 0 || picked) && First(wikipedia, o, x => x.Description) is { } text)
+        {
+            Description = text.Description!;
+            DescriptionSource = text.Source;
+        }
+
         // A picked record's cover shows only if the user ticked "Use its cover"; a found one fills a missing cover.
-        CoverFile = o is not null && !string.IsNullOrEmpty(o.CoverFile) && (picked ? o.UseCover : o.UseCover || NeedsCover)
-            ? o.CoverFile : FileCoverFile;
+        var cover = o is not null && !string.IsNullOrEmpty(o.CoverFile) && (picked ? o.UseCover : o.UseCover || NeedsCover)
+            ? o
+            : NeedsCover && !string.IsNullOrEmpty(wikipedia?.CoverFile) ? wikipedia : null;
+        CoverFile = cover?.CoverFile ?? FileCoverFile;
+        CoverSource = cover?.Source;
+
         _searchBlob = null;
+    }
+
+    /// <summary>The first of two sources that has this detail.</summary>
+    private static OnlineDetails? First(OnlineDetails? first, OnlineDetails? second, Func<OnlineDetails, string?> value)
+    {
+        if (first is not null && !string.IsNullOrWhiteSpace(value(first))) return first;
+        if (second is not null && !string.IsNullOrWhiteSpace(value(second))) return second;
+        return null;
     }
 
     /// <summary>The book's cover is missing or is a page of text, so another one is better.</summary>
