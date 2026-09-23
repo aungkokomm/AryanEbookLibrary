@@ -14,7 +14,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Custom title bar: name on the left, search in the middle, Windows' own buttons on the right.
@@ -118,42 +117,48 @@
             </NavigationView.FooterMenuItems>
 
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8,0,0,0">
-                <Frame x:Name="ContentFrame" />
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Frame x:Name="ContentFrame" />
+
+                    <!-- Status bar: a quiet line under the page, only while there is something to say. It sits under the page
+                         and not under the whole window, so the sidebar never loses height to it. -->
+                    <Border x:Name="StatusBar" Grid.Row="1" BorderThickness="0,1,0,0" Visibility="Collapsed"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                        <Grid Padding="20,7" ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="{x:Bind Library.StatusText, Mode=OneWay}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                            <TextBlock Grid.Column="1" Text="{x:Bind Library.OnlineStatusText, Mode=OneWay}" MaxWidth="460"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
+                            <ProgressBar Grid.Column="2" Width="220" Minimum="0"
+                                         Maximum="{x:Bind Library.ScanTotal, Mode=OneWay}"
+                                         Value="{x:Bind Library.ScanDone, Mode=OneWay}"
+                                         Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
+                                         VerticalAlignment="Center" />
+
+                            <Button Grid.Column="3" Content="Cancel" Padding="10,2"
+                                    Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
+                                    Click="OnCancelScan" />
+                        </Grid>
+                    </Border>
+                </Grid>
             </Border>
         </NavigationView>
-
-        <!-- Status bar: a quiet line, not a coloured band, and only while there is something to say -->
-        <Border x:Name="StatusBar" Grid.Row="2" BorderThickness="0,1,0,0" Visibility="Collapsed"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                Background="{ThemeResource SolidBackgroundFillColorBaseAltBrush}">
-            <Grid Padding="20,7" ColumnSpacing="14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0" Text="{x:Bind Library.StatusText, Mode=OneWay}"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                <TextBlock Grid.Column="1" Text="{x:Bind Library.OnlineStatusText, Mode=OneWay}" MaxWidth="460"
-                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-
-                <ProgressBar Grid.Column="2" Width="220" Minimum="0"
-                             Maximum="{x:Bind Library.ScanTotal, Mode=OneWay}"
-                             Value="{x:Bind Library.ScanDone, Mode=OneWay}"
-                             Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
-                             VerticalAlignment="Center" />
-
-                <Button Grid.Column="3" Content="Cancel" Padding="10,2"
-                        Visibility="{x:Bind Library.IsScanning, Mode=OneWay}"
-                        Click="OnCancelScan" />
-            </Grid>
-        </Border>
     </Grid>
 </Window>
