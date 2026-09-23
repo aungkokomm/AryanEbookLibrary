@@ -17,6 +17,7 @@ public static class BookLauncher
     {
         BookFormat.Pdf => AppServices.Settings.ReadPdfInApp,
         BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3 => AppServices.Settings.ReadEpubInApp,
+        BookFormat.Cbz or BookFormat.Cbr => AppServices.Settings.ReadComicsInApp,
         _ => false,
     };
 

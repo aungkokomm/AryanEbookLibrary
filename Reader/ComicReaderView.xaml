@@ -1,0 +1,109 @@
+<UserControl
+    x:Class="AryanEbookLibrary.Reader.ComicReaderView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ReaderSurfaceBrush" Color="#FFE3E3E6" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ReaderSurfaceBrush" Color="#FF1A1A1C" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <Style x:Key="ToolButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="36" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══ toolbar ═══ -->
+        <Grid x:Name="ToolBar" Padding="8,4,8,6" ColumnSpacing="4" SizeChanged="OnToolBarSizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"
+                        AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left)">
+                    <FontIcon Glyph="&#xE70E;" FontSize="14" />
+                </Button>
+                <TextBox x:Name="PageBox" Width="64" Height="32" MinWidth="0" TextAlignment="Center"
+                         InputScope="Number" KeyDown="OnPageBoxKeyDown" LostFocus="OnPageBoxLostFocus"
+                         AutomationProperties.Name="Page number" />
+                <TextBlock x:Name="PageCountText" VerticalAlignment="Center" Margin="6,0,2,0"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button Style="{StaticResource ToolButtonStyle}" Click="OnNextPage"
+                        AutomationProperties.Name="Next page" ToolTipService.ToolTip="Next page (Right)">
+                    <FontIcon Glyph="&#xE70D;" FontSize="14" />
+                </Button>
+                <TextBlock x:Name="TimeLeftText" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <DropDownButton x:Name="FitButton" Height="32" MinWidth="100" AutomationProperties.Name="Fit">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <RadioMenuFlyoutItem x:Name="FitPageItem" Text="Fit page" GroupName="Fit" Tag="Page" Click="OnFit" />
+                            <RadioMenuFlyoutItem x:Name="FitWidthItem" Text="Fit width" GroupName="Fit" Tag="Width" Click="OnFit" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button Style="{StaticResource ToolButtonStyle}" Click="OnFullScreen"
+                        AutomationProperties.Name="Full screen" ToolTipService.ToolTip="Full screen (F11)">
+                    <FontIcon Glyph="&#xE740;" FontSize="15" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ═══ the page ═══ -->
+        <Grid x:Name="Surface" Grid.Row="1" Background="{ThemeResource ReaderSurfaceBrush}">
+            <!-- The page is laid out at its fitted size; the scroller only zooms past that (Ctrl+wheel). -->
+            <ScrollViewer x:Name="Scroller" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="4"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollMode="Enabled" VerticalScrollMode="Enabled" IsTabStop="True"
+                          UseSystemFocusVisuals="False" ViewChanged="OnViewChanged" SizeChanged="OnScrollerSizeChanged">
+                <Grid x:Name="PageHost" Background="Transparent" Tapped="OnPageTapped">
+                    <Image x:Name="PageImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           AutomationProperties.Name="Page" />
+                </Grid>
+            </ScrollViewer>
+
+            <!-- Opening, or why the comic could not be opened. -->
+            <StackPanel x:Name="MessagePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12"
+                        MaxWidth="420" Padding="24" Visibility="Collapsed">
+                <ProgressRing x:Name="MessageRing" IsActive="False" Width="32" Height="32" />
+                <TextBlock x:Name="MessageTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="MessageText" TextAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="ExternalButton" Content="Open with default app" Visibility="Collapsed"
+                        HorizontalAlignment="Center" Click="OnOpenExternally" />
+            </StackPanel>
+
+            <!-- The last page: offer to mark the comic finished, once. -->
+            <InfoBar x:Name="EndBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
+                     MaxWidth="560" IsOpen="False" Severity="Success" IsClosable="True"
+                     Title="The last page" Message="Mark it finished in your reading log?">
+                <InfoBar.ActionButton>
+                    <Button Content="Mark as finished" Click="OnMarkFinished" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -54,8 +54,7 @@ public sealed partial class ReaderWindow : Window
         }
         var path = book.FullPath;
         if (path is null || !File.Exists(path)) return "The file is not there any more.";
-        if (book.Format is not (BookFormat.Pdf or BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3))
-            return "The reader cannot open " + book.FormatLabel + " books.";
+        if (book.Format is BookFormat.Unknown) return "The reader cannot open " + book.FormatLabel + " books.";
 
         var window = new ReaderWindow(book, path);
         Open_[book.StateKey] = window;
@@ -104,7 +103,12 @@ public sealed partial class ReaderWindow : Window
             if (_inFront) Touch();
         };
 
-        _view = book.Format == BookFormat.Pdf ? new PdfReaderView() : new EpubReaderView();
+        _view = book.Format switch
+        {
+            BookFormat.Pdf => new PdfReaderView(),
+            BookFormat.Cbz or BookFormat.Cbr => new ComicReaderView(),
+            _ => new EpubReaderView(),
+        };
         var element = (FrameworkElement)_view;
         Grid.SetRow(element, 1);
         RootGrid.Children.Add(element);

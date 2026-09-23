@@ -21,6 +21,7 @@ public sealed partial class SettingsPage : Page
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
         ReadInAppSwitch.IsOn = AppServices.Settings.ReadPdfInApp;
         ReadEpubInAppSwitch.IsOn = AppServices.Settings.ReadEpubInApp;
+        ReadComicsInAppSwitch.IsOn = AppServices.Settings.ReadComicsInApp;
         DefineMyanmarBox.IsChecked = AppServices.Settings.DefineShowsMyanmar;
         DefineHindiBox.IsChecked = AppServices.Settings.DefineShowsHindi;
         Select(LanguageBox, AppServices.Settings.PreferredLanguage);
@@ -52,6 +53,7 @@ public sealed partial class SettingsPage : Page
         if (_loading) return;
         AppServices.Settings.ReadPdfInApp = ReadInAppSwitch.IsOn;
         AppServices.Settings.ReadEpubInApp = ReadEpubInAppSwitch.IsOn;
+        AppServices.Settings.ReadComicsInApp = ReadComicsInAppSwitch.IsOn;
         AppServices.Settings.Save();
     }
 
