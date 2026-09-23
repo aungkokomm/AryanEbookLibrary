@@ -124,6 +124,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         settings.IsStatusBarEnabled = false;
         settings.IsGeneralAutofillEnabled = false;
         settings.IsPasswordAutosaveEnabled = false;
+        // SmartScreen checked every page the book loads, 300 to 400 ms each: a Kindle comic took a second to turn.
+        // Only the reader's own page and the book's own pages are ever shown here.
+        settings.IsReputationCheckingRequired = false;
         // The book's folder, read by the browser itself: through the handler below, a 140 MB book took seven
         // seconds to arrive. Only this window's page is ever loaded, so only it can ask for anything there.
         if (path.Length < 260)
