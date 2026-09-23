@@ -50,6 +50,8 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _deviceWatcher.Dispose();
+            // The readers first: each saves its place and reading time, and the database closes after.
+            Reader.ReaderWindow.CloseAll();
             AppServices.Shutdown();
         };
 

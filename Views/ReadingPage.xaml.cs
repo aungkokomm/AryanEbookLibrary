@@ -61,6 +61,7 @@ public sealed partial class ReadingPage : Page
         UpNextEmpty.Visibility = next.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         ShowYear();
+        ShowTime();
 
         static string Plural(int n) => n == 1 ? "1 book" : $"{n:N0} books";
     }
@@ -145,6 +146,69 @@ public sealed partial class ReadingPage : Page
         var pace = done >= expected ? "on track"
             : expected - done == 1 ? "1 book behind" : $"{expected - done:N0} books behind";
         GoalText.Text = $"{done:N0} of {goal:N0} books, {goal - done:N0} to go ({pace}).";
+    }
+
+    // ---- time spent in the app's own reader ----
+
+    private void ShowTime()
+    {
+        List<ReadingSession> sessions;
+        try
+        {
+            sessions = AppServices.Sessions.All();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Reading log: sessions could not be read: " + ex.Message);
+            sessions = new();
+        }
+
+        var none = sessions.Count == 0;
+        TimeEmpty.Visibility = none ? Visibility.Visible : Visibility.Collapsed;
+        TimeNumbers.Visibility = DayChart.Visibility = MostTimeText.Visibility = none ? Visibility.Collapsed : Visibility.Visible;
+        StreakText.Text = "";
+        if (none) return;
+
+        var today = DateTime.Today;
+        var byDay = ReadingTime.ByDay(sessions);
+        TodayTime.Text = ReadingTime.Format(byDay.GetValueOrDefault(today));
+        WeekTime.Text = ReadingTime.Format(ReadingTime.Between(byDay, ReadingTime.WeekStart(today), today));
+        YearTime.Text = ReadingTime.Format(ReadingTime.Between(byDay, new DateTime(today.Year, 1, 1), today));
+        YearTimeLabel.Text = $"In {today.Year}";
+        var thisYear = sessions.Where(s => s.StartedUtc.ToLocalTime().Year == today.Year).ToList();
+        PagesYear.Text = thisYear.Sum(s => s.Pages).ToString("N0");
+
+        var streak = ReadingTime.Streak(byDay, today);
+        StreakText.Text = streak switch
+        {
+            0 => "",
+            1 => "1 day in a row",
+            _ => $"{streak:N0} days in a row",
+        };
+
+        var culture = CultureInfo.CurrentCulture;
+        var days = Enumerable.Range(0, 14).Select(i => today.AddDays(i - 13)).ToList();
+        var most = Math.Max(60, days.Max(d => byDay.GetValueOrDefault(d)));
+        const double tallest = 80;
+        DayChart.ItemsSource = days.Select(d =>
+        {
+            var seconds = byDay.GetValueOrDefault(d);
+            var name = culture.DateTimeFormat.GetShortestDayName(d.DayOfWeek);
+            return new MonthBar(name, seconds >= 60 ? ReadingTime.Short(seconds) : "",
+                seconds >= 60 ? Math.Max(4, tallest * seconds / most) : 0, seconds >= 60,
+                d == today ? FontWeights.SemiBold : FontWeights.Normal);
+        }).ToList();
+
+        // The books this year's time went into, by what they are called now.
+        var byBook = thisYear.GroupBy(s => s.BookKey).Select(g => (Key: g.Key, Seconds: g.Sum(s => s.Seconds)))
+            .OrderByDescending(x => x.Seconds).Take(3).ToList();
+        // The title the library shows (the user's own, if they gave one), else the catalogue's, which still knows
+        // books whose files are missing.
+        var titles = AppServices.Repo.GetTitlesByKey();
+        foreach (var b in Books) titles[b.StateKey] = b.Title;
+        MostTimeText.Text = byBook.Count == 0 ? ""
+            : "Most time this year: " + string.Join(",  ", byBook.Select(x =>
+                $"{(titles.TryGetValue(x.Key, out var t) && !string.IsNullOrWhiteSpace(t) ? t : "a book no longer in the library")} ({ReadingTime.Format(x.Seconds)})"));
     }
 
     // ---- the month chart ----

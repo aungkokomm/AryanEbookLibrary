@@ -1,0 +1,28 @@
+<Window
+    x:Class="AryanEbookLibrary.Reader.ReaderWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:reader="using:AryanEbookLibrary.Reader">
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar: the app's icon and the book's title; Windows draws its own buttons on the right. -->
+        <Grid x:Name="TitleBar" Height="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="CaptionColumn" Width="140" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" Spacing="10">
+                <Image Source="ms-appx:///Assets/AppIcon.png" Width="16" Height="16" />
+                <TextBlock x:Name="TitleText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <reader:PdfReaderView x:Name="PdfView" Grid.Row="1" />
+    </Grid>
+</Window>

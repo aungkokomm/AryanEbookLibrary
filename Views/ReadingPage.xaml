@@ -53,6 +53,68 @@
                     </Border>
                 </Grid>
 
+                <!-- Time spent in the app's own reader: the sittings it recorded -->
+                <Border Style="{StaticResource CardPanelStyle}">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <TextBlock Text="Time reading" FontWeight="SemiBold" />
+                            <TextBlock x:Name="StreakText" Grid.Column="1" Style="{StaticResource PageHintStyle}" />
+                        </Grid>
+                        <TextBlock x:Name="TimeEmpty" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" Visibility="Collapsed"
+                                   Text="Books you read in Aryan's own reader are timed here, only while you are reading: today, this week, this year, and each of the last two weeks. Open a PDF from the library to start." />
+                        <Grid x:Name="TimeNumbers" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="TodayTime" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="Today" Style="{StaticResource PageHintStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="WeekTime" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="This week" Style="{StaticResource PageHintStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock x:Name="YearTime" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock x:Name="YearTimeLabel" Style="{StaticResource PageHintStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock x:Name="PagesYear" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="Pages read this year" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" MaxLines="2" />
+                            </StackPanel>
+                        </Grid>
+                        <!-- The last fourteen days, today on the right. -->
+                        <ItemsRepeater x:Name="DayChart" AutomationProperties.Name="Time read each of the last 14 days">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout Orientation="Horizontal" MaximumRowsOrColumns="14" ItemsStretch="Fill"
+                                                   MinItemWidth="18" MinItemHeight="128" MinColumnSpacing="4" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="local:MonthBar">
+                                    <Grid RowDefinitions="*,Auto">
+                                        <StackPanel VerticalAlignment="Bottom" Spacing="4">
+                                            <TextBlock Text="{x:Bind CountText}" FontSize="11" HorizontalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <Rectangle Height="{x:Bind BarHeight}" MaxWidth="36" RadiusX="3" RadiusY="3"
+                                                       Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                                       Visibility="{x:Bind helpers:Fn.Vis(HasBooks)}" />
+                                            <Rectangle Height="2" MaxWidth="36" Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                                       Visibility="{x:Bind helpers:Fn.VisNot(HasBooks)}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1" Text="{x:Bind Name}" FontSize="11" Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" TextTrimming="Clip" FontWeight="{x:Bind Weight}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                        <TextBlock x:Name="MostTimeText" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- One year: the goal and the books finished each month -->
                 <Border Style="{StaticResource CardPanelStyle}">
                     <StackPanel Spacing="14">

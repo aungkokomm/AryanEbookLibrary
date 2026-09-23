@@ -22,6 +22,7 @@ public partial class App : Application
     {
         AppServices.Init();
         AppServices.Library = new LibraryViewModel();
+        BookLauncher.InAppReader = Reader.ReaderWindow.Open;
 
         MainWindow = new MainWindow();
         AppServices.ApplyTheme();

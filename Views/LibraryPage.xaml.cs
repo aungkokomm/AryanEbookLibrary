@@ -47,7 +47,7 @@ public sealed partial class LibraryPage : Page
 
         // One cached page instance lives for the whole session, so these are subscribed once.
         BookCardControl.DetailsRequested += b => _ = ShowDetailsAsync(b);
-        BookCardControl.OpenRequested += b => _ = OpenAsync(b);
+        BookCardControl.OpenRequested += (b, defaultApp) => _ = OpenAsync(b, defaultApp);
         BookCardControl.FindOnlineRequested += b => _ = FindOnlineAsync(b);
         ViewModel.PropertyChanged += OnViewModelChanged;
         _ready = true;
@@ -136,9 +136,9 @@ public sealed partial class LibraryPage : Page
         }
     }
 
-    private async Task OpenAsync(Book book)
+    private async Task OpenAsync(Book book, bool withDefaultApp = false)
     {
-        var error = ViewModel.OpenBook(book);
+        var error = ViewModel.OpenBook(book, withDefaultApp);
         if (error is null || _dialogOpen || XamlRoot is null) return;
 
         _dialogOpen = true;

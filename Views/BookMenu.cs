@@ -20,6 +20,13 @@ internal static class BookMenu
         open.Click += (_, _) => BookCardControl.RequestOpen(book);
         flyout.Items.Add(open);
 
+        if (BookLauncher.ReadsInApp(book))
+        {
+            var external = new MenuFlyoutItem { Text = "Open with default app", Icon = new FontIcon { Glyph = "\uE8A7" } };
+            external.Click += (_, _) => BookCardControl.RequestOpen(book, withDefaultApp: true);
+            flyout.Items.Add(external);
+        }
+
         var details = new MenuFlyoutItem { Text = "View details", Icon = new SymbolIcon(Symbol.List) };
         details.Click += (_, _) => BookCardControl.RequestDetails(book);
         flyout.Items.Add(details);

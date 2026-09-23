@@ -31,11 +31,12 @@ public sealed partial class BookCardControl : UserControl
     // ---- requests the Library page handles (static, so recycled cards need no wiring) ----
 
     public static event Action<Book>? DetailsRequested;
-    public static event Action<Book>? OpenRequested;
+    public static event Action<Book, bool>? OpenRequested;
     public static event Action<Book>? FindOnlineRequested;
 
     public static void RequestDetails(Book b) => DetailsRequested?.Invoke(b);
-    public static void RequestOpen(Book b) => OpenRequested?.Invoke(b);
+    /// <summary>Asks the library page to open the book; <paramref name="withDefaultApp"/> skips the app's own reader.</summary>
+    public static void RequestOpen(Book b, bool withDefaultApp = false) => OpenRequested?.Invoke(b, withDefaultApp);
     public static void RequestFindOnline(Book b) => FindOnlineRequested?.Invoke(b);
 
     // ---- global card size (all cards resize together when the density changes) ----

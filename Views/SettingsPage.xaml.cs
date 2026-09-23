@@ -19,6 +19,9 @@ public sealed partial class SettingsPage : Page
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
+        ReadInAppSwitch.IsOn = AppServices.Settings.ReadPdfInApp;
+        DefineMyanmarBox.IsChecked = AppServices.Settings.DefineShowsMyanmar;
+        DefineHindiBox.IsChecked = AppServices.Settings.DefineShowsHindi;
         Select(LanguageBox, AppServices.Settings.PreferredLanguage);
         Select(FormatBox, AppServices.Settings.PreferredFormat);
         ShowKeptCopies();
@@ -40,6 +43,21 @@ public sealed partial class SettingsPage : Page
     {
         if (_loading) return;
         AppServices.Settings.AutoScanOnStart = AutoScanSwitch.IsOn;
+        AppServices.Settings.Save();
+    }
+
+    private void OnReadInAppToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.ReadPdfInApp = ReadInAppSwitch.IsOn;
+        AppServices.Settings.Save();
+    }
+
+    private void OnDefineLanguagesChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.DefineShowsMyanmar = DefineMyanmarBox.IsChecked == true;
+        AppServices.Settings.DefineShowsHindi = DefineHindiBox.IsChecked == true;
         AppServices.Settings.Save();
     }
 

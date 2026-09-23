@@ -13,6 +13,7 @@ public static class AppServices
     public static ScannerService Scanner { get; private set; } = null!;
     public static StateSyncService Sync { get; private set; } = null!;
     public static OnlineLookupService Online { get; private set; } = null!;
+    public static ReadingSessions Sessions { get; private set; } = null!;
     public static LibraryViewModel Library { get; set; } = null!;
 
     public static void Init()
@@ -24,19 +25,24 @@ public static class AppServices
         Sync = new StateSyncService(Repo);
         Scanner = new ScannerService(Repo);
         Online = new OnlineLookupService(Repo);
+        Sessions = new ReadingSessions(Db);
     }
+
+    /// <summary>Raised after the theme setting is applied, so windows other than the main one follow it.</summary>
+    public static event Action? ThemeChanged;
+
+    /// <summary>The theme the app's windows should use, from the setting.</summary>
+    public static ElementTheme Theme => Settings.Theme switch
+    {
+        "Light" => ElementTheme.Light,
+        "Dark" => ElementTheme.Dark,
+        _ => ElementTheme.Default
+    };
 
     public static void ApplyTheme()
     {
-        if (App.MainWindow?.Content is FrameworkElement root)
-        {
-            root.RequestedTheme = Settings.Theme switch
-            {
-                "Light" => ElementTheme.Light,
-                "Dark" => ElementTheme.Dark,
-                _ => ElementTheme.Default
-            };
-        }
+        if (App.MainWindow?.Content is FrameworkElement root) root.RequestedTheme = Theme;
+        ThemeChanged?.Invoke();
     }
 
     public static void Shutdown()

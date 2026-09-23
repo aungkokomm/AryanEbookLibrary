@@ -977,9 +977,9 @@ public sealed class LibraryViewModel : ObservableObject
     }
 
     /// <summary>Opens the book in the default reader and marks it as being read. Returns an error message or null.</summary>
-    public string? OpenBook(Book book)
+    public string? OpenBook(Book book, bool withDefaultApp = false)
     {
-        var error = BookLauncher.Open(book);
+        var error = BookLauncher.Open(book, withDefaultApp);
         if (error is not null) return error;
 
         book.LastOpenedUtc = DateTime.UtcNow;

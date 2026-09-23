@@ -219,6 +219,13 @@ public sealed class LibraryRepository
                 ("$newkey", newKey), ("$oldkey", oldKey));
             _db.Exec("UPDATE book_state SET key=$newkey, rel_path=$new WHERE key=$oldkey",
                 ("$newkey", newKey), ("$new", newRelPath), ("$oldkey", oldKey));
+            // Its reading history and place in it go with it.
+            _db.Exec("UPDATE reading_sessions SET book_key=$newkey WHERE book_key=$oldkey",
+                ("$newkey", newKey), ("$oldkey", oldKey));
+            _db.Exec("DELETE FROM reading_positions WHERE book_key=$newkey AND EXISTS (SELECT 1 FROM reading_positions WHERE book_key=$oldkey)",
+                ("$newkey", newKey), ("$oldkey", oldKey));
+            _db.Exec("UPDATE reading_positions SET book_key=$newkey WHERE book_key=$oldkey",
+                ("$newkey", newKey), ("$oldkey", oldKey));
         });
     }
 

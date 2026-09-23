@@ -3,14 +3,26 @@ using AryanEbookLibrary.Models;
 
 namespace AryanEbookLibrary.Services;
 
-/// <summary>Opens a book in the user's default reader (like CineLibrary's Play button: only works when the drive is connected).</summary>
+/// <summary>
+/// Opens a book: in the app's own reader when it reads that kind of file (and Settings says to), otherwise in the
+/// user's default app. Like CineLibrary's Play button, it only works when the drive is connected.
+/// </summary>
 public static class BookLauncher
 {
-    public static string? Open(Book book)
+    /// <summary>The app's own reader, set by the app at start. Returns an error message, or null when it opened.</summary>
+    public static Func<Book, string?>? InAppReader { get; set; }
+
+    /// <summary>Whether "Open" goes to the app's own reader for this book.</summary>
+    public static bool ReadsInApp(Book book) =>
+        InAppReader is not null && book.Format == BookFormat.Pdf && AppServices.Settings.ReadPdfInApp;
+
+    public static string? Open(Book book, bool withDefaultApp = false)
     {
         var path = book.FullPath;
         if (path is null) return $"The drive \"{book.DriveLabel}\" is not connected.";
         if (!File.Exists(path)) return "The file no longer exists. Rescan the library to update the catalog.";
+
+        if (!withDefaultApp && ReadsInApp(book)) return InAppReader!(book);
 
         try
         {

@@ -52,4 +52,24 @@
     <Content Include="Assets\AppIcon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    The app's own PDF reader. reader_core.dll is the reading half of Ayaan PDF's Rust core (native\reader_core),
+    ALWAYS the release build: a debug Rust DLL renders about 16 times slower. pdfium.dll is the vendored PDFium
+    binary (bblanchon/pdfium-binaries, see native\reader_core\vendor\pdfium\LICENSE). Both sit beside the exe.
+  -->
+  <ItemGroup>
+    <Content Include="native\reader_core\target\release\reader_core.dll" Link="reader_core.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="native\reader_core\vendor\pdfium\pdfium.dll" Link="pdfium.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="native\reader_core\vendor\pdfium\LICENSE" Link="Licenses\PDFium-binaries-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Define's offline dictionaries (from Ayaan PDF): WordNet, the AKK English-Myanmar dictionary, the Hindi list. -->
+    <Content Include="Assets\Dictionary\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Builds the reading core when its source changed (offline: every crate it needs is in the local cargo cache). -->
+  <Target Name="BuildReaderCore" BeforeTargets="BeforeBuild"
+          Inputs="native\reader_core\src\lib.rs;native\reader_core\Cargo.toml"
+          Outputs="native\reader_core\target\release\reader_core.dll">
+    <Exec Command="cargo build --release --offline" WorkingDirectory="$(MSBuildProjectDirectory)\native\reader_core" />
+  </Target>
+
 </Project>

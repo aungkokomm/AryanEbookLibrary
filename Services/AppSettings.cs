@@ -25,6 +25,15 @@ public sealed class AppSettings
     public bool ShelvesExpanded { get; set; } = true;   // folded away, they leave room for the rest of the pane
     // How many books the user means to finish in a year, by year. Missing or 0 means no goal.
     public Dictionary<int, int> ReadingGoals { get; set; } = new();
+    // The app's own reader. Off, PDFs open in the default app as before.
+    public bool ReadPdfInApp { get; set; } = true;
+    public string ReaderPageTheme { get; set; } = "Paper";     // Paper | Sepia | Night
+    public bool ReaderContentsOpen { get; set; }
+    public int ReaderWidth { get; set; } = 1100;
+    public int ReaderHeight { get; set; } = 900;
+    // What Define shows under the English definition.
+    public bool DefineShowsMyanmar { get; set; } = true;
+    public bool DefineShowsHindi { get; set; } = true;
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

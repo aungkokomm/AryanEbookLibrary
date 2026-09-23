@@ -1,0 +1,6 @@
+# Byte-exact files: a line-ending conversion would move every offset in a PDF.
+*.pdf binary
+*.dll binary
+*.gz binary
+*.ico binary
+*.png binary

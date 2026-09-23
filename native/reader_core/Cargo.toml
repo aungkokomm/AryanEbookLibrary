@@ -1,0 +1,19 @@
+[package]
+name = "reader_core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "The reading half of Ayaan PDF's render core: open, measure, render tiles, read text, outline and links."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The same PDFium binding Ayaan PDF uses, from crates.io rather than Ayaan's patched copy: the patch only
+# exposes handles for WRITING shaped text, and this crate never writes anything. No "image" feature: the
+# render path hands PDFium's own BGRA buffer straight through.
+pdfium-render = { version = "=0.8.37", default-features = false, features = ["pdfium_latest", "thread_safe", "sync"] }
+lru = "0.12"
+
+[profile.release]
+panic = "unwind"

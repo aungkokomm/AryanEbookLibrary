@@ -266,6 +266,38 @@ public sealed class Database : IDisposable
                 """);
             Exec("PRAGMA user_version = 5;");
         }
+        if (version < 6)
+        {
+            // What the app's own reader records. Keyed like book_state (drive + path), so it follows the book.
+            // One row per sitting: when, for how long (seconds actually spent reading, not the time the window
+            // was open), and which pages. Only on this computer; the sidecars do not carry it.
+            Exec("""
+                CREATE TABLE reading_sessions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_key     TEXT NOT NULL,
+                    started_utc  TEXT NOT NULL,
+                    ended_utc    TEXT NOT NULL,
+                    seconds      INTEGER NOT NULL DEFAULT 0,
+                    pages        INTEGER NOT NULL DEFAULT 0,      -- different pages looked at
+                    first_page   INTEGER NOT NULL DEFAULT 0,
+                    last_page    INTEGER NOT NULL DEFAULT 0,
+                    page_count   INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+            Exec("CREATE INDEX idx_sessions_book ON reading_sessions(book_key);");
+            Exec("CREATE INDEX idx_sessions_started ON reading_sessions(started_utc);");
+            // Where the reader was in each book, so it opens there again.
+            Exec("""
+                CREATE TABLE reading_positions (
+                    book_key     TEXT PRIMARY KEY,
+                    page         INTEGER NOT NULL,
+                    page_count   INTEGER NOT NULL,
+                    position     TEXT,                            -- the reader's own detail (offset, zoom)
+                    updated_utc  TEXT NOT NULL
+                );
+                """);
+            Exec("PRAGMA user_version = 6;");
+        }
     }
 
     public void Dispose()
