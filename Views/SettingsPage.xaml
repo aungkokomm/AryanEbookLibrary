@@ -100,6 +100,21 @@
                 </Expander>
                 <Border Style="{StaticResource SettingCardStyle}">
                     <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE740;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Reader toolbar" />
+                            <TextBlock Text="Hidden, it comes back when you point at the top of the page or press Alt. Full screen always hides it."
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <ComboBox x:Name="ReaderToolbarBox" Grid.Column="2" Width="200" VerticalAlignment="Center"
+                                  SelectionChanged="OnReaderToolbarChanged" AutomationProperties.Name="Reader toolbar">
+                            <ComboBoxItem Content="Always show" Tag="Always" />
+                            <ComboBoxItem Content="Hide while reading" Tag="Hide" />
+                        </ComboBox>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
                         <FontIcon Glyph="&#xE82D;" Style="{StaticResource SettingIconStyle}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Define in other languages" />

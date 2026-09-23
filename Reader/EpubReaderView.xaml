@@ -12,18 +12,21 @@
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
+                <!-- A click leaves the keyboard on the page, so Space and the arrows go on reading. -->
+                <Setter Property="AllowFocusOnInteraction" Value="False" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid x:Name="Root">
+    <Grid x:Name="Root" SizeChanged="OnToolBarSizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- ═══ toolbar ═══ -->
-        <Grid x:Name="ToolBar" Padding="8,4,8,6" ColumnSpacing="4" SizeChanged="OnToolBarSizeChanged">
+        <Grid x:Name="ToolBar" Padding="8,4,8,6" ColumnSpacing="4" SizeChanged="OnToolBarSizeChanged"
+              XYFocusKeyboardNavigation="Enabled">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -32,21 +35,28 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- Behind the toolbar only while it floats over the page. -->
+            <Border x:Name="ToolBarBack" Grid.ColumnSpan="5" Margin="-8,-4,-8,-6" Visibility="Collapsed"
+                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
+
             <ToggleButton x:Name="ContentsButton" Width="36" Height="32" Padding="0" Click="OnContentsClick"
-                          Background="Transparent" BorderThickness="0"
+                          Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
                           AutomationProperties.Name="Contents" ToolTipService.ToolTip="Contents">
                 <FontIcon Glyph="&#xE8FD;" FontSize="16" />
             </ToggleButton>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"
-                        AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Page Up)">
+                        AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left arrow)">
                     <FontIcon Glyph="&#xE70E;" FontSize="14" />
                 </Button>
-                <TextBlock x:Name="ProgressText" VerticalAlignment="Center" MinWidth="40" TextAlignment="Center"
-                           AutomationProperties.Name="Progress" />
+                <!-- How far through the book; a percentage typed here goes there. -->
+                <TextBox x:Name="ProgressBox" Width="64" Height="32" MinWidth="0" TextAlignment="Center"
+                         KeyDown="OnProgressKeyDown" GotFocus="OnProgressGotFocus" LostFocus="OnProgressLostFocus"
+                         AutomationProperties.Name="Place in book, in percent" />
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnNextPage"
-                        AutomationProperties.Name="Next page" ToolTipService.ToolTip="Next page (Page Down)">
+                        AutomationProperties.Name="Next page" ToolTipService.ToolTip="Next page (Right arrow)">
                     <FontIcon Glyph="&#xE70D;" FontSize="14" />
                 </Button>
                 <TextBlock x:Name="TimeLeftText" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12"
@@ -61,13 +71,13 @@
             <StackPanel x:Name="SearchGroup" Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <TextBox x:Name="SearchBox" Width="200" Height="32" PlaceholderText="Find in book"
                          KeyDown="OnSearchKeyDown" TextChanged="OnSearchTextChanged"
-                         AutomationProperties.Name="Find in book" />
+                         AutomationProperties.Name="Find in book" ToolTipService.ToolTip="Find in book (Ctrl+F)" />
                 <Button x:Name="SearchPrevButton" Style="{StaticResource ToolButtonStyle}" Click="OnSearchPrevious"
-                        AutomationProperties.Name="Previous match" ToolTipService.ToolTip="Previous match (Shift+Enter)">
+                        AutomationProperties.Name="Previous match" ToolTipService.ToolTip="Previous match (Shift+F3)">
                     <FontIcon Glyph="&#xE70E;" FontSize="12" />
                 </Button>
                 <Button x:Name="SearchNextButton" Style="{StaticResource ToolButtonStyle}" Click="OnSearchNext"
-                        AutomationProperties.Name="Next match" ToolTipService.ToolTip="Next match (Enter)">
+                        AutomationProperties.Name="Next match" ToolTipService.ToolTip="Next match (F3)">
                     <FontIcon Glyph="&#xE70D;" FontSize="12" />
                 </Button>
                 <TextBlock x:Name="SearchCountText" VerticalAlignment="Center" FontSize="12" MinWidth="64"
@@ -76,7 +86,7 @@
 
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="6,0,0,0">
                 <!-- Text size and layout. -->
-                <DropDownButton x:Name="TextButton" Height="32" Padding="8,0"
+                <DropDownButton x:Name="TextButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
                                 AutomationProperties.Name="Text and layout" ToolTipService.ToolTip="Text and layout">
                     <FontIcon Glyph="&#xE8D2;" FontSize="15" />
                     <DropDownButton.Flyout>
@@ -102,7 +112,7 @@
                         </Flyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <DropDownButton x:Name="PageThemeButton" Height="32" Padding="8,0"
+                <DropDownButton x:Name="PageThemeButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
                                 AutomationProperties.Name="Page colour" ToolTipService.ToolTip="Page colour">
                     <FontIcon Glyph="&#xE790;" FontSize="15" />
                     <DropDownButton.Flyout>
@@ -113,6 +123,10 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
+                <Button x:Name="ShortcutsButton" Style="{StaticResource ToolButtonStyle}" Click="OnShortcuts"
+                        AutomationProperties.Name="Keyboard shortcuts" ToolTipService.ToolTip="Keyboard shortcuts (F1)">
+                    <FontIcon Glyph="&#xE765;" FontSize="15" />
+                </Button>
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnFullScreen"
                         AutomationProperties.Name="Full screen" ToolTipService.ToolTip="Full screen (F11)">
                     <FontIcon Glyph="&#xE740;" FontSize="15" />

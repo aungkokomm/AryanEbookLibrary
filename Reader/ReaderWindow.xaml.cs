@@ -1,7 +1,9 @@
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
+using AryanEbookLibrary.Views;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -34,6 +36,8 @@ public sealed partial class ReaderWindow : Window
     private DateTime _lastInput = DateTime.UtcNow;
     private bool _inFront = true;
     private bool _closed;
+    private bool _altAlone;
+    private bool _shortcutsOpen;
 
     private ReadingSession? _session;
     private int _seconds;
@@ -68,6 +72,12 @@ public sealed partial class ReaderWindow : Window
         foreach (var window in Open_.Values.ToList()) window.Close();
     }
 
+    /// <summary>The Reader toolbar setting changed: the open readers follow it at once.</summary>
+    public static void ToolbarSettingChanged()
+    {
+        foreach (var window in Open_.Values) window.ApplyToolbar();
+    }
+
     private ReaderWindow(Book book, string path)
     {
         _book = book;
@@ -97,8 +107,11 @@ public sealed partial class ReaderWindow : Window
         RootGrid.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler((_, _) => Touch()), true);
         RootGrid.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler((_, _) => Touch()), true);
         RootGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnKeyDown), true);
+        RootGrid.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(OnKeyUp), true);
         Activated += (_, e) =>
         {
+            // Alt+Tab away and back: the Alt let go on arrival is not a lone Alt.
+            _altAlone = false;
             _inFront = e.WindowActivationState != WindowActivationState.Deactivated;
             if (_inFront) Touch();
         };
@@ -126,6 +139,10 @@ public sealed partial class ReaderWindow : Window
             BookLauncher.Open(_book, withDefaultApp: true);
             Close();
         };
+        _view.ShortcutsRequested += ShowShortcuts;
+        // From inside the web view's own message: the window closes once that is over.
+        _view.CloseRequested += () => DispatcherQueue.TryEnqueue(Close);
+        ApplyToolbar();
 
         _clock = DispatcherQueue.CreateTimer();
         _clock.Interval = TimeSpan.FromSeconds(1);
@@ -174,10 +191,22 @@ public sealed partial class ReaderWindow : Window
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
         Touch();
+        _altAlone = e.Key is VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu;
         if (e.Handled) return;
+        var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (e.Key == VirtualKey.F11)
         {
             ToggleFullScreen();
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.F1)
+        {
+            ShowShortcuts();
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.W && ctrl)
+        {
+            Close();
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Escape)
@@ -191,13 +220,53 @@ public sealed partial class ReaderWindow : Window
         }
     }
 
+    /// <summary>Alt pressed and let go on its own: the toolbar comes out with the keyboard on it, as a menu bar would.</summary>
+    private void OnKeyUp(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Menu or VirtualKey.LeftMenu or VirtualKey.RightMenu) || !_altAlone) return;
+        _altAlone = false;
+        _view.FocusToolbar();
+    }
+
+    private bool FullScreen => AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
+
     private void ToggleFullScreen()
     {
-        var full = AppWindow.Presenter.Kind != AppWindowPresenterKind.FullScreen;
+        var full = !FullScreen;
         AppWindow.SetPresenter(full ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         TitleBar.Visibility = full ? Visibility.Collapsed : Visibility.Visible;
-        _view.SetChromeVisible(!full);
+        ApplyToolbar();
         _view.FocusPages();
+    }
+
+    /// <summary>The toolbar hides as Settings says, and always in full screen, where there is no other way back to it.</summary>
+    private void ApplyToolbar() =>
+        _view.SetToolbar(hides: FullScreen || AppServices.Settings.ReaderToolbar == "Hide", fullScreen: FullScreen);
+
+    /// <summary>F1 or the toolbar's keyboard button: every key and mouse action this kind of book answers.</summary>
+    private async void ShowShortcuts()
+    {
+        if (_shortcutsOpen || _closed || RootGrid.XamlRoot is null) return;
+        _shortcutsOpen = true;
+        try
+        {
+            await new ContentDialog
+            {
+                Title = "Keyboard and mouse",
+                Content = ReaderShortcuts.Build(_book.Format),
+                CloseButtonText = "Close",
+                XamlRoot = RootGrid.XamlRoot,
+            }.ShowThemedAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("reader: the shortcuts could not be shown: " + ex.Message);
+        }
+        finally
+        {
+            _shortcutsOpen = false;
+        }
+        if (!_closed) _view.FocusPages();
     }
 
     // ---- the record of reading ----

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -36,6 +37,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     public event Action? EscapeRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
+    public event Action? ShortcutsRequested;
+    public event Action? CloseRequested;
 
     private string _path = "";
     private string _bookUrl = "";
@@ -50,6 +53,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private int _fontSize;
     private string _flow;
     private string _searchQuery = "";
+    private double _fraction;
+    private readonly ToolbarReveal _reveal;
+    private bool _fullScreen;
 
     public EpubReaderView()
     {
@@ -63,6 +69,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         (_flow == "scrolled" ? ScrollRadio : PagesRadio).IsChecked = true;
         Web.DefaultBackgroundColor = PageColor();
         SetContentsOpen(settings.ReaderContentsOpen, remember: false);
+        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, ContentsPane, FocusPages);
+        Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
     }
 
@@ -252,6 +260,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "external": OpenLink(Str(m, "href")); break;
             case "search": OnSearchProgress(m); break;
             case "probe": ShowDefinition(Str(m, "word"), RectOf(m)); break;
+            case "top": _reveal.PointerAtTop(Flag(m, "near")); break;
+            case "tap": _reveal.Show(ToolbarReveal.TapHold); break;
         }
     }
 
@@ -275,6 +285,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private void OnOpened(JsonElement m)
     {
         HideMessage();
+        _reveal.Show(ToolbarReveal.Glimpse);
         var rows = new List<TocRow>();
         if (m.TryGetProperty("toc", out var toc) && toc.ValueKind == JsonValueKind.Array)
             foreach (var item in toc.EnumerateArray())
@@ -302,8 +313,11 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         _total = (int)Num(m, "total");
         _cfi = Str(m, "cfi");
 
-        ProgressText.Text = $"{Math.Floor(Num(m, "fraction") * 100):0}%";
-        ToolTipService.SetToolTip(ProgressText, _total > 0 ? $"Page {current + 1:N0} of {_total:N0}" : null);
+        _fraction = Num(m, "fraction");
+        ShowProgress();
+        ToolTipService.SetToolTip(ProgressBox, _total > 0
+            ? $"Page {current + 1:N0} of {_total:N0}. Type a percentage to go there (Ctrl+G)"
+            : "Type a percentage to go there (Ctrl+G)");
         var chapter = Str(m, "chapter");
         ChapterText.Text = chapter;
         ToolTipService.SetToolTip(ChapterText, chapter.Length > 0 ? chapter : null);
@@ -325,8 +339,12 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "Escape":
                 if (!HandleEscape()) EscapeRequested?.Invoke();
                 break;
+            case "F1": ShortcutsRequested?.Invoke(); break;
+            case "Alt": FocusToolbar(); break;
             case "F3": StepSearch(Flag(m, "shift") ? -1 : 1); break;
             case "f" or "F": FocusSearch(); break;
+            case "g" or "G": FocusProgress(); break;
+            case "w" or "W": CloseRequested?.Invoke(); break;
             case "=" or "+": SetFontSize(_fontSize + FontStep); break;
             case "-": SetFontSize(_fontSize - FontStep); break;
             case "0": SetFontSize(100); break;
@@ -444,6 +462,44 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     // ================================================================ toolbar
 
+    /// <summary>How far through the book, unless the reader is typing a place to go to.</summary>
+    private void ShowProgress()
+    {
+        if (XamlRoot is not null && ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), ProgressBox)) return;
+        ProgressBox.Text = $"{Math.Floor(_fraction * 100):0}%";
+    }
+
+    private void FocusProgress()
+    {
+        ProgressBox.Focus(FocusState.Keyboard);
+        ProgressBox.SelectAll();
+    }
+
+    private void OnProgressGotFocus(object sender, RoutedEventArgs e) => ProgressBox.SelectAll();
+
+    private void OnProgressLostFocus(object sender, RoutedEventArgs e) => ShowProgress();
+
+    /// <summary>Enter goes to the percentage typed; Escape goes back to the page without moving.</summary>
+    private void OnProgressKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Enter or VirtualKey.Escape)) return;
+        e.Handled = true;
+        if (e.Key == VirtualKey.Enter
+            && double.TryParse(ProgressBox.Text.Replace("%", "").Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var percent))
+            Post(new JsonObject { ["type"] = "fraction", ["fraction"] = Math.Clamp(percent, 0, 100) / 100 });
+        FocusPages();
+    }
+
+    /// <summary>The mouse's side buttons over the toolbar or the contents; on the page, reader.js hears them.</summary>
+    private void OnSideButton(object sender, PointerRoutedEventArgs e)
+    {
+        var buttons = e.GetCurrentPoint(this).Properties;
+        if (buttons.IsXButton1Pressed) Post(new JsonObject { ["type"] = "back" });
+        else if (buttons.IsXButton2Pressed) Post(new JsonObject { ["type"] = "forward" });
+        else return;
+        e.Handled = true;
+    }
+
     private void OnPreviousPage(object sender, RoutedEventArgs e)
     {
         Post(new JsonObject { ["type"] = "prev" });
@@ -507,14 +563,28 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     private void OnFullScreen(object sender, RoutedEventArgs e) => FullScreenRequested?.Invoke();
 
-    /// <summary>Narrow windows lose the least-needed parts first.</summary>
+    private void OnShortcuts(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke();
+
+    /// <summary>
+    /// Narrow windows lose the least-needed parts first. The chapter takes whatever room is left, cut short with an
+    /// ellipsis; it is kept while there is room for this much of it.
+    /// </summary>
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var w = e.NewSize.Width;
-        TimeLeftText.Visibility = w < 900 ? Visibility.Collapsed : Visibility.Visible;
-        ChapterText.Visibility = w < 820 ? Visibility.Collapsed : Visibility.Visible;
-        SearchBox.Width = w < 760 ? 130 : 200;
-        SearchCountText.Visibility = w < 700 ? Visibility.Collapsed : Visibility.Visible;
+        const double ChapterRoom = 160;
+        ToolbarFit.Fit(ToolBar, Root.ActualWidth,
+            () =>
+            {
+                TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ShortcutsButton.Visibility = Visibility.Visible;
+                SearchBox.Width = 200;
+                ChapterText.Width = ChapterRoom;
+            },
+            () => TimeLeftText.Visibility = Visibility.Collapsed,
+            () => ChapterText.Visibility = Visibility.Collapsed,
+            () => SearchBox.Width = 130,
+            () => SearchCountText.Visibility = Visibility.Collapsed,
+            () => ShortcutsButton.Visibility = Visibility.Collapsed);
+        ChapterText.Width = double.NaN;
     }
 
     private void OnContentsClick(object sender, RoutedEventArgs e) => SetContentsOpen(ContentsButton.IsChecked == true, remember: true);
@@ -579,6 +649,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Add(VirtualKey.Number0, VirtualKeyModifiers.Control, () => SetFontSize(100));
         Add(VirtualKey.F3, VirtualKeyModifiers.None, () => StepSearch(1));
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => StepSearch(-1));
+        Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusProgress);
+        Add(VirtualKey.Left, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "back" }));
+        Add(VirtualKey.Right, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "forward" }));
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
@@ -587,8 +660,14 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     public ReadingPosition? Position() =>
         _cfi.Length == 0 || _current < 0 ? null : new ReadingPosition(_current, _total, PositionPrefix + _cfi);
 
+    /// <summary>Escape: takes the keyboard from the toolbar back to the page, or puts away the definition.</summary>
     public bool HandleEscape()
     {
+        if (_reveal.HasFocus)
+        {
+            FocusPages();
+            return true;
+        }
         if (!Definition.IsOpen) return false;
         Definition.Hide();
         return true;
@@ -596,18 +675,21 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     public void FocusPages() => Web.Focus(FocusState.Programmatic);
 
-    /// <summary>Hides the toolbar for full screen, and brings it back.</summary>
-    public void SetChromeVisible(bool visible)
+    public void SetToolbar(bool hides, bool fullScreen)
     {
-        ToolBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        if (!visible) ContentsPane.Visibility = Visibility.Collapsed;
-        else SetContentsOpen(ContentsButton.IsChecked == true, remember: false);
+        _reveal.SetHides(hides);
+        if (fullScreen == _fullScreen) return;
+        _fullScreen = fullScreen;
+        SetContentsOpen(!fullScreen && AppServices.Settings.ReaderContentsOpen, remember: false);
     }
+
+    public void FocusToolbar() => _reveal.FocusFirst();
 
     public void Close()
     {
         if (_closed) return;
         _closed = true;
+        _reveal.Close();
         Web.Close();
     }
 }

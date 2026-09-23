@@ -23,6 +23,12 @@ public interface IReaderView
     event Action? FinishedRequested;
     event Action? OpenExternallyRequested;
 
+    /// <summary>The toolbar's keyboard button, or F1 where the window's own key handling cannot hear it.</summary>
+    event Action? ShortcutsRequested;
+
+    /// <summary>Ctrl+W where the window's own key handling cannot hear it.</summary>
+    event Action? CloseRequested;
+
     int PageCount { get; }
     bool OfferFinish { get; set; }
 
@@ -37,6 +43,15 @@ public interface IReaderView
     bool HandleEscape();
 
     void FocusPages();
-    void SetChromeVisible(bool visible);
+
+    /// <summary>
+    /// The toolbar in its own row, or floating over the page and hiding until it is wanted. Full screen always hides
+    /// it, and puts the contents away until full screen ends.
+    /// </summary>
+    void SetToolbar(bool hides, bool fullScreen);
+
+    /// <summary>Shows the toolbar and moves the keyboard into it, for Alt.</summary>
+    void FocusToolbar();
+
     void Close();
 }

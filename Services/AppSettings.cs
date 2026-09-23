@@ -36,6 +36,7 @@ public sealed class AppSettings
     public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width
     public string ReaderPageTheme { get; set; } = "Paper";     // Paper | Sepia | Night
     public bool ReaderContentsOpen { get; set; }
+    public string ReaderToolbar { get; set; } = "Always";     // Always | Hide (until the pointer goes to the top)
     public int ReaderWidth { get; set; } = 1100;
     public int ReaderHeight { get; set; } = 900;
     // What Define shows under the English definition.

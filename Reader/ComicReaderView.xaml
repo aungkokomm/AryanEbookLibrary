@@ -19,36 +19,44 @@
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
+                <!-- A click leaves the keyboard on the page, so Space and the arrows go on reading. -->
+                <Setter Property="AllowFocusOnInteraction" Value="False" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown">
+    <Grid x:Name="Root" PreviewKeyDown="OnPreviewKeyDown" SizeChanged="OnToolBarSizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- ═══ toolbar ═══ -->
-        <Grid x:Name="ToolBar" Padding="8,4,8,6" ColumnSpacing="4" SizeChanged="OnToolBarSizeChanged">
+        <Grid x:Name="ToolBar" Padding="8,4,8,6" ColumnSpacing="4" SizeChanged="OnToolBarSizeChanged"
+              XYFocusKeyboardNavigation="Enabled">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- Behind the toolbar only while it floats over the page. -->
+            <Border x:Name="ToolBarBack" Grid.ColumnSpan="3" Margin="-8,-4,-8,-6" Visibility="Collapsed"
+                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
+
             <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"
-                        AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left)">
+                        AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left arrow)">
                     <FontIcon Glyph="&#xE70E;" FontSize="14" />
                 </Button>
                 <TextBox x:Name="PageBox" Width="64" Height="32" MinWidth="0" TextAlignment="Center"
                          InputScope="Number" KeyDown="OnPageBoxKeyDown" LostFocus="OnPageBoxLostFocus"
-                         AutomationProperties.Name="Page number" />
+                         AutomationProperties.Name="Page number" ToolTipService.ToolTip="Go to page (Ctrl+G)" />
                 <TextBlock x:Name="PageCountText" VerticalAlignment="Center" Margin="6,0,2,0"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnNextPage"
-                        AutomationProperties.Name="Next page" ToolTipService.ToolTip="Next page (Right)">
+                        AutomationProperties.Name="Next page" ToolTipService.ToolTip="Next page (Right arrow)">
                     <FontIcon Glyph="&#xE70D;" FontSize="14" />
                 </Button>
                 <TextBlock x:Name="TimeLeftText" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12"
@@ -56,7 +64,8 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                <DropDownButton x:Name="FitButton" Height="32" MinWidth="100" AutomationProperties.Name="Fit">
+                <DropDownButton x:Name="FitButton" Height="32" MinWidth="100" AllowFocusOnInteraction="False"
+                                AutomationProperties.Name="Fit" ToolTipService.ToolTip="How pages are shown">
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
                             <RadioMenuFlyoutItem x:Name="ContinuousItem" Text="Continuous" GroupName="Fit" Tag="Continuous" Click="OnFit" />
@@ -66,6 +75,10 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
+                <Button x:Name="ShortcutsButton" Style="{StaticResource ToolButtonStyle}" Click="OnShortcuts"
+                        AutomationProperties.Name="Keyboard shortcuts" ToolTipService.ToolTip="Keyboard shortcuts (F1)">
+                    <FontIcon Glyph="&#xE765;" FontSize="15" />
+                </Button>
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnFullScreen"
                         AutomationProperties.Name="Full screen" ToolTipService.ToolTip="Full screen (F11)">
                     <FontIcon Glyph="&#xE740;" FontSize="15" />

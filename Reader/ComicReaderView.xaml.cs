@@ -36,12 +36,14 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     public event Action<int, int>? PageChanged;
 
-    // The page is XAML, so the window hears its input and Escape itself.
+    // The page is XAML, so the window hears its input, Escape and Ctrl+W itself.
     public event Action? Activity { add { } remove { } }
     public event Action? EscapeRequested { add { } remove { } }
+    public event Action? CloseRequested { add { } remove { } }
     public event Action? FullScreenRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
+    public event Action? ShortcutsRequested;
 
     /// <summary>What a page is decoded for: the fit, the view's size in DIPs, the screen's scale and the zoom.</summary>
     private sealed record Layout(bool FitWidth, double Width, double Height, double Scale, double Zoom);
@@ -79,6 +81,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private double[] _tops = [];
     private bool _placing;
 
+    private readonly ToolbarReveal _reveal;
+    private readonly JumpHistory<int> _jumps = new();
+
     public ComicReaderView()
     {
         InitializeComponent();
@@ -88,6 +93,8 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         FitButton.Content = item.Text;
         ShowMode();
         Scroller.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnWheel), true);
+        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, null, FocusPages);
+        Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
     }
 
@@ -131,6 +138,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         _book = book;
         Log.Write($"reader: opened {Path.GetFileName(path)}, {book.PageCount} pages, in {clock.ElapsedMilliseconds} ms");
         PageCountText.Text = $"of {book.PageCount:N0}";
+        _reveal.Show(ToolbarReveal.Glimpse);
         GoTo(position is { } p && p.Page >= 0 && p.Page < book.PageCount ? p.Page : 0);
     }
 
@@ -436,9 +444,40 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private bool AtTop => Scroller.VerticalOffset <= 1;
     private bool AtBottom => Scroller.VerticalOffset >= Scroller.ScrollableHeight - 1;
 
+    /// <summary>
+    /// A jump to a page (a page number typed in, Home or End), which Back returns from. Turning pages is not a jump.
+    /// </summary>
+    private void JumpTo(int page)
+    {
+        if (_book is null) return;
+        if (_page >= 0 && Math.Clamp(page, 0, _book.PageCount - 1) != _page) _jumps.Jumped(_page);
+        GoTo(page);
+    }
+
+    private void GoBack()
+    {
+        if (_jumps.Back(_page) is { } page) GoTo(page);
+    }
+
+    private void GoForward()
+    {
+        if (_jumps.Forward(_page) is { } page) GoTo(page);
+    }
+
+    /// <summary>The mouse's side buttons: back and forward after a jump.</summary>
+    private void OnSideButton(object sender, PointerRoutedEventArgs e)
+    {
+        var buttons = e.GetCurrentPoint(this).Properties;
+        if (buttons.IsXButton1Pressed) GoBack();
+        else if (buttons.IsXButton2Pressed) GoForward();
+        else return;
+        e.Handled = true;
+    }
+
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (_book is null || e.OriginalSource is TextBox) return;
+        // In the toolbar the keys are the toolbar's: Tab and the arrows between its buttons, Space to press one.
+        if (_book is null || e.OriginalSource is TextBox || _reveal.HasFocus) return;
         var modifiers = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down)
                         || InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (modifiers) return;
@@ -469,10 +508,10 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
                 else Scroller.ChangeView(null, Scroller.VerticalOffset - Scroller.ViewportHeight * 0.9, null);
                 break;
             case VirtualKey.Home:
-                GoTo(0);
+                JumpTo(0);
                 break;
             case VirtualKey.End:
-                GoTo(_book.PageCount - 1);
+                JumpTo(_book.PageCount - 1);
                 break;
             default:
                 return;
@@ -524,9 +563,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void AddAccelerators()
     {
-        void Add(VirtualKey key, Action action)
+        void Add(VirtualKey key, Action action, VirtualKeyModifiers modifiers = VirtualKeyModifiers.Control)
         {
-            var accelerator = new KeyboardAccelerator { Key = key, Modifiers = VirtualKeyModifiers.Control };
+            var accelerator = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
             accelerator.Invoked += (_, e) =>
             {
                 action();
@@ -540,6 +579,13 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         Add(VirtualKey.Subtract, () => ZoomBy(0.8f));
         Add((VirtualKey)189, () => ZoomBy(0.8f));      // the - key
         Add(VirtualKey.Number0, () => Scroller.ChangeView(0, 0, 1f));
+        Add(VirtualKey.G, () =>
+        {
+            PageBox.Focus(FocusState.Keyboard);
+            PageBox.SelectAll();
+        });
+        Add(VirtualKey.Left, GoBack, VirtualKeyModifiers.Menu);
+        Add(VirtualKey.Right, GoForward, VirtualKeyModifiers.Menu);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
@@ -568,7 +614,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     {
         if (e.Key != VirtualKey.Enter) return;
         e.Handled = true;
-        if (int.TryParse(PageBox.Text.Trim(), NumberStyles.Integer, CultureInfo.CurrentCulture, out var n)) GoTo(n - 1);
+        if (int.TryParse(PageBox.Text.Trim(), NumberStyles.Integer, CultureInfo.CurrentCulture, out var n)) JumpTo(n - 1);
         FocusPages();
         ShowPageNumber();
     }
@@ -613,10 +659,15 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnFullScreen(object sender, RoutedEventArgs e) => FullScreenRequested?.Invoke();
 
+    private void OnShortcuts(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke();
+
     private void OnOpenExternally(object sender, RoutedEventArgs e) => OpenExternallyRequested?.Invoke();
 
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e) =>
-        TimeLeftText.Visibility = e.NewSize.Width < 520 ? Visibility.Collapsed : Visibility.Visible;
+        ToolbarFit.Fit(ToolBar, Root.ActualWidth,
+            () => TimeLeftText.Visibility = ShortcutsButton.Visibility = Visibility.Visible,
+            () => TimeLeftText.Visibility = Visibility.Collapsed,
+            () => ShortcutsButton.Visibility = Visibility.Collapsed);
 
     private void ShowMessage(string title, string text, bool ring, bool external = false)
     {
@@ -640,17 +691,25 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     public ReadingPosition? Position() =>
         _book is null || _page < 0 ? null : new ReadingPosition(_page, _book.PageCount, PositionTag);
 
-    public bool HandleEscape() => false;
+    /// <summary>Escape from the window: takes the keyboard from the toolbar back to the page.</summary>
+    public bool HandleEscape()
+    {
+        if (!_reveal.HasFocus) return false;
+        FocusPages();
+        return true;
+    }
 
     public void FocusPages() => Scroller.Focus(FocusState.Programmatic);
 
-    /// <summary>Hides the toolbar for full screen, and brings it back.</summary>
-    public void SetChromeVisible(bool visible) => ToolBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    public void SetToolbar(bool hides, bool fullScreen) => _reveal.SetHides(hides);
+
+    public void FocusToolbar() => _reveal.FocusFirst();
 
     public void Close()
     {
         if (_closed) return;
         _closed = true;
+        _reveal.Close();
         PageImage.Source = null;
         foreach (var image in _strip) image.Source = null;
         foreach (var image in _images.Values) image.Dispose();

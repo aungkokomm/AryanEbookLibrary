@@ -35,12 +35,14 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     public event Action<int, int>? PageChanged;
 
-    // The pages are XAML, so the window hears their input and Escape itself.
+    // The pages are XAML, so the window hears their input, Escape and Ctrl+W itself.
     public event Action? Activity { add { } remove { } }
     public event Action? EscapeRequested { add { } remove { } }
+    public event Action? CloseRequested { add { } remove { } }
     public event Action? FullScreenRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
+    public event Action? ShortcutsRequested;
 
     private enum Fit { Width, Page, Custom }
 
@@ -77,6 +79,9 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     private ReadingPosition? _pendingPosition;
     private bool _layoutPending;
     private bool _endOffered;
+    private readonly ToolbarReveal _reveal;
+    private readonly JumpHistory<(int Page, double Fraction)> _jumps = new();
+    private bool _fullScreen;
 
     public PdfReaderView()
     {
@@ -84,6 +89,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _theme = AppServices.Settings.ReaderPageTheme switch { "Sepia" => 1, "Night" => 2, _ => 0 };
         (_theme switch { 1 => SepiaItem, 2 => NightItem, _ => PaperItem }).IsChecked = true;
         SetContentsOpen(AppServices.Settings.ReaderContentsOpen, remember: false);
+        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, ContentsPane, FocusPages);
+        Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
     }
 
@@ -130,6 +137,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _book = book;
         Log.Write($"reader: opened {System.IO.Path.GetFileName(_path)}, {book.PageCount} pages, in {clock.ElapsedMilliseconds} ms");
         HideMessage();
+        _reveal.Show(ToolbarReveal.Glimpse);
         BuildLayout();
         _queue = new RenderQueue(Render, (job, result) => DispatcherQueue.TryEnqueue(() => OnRendered(job, result)));
         _ = LoadOutlineAsync();
@@ -353,6 +361,34 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     }
 
     public void GoToPage(int page) => GoTo(page, 0);
+
+    /// <summary>A jump to a page (a link, the contents, a number typed in, Home or End), which Back returns from.</summary>
+    private void JumpTo(int page)
+    {
+        if (_book is null) return;
+        _jumps.Jumped(TopPosition());
+        GoToPage(page);
+    }
+
+    private void GoBack()
+    {
+        if (_book is not null && _jumps.Back(TopPosition()) is { } to) GoTo(to.Page, to.Fraction);
+    }
+
+    private void GoForward()
+    {
+        if (_book is not null && _jumps.Forward(TopPosition()) is { } to) GoTo(to.Page, to.Fraction);
+    }
+
+    /// <summary>The mouse's side buttons: back and forward after a jump.</summary>
+    private void OnSideButton(object sender, PointerRoutedEventArgs e)
+    {
+        var buttons = e.GetCurrentPoint(this).Properties;
+        if (buttons.IsXButton1Pressed) GoBack();
+        else if (buttons.IsXButton2Pressed) GoForward();
+        else return;
+        e.Handled = true;
+    }
 
     /// <summary>The page at the top of the view and how far down it the view starts (0..1).</summary>
     private (int Page, double Fraction) TopPosition()
@@ -759,8 +795,14 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (e.Key != VirtualKey.Enter) return;
         e.Handled = true;
         if (int.TryParse(PageBox.Text.Trim(), NumberStyles.Integer, CultureInfo.CurrentCulture, out var n) && _book is not null)
-            GoToPage(Math.Clamp(n, 1, _book.PageCount) - 1);
+            JumpTo(Math.Clamp(n, 1, _book.PageCount) - 1);
         Scroller.Focus(FocusState.Programmatic);
+    }
+
+    private void FocusPageBox()
+    {
+        PageBox.Focus(FocusState.Keyboard);
+        PageBox.SelectAll();
     }
 
     private void OnPageBoxLostFocus(object sender, RoutedEventArgs e) =>
@@ -779,25 +821,45 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Scroller.ChangeView(null, Math.Max(0, Scroller.VerticalOffset + direction * step), null, false);
     }
 
+    /// <summary>
+    /// Space and Page Down a screen down (Shift+Space and Page Up up), Left and Right a page unless the page is zoomed
+    /// wider than the view, Home and End the first and last page. Up and Down are the scroller's own small steps.
+    /// </summary>
     private void OnScrollerKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var shift = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (IsDown(VirtualKey.Control) || IsDown(VirtualKey.Menu) || _book is null) return;
+        var shift = IsDown(VirtualKey.Shift);
         switch (e.Key)
         {
             case VirtualKey.Space:
                 ScrollByScreen(shift ? -1 : 1);
-                e.Handled = true;
+                break;
+            case VirtualKey.PageDown:
+                ScrollByScreen(1);
+                break;
+            case VirtualKey.PageUp:
+                ScrollByScreen(-1);
                 break;
             case VirtualKey.Left when Scroller.ScrollableWidth <= 0:
                 OnPreviousPage(sender, e);
-                e.Handled = true;
                 break;
             case VirtualKey.Right when Scroller.ScrollableWidth <= 0:
                 OnNextPage(sender, e);
-                e.Handled = true;
                 break;
+            case VirtualKey.Home:
+                JumpTo(0);
+                break;
+            case VirtualKey.End:
+                JumpTo(_book.PageCount - 1);
+                break;
+            default:
+                return;
         }
+        e.Handled = true;
     }
+
+    private static bool IsDown(VirtualKey key) =>
+        InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
     public void SetTimeLeft(string text) => TimeLeftText.Text = text;
 
@@ -809,15 +871,24 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     private void OnFullScreen(object sender, RoutedEventArgs e) => FullScreenRequested?.Invoke();
 
-    /// <summary>The toolbar gives way on a narrow window: the time left, then the search box's width, then the zoom.</summary>
-    private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var w = e.NewSize.Width;
-        TimeLeftText.Visibility = w < 1040 ? Visibility.Collapsed : Visibility.Visible;
-        SearchBox.Width = w < 760 ? 130 : 200;
-        SearchCountText.Visibility = w < 700 ? Visibility.Collapsed : Visibility.Visible;
-        ZoomGroup.Visibility = w < 600 ? Visibility.Collapsed : Visibility.Visible;
-    }
+    private void OnShortcuts(object sender, RoutedEventArgs e) => ShortcutsRequested?.Invoke();
+
+    /// <summary>
+    /// The toolbar gives way on a narrow window: the time left, then the search box's width, the match count, the zoom
+    /// and the shortcuts button (F1 still works).
+    /// </summary>
+    private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e) =>
+        ToolbarFit.Fit(ToolBar, Root.ActualWidth,
+            () =>
+            {
+                TimeLeftText.Visibility = SearchCountText.Visibility = ZoomGroup.Visibility = ShortcutsButton.Visibility = Visibility.Visible;
+                SearchBox.Width = 200;
+            },
+            () => TimeLeftText.Visibility = Visibility.Collapsed,
+            () => SearchBox.Width = 130,
+            () => SearchCountText.Visibility = Visibility.Collapsed,
+            () => ZoomGroup.Visibility = Visibility.Collapsed,
+            () => ShortcutsButton.Visibility = Visibility.Collapsed);
 
     // ================================================================ contents
 
@@ -834,7 +905,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     private void OnOutlineClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is OutlineRow { Page: >= 0 } row) GoToPage(row.Page);
+        if (e.ClickedItem is OutlineRow { Page: >= 0 } row) JumpTo(row.Page);
+        FocusPages();
     }
 
     // ================================================================ links
@@ -868,7 +940,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     {
         if (link.TargetPage >= 0)
         {
-            GoToPage(link.TargetPage);
+            JumpTo(link.TargetPage);
             return;
         }
         // Web and mail addresses only: a PDF can also carry "launch" and file links, which are not followed.
@@ -1318,12 +1390,23 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Add(VirtualKey.Number0, VirtualKeyModifiers.Control, () => OnFitWidth(this, new RoutedEventArgs()));
         Add(VirtualKey.F3, VirtualKeyModifiers.None, () => OnSearchNext(this, new RoutedEventArgs()));
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => OnSearchPrevious(this, new RoutedEventArgs()));
+        Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusPageBox);
+        Add(VirtualKey.Left, VirtualKeyModifiers.Menu, GoBack);
+        Add(VirtualKey.Right, VirtualKeyModifiers.Menu, GoForward);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
-    /// <summary>Escape from the window: puts away the definition, then the selection. True when it did something.</summary>
+    /// <summary>
+    /// Escape from the window: takes the keyboard from the toolbar back to the page, or puts away the definition,
+    /// then the selection. True when it did something.
+    /// </summary>
     public bool HandleEscape()
     {
+        if (_reveal.HasFocus)
+        {
+            FocusPages();
+            return true;
+        }
         if (Definition.IsOpen)
         {
             HideDefinition();
@@ -1339,13 +1422,15 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     public void FocusPages() => Scroller.Focus(FocusState.Programmatic);
 
-    /// <summary>Hides the toolbar for full screen, and brings it back.</summary>
-    public void SetChromeVisible(bool visible)
+    public void SetToolbar(bool hides, bool fullScreen)
     {
-        ToolBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        if (!visible) ContentsPane.Visibility = Visibility.Collapsed;
-        else SetContentsOpen(ContentsButton.IsChecked == true, remember: false);
+        _reveal.SetHides(hides);
+        if (fullScreen == _fullScreen) return;
+        _fullScreen = fullScreen;
+        SetContentsOpen(!fullScreen && AppServices.Settings.ReaderContentsOpen, remember: false);
     }
+
+    public void FocusToolbar() => _reveal.FocusFirst();
 
     // ================================================================ closing
 
@@ -1353,6 +1438,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     {
         if (_closed) return;
         _closed = true;
+        _reveal.Close();
         _searchCts?.Cancel();
         _queue?.Dispose();
         var book = _book;

@@ -138,26 +138,102 @@ const activity = force => {
     post({ type: 'activity' })
 }
 
+// Keys the app itself answers: the page has the keyboard, so they come from here.
+const APP_KEYS = ['F1', 'F3', 'F11', 'Escape']
+const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', '=', '+', '-', '0']
+
+// A fixed-layout book (a Kindle comic) is always shown a page at a time, whatever the layout setting.
+const scrolled = () => prefs.flow === 'scrolled' && !view?.isFixedLayout
+
+// Alt pressed and let go on its own shows the app's toolbar and puts the keyboard on it, as a menu bar would.
+let altAlone = false
+
 const onKey = e => {
     activity()
     const k = e.key
     const ctrl = e.ctrlKey || e.metaKey
-    // Keys the app itself answers: the page has the keyboard, so they come from here.
-    if (k === 'F11' || k === 'Escape' || k === 'F3' || (ctrl && ['f', 'F', '=', '+', '-', '0'].includes(k))) {
+    altAlone = k === 'Alt' && !ctrl && !e.shiftKey
+    if (APP_KEYS.includes(k) || (ctrl && APP_CTRL_KEYS.includes(k))) {
         e.preventDefault()
         post({ type: 'key', key: k, ctrl, shift: e.shiftKey })
         return
     }
-    if (!view || ctrl || e.altKey) return
+    if (!view || ctrl) return
+    if (e.altKey) {
+        // Back and forward after a link or a jump, as in a browser.
+        if (k === 'ArrowLeft') view.history.back()
+        else if (k === 'ArrowRight') view.history.forward()
+        else return
+        e.preventDefault()
+        return
+    }
     if (e.target?.isContentEditable || /input|textarea/i.test(e.target?.tagName ?? '')) return
+    // In page layout Down and Up turn the page too. In scroll layout they move a little, and Space and Page Down a
+    // screen less a line or two, so the last lines read stay in view.
+    const screen = () => scrolled() ? view.renderer.size * 0.9 : undefined
     if (k === 'ArrowLeft') view.goLeft()
     else if (k === 'ArrowRight') view.goRight()
-    else if (k === 'PageDown' || (k === ' ' && !e.shiftKey)) view.next()
-    else if (k === 'PageUp' || (k === ' ' && e.shiftKey)) view.prev()
+    else if (k === 'ArrowDown') view.next(scrolled() ? 60 : undefined)
+    else if (k === 'ArrowUp') view.prev(scrolled() ? 60 : undefined)
+    else if (k === 'PageDown' || (k === ' ' && !e.shiftKey)) view.next(screen())
+    else if (k === 'PageUp' || (k === ' ' && e.shiftKey)) view.prev(screen())
     else if (k === 'Home') view.goToFraction(0)
     else if (k === 'End') view.goToFraction(1)
     else return
     e.preventDefault()
+}
+
+const onKeyUp = e => {
+    if (e.key !== 'Alt' || !altAlone) return
+    altAlone = false
+    e.preventDefault()
+    post({ type: 'key', key: 'Alt' })
+}
+
+// Alt+Tab away and back: the Alt let go on arrival is not a lone Alt.
+const forgetAlt = () => { altAlone = false }
+
+// The app's toolbar can hide above the page and come back when the pointer goes to the top. The page has the
+// pointer, so it says when the pointer gets there and when it leaves; a touch near the top is a tap for it.
+const TOP_EDGE = 32
+let atTop = null
+
+const topOf = (e, frame) => e.clientY + (frame?.getBoundingClientRect().top ?? 0)
+
+const onPointerMove = (e, frame) => {
+    activity()
+    const near = topOf(e, frame) < TOP_EDGE
+    if (near === atTop) return
+    atTop = near
+    post({ type: 'top', near })
+}
+
+// Over the app's toolbar the page hears nothing; back on the page, it says where the pointer is again.
+document.documentElement.addEventListener('pointerleave', () => { atTop = null })
+
+const onPointerDown = (e, frame) => {
+    altAlone = false
+    if (e.pointerType !== 'mouse' && topOf(e, frame) < TOP_EDGE * 2) post({ type: 'tap' })
+}
+
+// The mouse's side buttons: back and forward after a link or a jump, not the browser's own.
+const onMouseButton = e => {
+    if (e.button !== 3 && e.button !== 4) return
+    e.preventDefault()
+    if (e.type !== 'mouseup' || !view) return
+    if (e.button === 3) view.history.back()
+    else view.history.forward()
+}
+
+// In page layout a click in the margin beside the text turns the page. The text is in the book's own frame, so a
+// click that reaches this document is never on it.
+const marginSide = x => x < innerWidth * 0.25 ? -1 : x > innerWidth * 0.75 ? 1 : 0
+
+const onMarginClick = e => {
+    if (!view || scrolled() || e.button !== 0) return
+    const side = marginSide(e.clientX)
+    if (side < 0) view.goLeft()
+    else if (side > 0) view.goRight()
 }
 
 // In page layout the wheel turns the page, once per flick: a touchpad sends a stream of small steps.
@@ -174,7 +250,16 @@ const onWheel = e => {
 }
 
 document.addEventListener('keydown', onKey)
-document.addEventListener('pointermove', () => activity())
+document.addEventListener('keyup', onKeyUp)
+window.addEventListener('blur', forgetAlt)
+document.addEventListener('pointermove', e => {
+    onPointerMove(e, null)
+    if (view) view.style.cursor = !scrolled() && marginSide(e.clientX) ? 'pointer' : ''
+})
+document.addEventListener('pointerdown', e => onPointerDown(e, null))
+document.addEventListener('mousedown', onMouseButton)
+document.addEventListener('mouseup', onMouseButton)
+document.addEventListener('click', onMarginClick)
 document.addEventListener('wheel', onWheel, { passive: true })
 
 // ---- a section's document: keys, activity, and the right-click ----
@@ -215,8 +300,14 @@ const toTop = (doc, r) => {
 }
 
 const onSectionLoad = doc => {
+    const frame = doc.defaultView?.frameElement
     doc.addEventListener('keydown', onKey)
-    doc.addEventListener('pointermove', () => activity())
+    doc.addEventListener('keyup', onKeyUp)
+    doc.defaultView?.addEventListener('blur', forgetAlt)
+    doc.addEventListener('pointermove', e => onPointerMove(e, frame))
+    doc.addEventListener('pointerdown', e => onPointerDown(e, frame))
+    doc.addEventListener('mousedown', onMouseButton)
+    doc.addEventListener('mouseup', onMouseButton)
     doc.addEventListener('wheel', onWheel, { passive: true })
     doc.addEventListener('contextmenu', e => {
         e.preventDefault()
@@ -331,6 +422,8 @@ window.chrome.webview.addEventListener('message', async e => {
             case 'prev': await view?.prev(); break
             case 'goTo': await view?.goTo(m.href); break
             case 'fraction': await view?.goToFraction(m.fraction); break
+            case 'back': view?.history.back(); break
+            case 'forward': view?.history.forward(); break
             case 'search': await search(m.query); break
             case 'searchStep': await stepSearch(m.direction); break
             case 'clearSearch': searchRun++; view?.clearSearch(); searchHits = []; searchIndex = -1; view?.deselect(); break

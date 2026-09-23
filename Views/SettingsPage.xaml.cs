@@ -24,6 +24,7 @@ public sealed partial class SettingsPage : Page
         ReadComicsInAppSwitch.IsOn = AppServices.Settings.ReadComicsInApp;
         DefineMyanmarBox.IsChecked = AppServices.Settings.DefineShowsMyanmar;
         DefineHindiBox.IsChecked = AppServices.Settings.DefineShowsHindi;
+        Select(ReaderToolbarBox, AppServices.Settings.ReaderToolbar);
         Select(LanguageBox, AppServices.Settings.PreferredLanguage);
         Select(FormatBox, AppServices.Settings.PreferredFormat);
         ShowKeptCopies();
@@ -55,6 +56,14 @@ public sealed partial class SettingsPage : Page
         AppServices.Settings.ReadEpubInApp = ReadEpubInAppSwitch.IsOn;
         AppServices.Settings.ReadComicsInApp = ReadComicsInAppSwitch.IsOn;
         AppServices.Settings.Save();
+    }
+
+    private void OnReaderToolbarChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.ReaderToolbar = TagOf(ReaderToolbarBox) is "Hide" ? "Hide" : "Always";
+        AppServices.Settings.Save();
+        Reader.ReaderWindow.ToolbarSettingChanged();
     }
 
     private void OnDefineLanguagesChanged(object sender, RoutedEventArgs e)
