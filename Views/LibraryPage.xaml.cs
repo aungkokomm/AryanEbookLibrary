@@ -100,7 +100,7 @@ public sealed partial class LibraryPage : Page
         try
         {
             dialog = new BookDetailsDialog(book, ViewModel) { XamlRoot = XamlRoot };
-            result = await dialog.ShowAsync();
+            result = await dialog.ShowThemedAsync();
         }
         finally
         {
@@ -128,7 +128,7 @@ public sealed partial class LibraryPage : Page
         _dialogOpen = true;
         try
         {
-            await new FindOnlineDialog(book) { XamlRoot = XamlRoot }.ShowAsync();
+            await new FindOnlineDialog(book) { XamlRoot = XamlRoot }.ShowThemedAsync();
         }
         finally
         {
@@ -150,7 +150,7 @@ public sealed partial class LibraryPage : Page
                 Content = error,
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot
-            }.ShowAsync();
+            }.ShowThemedAsync();
         }
         finally
         {
@@ -180,7 +180,7 @@ public sealed partial class LibraryPage : Page
         try
         {
             dialog = new BulkEditDialog(ViewModel.SelectedCount) { XamlRoot = XamlRoot };
-            result = await dialog.ShowAsync();
+            result = await dialog.ShowThemedAsync();
         }
         finally
         {
@@ -243,7 +243,7 @@ public sealed partial class LibraryPage : Page
         _dialogOpen = true;
         try
         {
-            await new ContentDialog { Title = title, Content = message, CloseButtonText = "OK", XamlRoot = XamlRoot }.ShowAsync();
+            await new ContentDialog { Title = title, Content = message, CloseButtonText = "OK", XamlRoot = XamlRoot }.ShowThemedAsync();
         }
         finally
         {
@@ -521,7 +521,7 @@ public sealed partial class LibraryPage : Page
                 Content = "No connected books match the current filter.",
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot
-            }.ShowAsync();
+            }.ShowThemedAsync();
         }
         finally
         {

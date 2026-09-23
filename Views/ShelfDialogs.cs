@@ -48,6 +48,6 @@ internal static class ShelfDialogs
             box.SelectAll();
         };
         Check();
-        return await dialog.ShowAsync() == ContentDialogResult.Primary ? (box.Text ?? "").Trim() : null;
+        return await dialog.ShowThemedAsync() == ContentDialogResult.Primary ? (box.Text ?? "").Trim() : null;
     }
 }

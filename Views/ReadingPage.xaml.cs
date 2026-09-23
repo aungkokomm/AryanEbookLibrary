@@ -22,7 +22,6 @@ public sealed partial class ReadingPage : Page
     private List<int> _years = new();
     private int _year = DateTime.Today.Year;
     private bool _filling;
-    private bool _dialogOpen;
 
     public ReadingPage()
     {
@@ -169,24 +168,8 @@ public sealed partial class ReadingPage : Page
 
     private async void OnBookClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not Book book || _dialogOpen || XamlRoot is null) return;
-        _dialogOpen = true;
-        BookDetailsDialog dialog;
-        ContentDialogResult result;
-        try
-        {
-            dialog = new BookDetailsDialog(book, AppServices.Library) { XamlRoot = XamlRoot };
-            result = await dialog.ShowAsync();
-            if (dialog.Next == DetailsNext.FindOnline)
-                await new FindOnlineDialog(book) { XamlRoot = XamlRoot }.ShowAsync();
-        }
-        finally
-        {
-            _dialogOpen = false;
-        }
-
-        if (result == ContentDialogResult.Primary) AppServices.Library.OpenBook(book);
-        else if (result == ContentDialogResult.Secondary) BookLauncher.ShowInFolder(book);
+        if ((sender as Button)?.Tag is not Book book || XamlRoot is null) return;
+        await BookDialogs.ShowDetailsAsync(XamlRoot, book);
         Refresh();   // its status or finish date may have changed
     }
 }

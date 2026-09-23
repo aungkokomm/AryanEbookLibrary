@@ -784,6 +784,46 @@ public sealed class LibraryViewModel : ObservableObject
         Settings.Save();
     }
 
+    /// <summary>
+    /// Renames a tag on every book wearing it; a name already in use joins the two. Shelves and the library's
+    /// tag filter follow the new name. Returns how many books changed.
+    /// </summary>
+    public int RenameTag(string from, string to)
+    {
+        to = to.Trim();
+        if (to.Length == 0 || to.Contains(',') || from == to) return 0;
+        var changed = 0;
+        foreach (var book in _all.Where(b => Tags.Has(b, from)))
+        {
+            var now = Tags.Rename(book.UserTags, from, to);
+            if (now == book.UserTags) continue;
+            book.UserTags = now;
+            SaveState(book);
+            changed++;
+        }
+        var shelves = Settings.Shelves.Where(s => string.Equals(s.Tag, from, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        foreach (var shelf in shelves) shelf.Tag = to;
+        if (shelves.Count > 0) Settings.Save();
+        if (string.Equals(TagFilter, from, StringComparison.CurrentCultureIgnoreCase)) TagFilter = to;
+        else if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
+    /// <summary>Takes a tag off every book wearing it. The books stay. Returns how many books changed.</summary>
+    public int RemoveTag(string name)
+    {
+        var changed = 0;
+        foreach (var book in _all.Where(b => Tags.Has(b, name)))
+        {
+            book.UserTags = Tags.Remove(book.UserTags, name);
+            SaveState(book);
+            changed++;
+        }
+        if (string.Equals(TagFilter, name, StringComparison.CurrentCultureIgnoreCase)) TagFilter = "";
+        else if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
     /// <summary>Adds or removes one tag on one book (the Tags page, the book's own menu).</summary>
     public void SetTag(Book book, string tag, bool wanted)
     {

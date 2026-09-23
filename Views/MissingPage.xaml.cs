@@ -113,7 +113,7 @@ public sealed partial class MissingPage : Page
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
-        }.ShowAsync();
+        }.ShowThemedAsync();
         if (confirm != ContentDialogResult.Primary) return;
 
         AppServices.Library.RemoveMissing(_missing.Select(m => m.Id).ToList());

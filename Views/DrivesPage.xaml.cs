@@ -95,7 +95,7 @@ public sealed partial class DrivesPage : Page
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
         if (combo.SelectedIndex < 0) return;
 
         var (id, root, label) = addable[combo.SelectedIndex];
@@ -159,7 +159,7 @@ public sealed partial class DrivesPage : Page
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
 
         if (known is null)
         {
@@ -197,7 +197,7 @@ public sealed partial class DrivesPage : Page
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
 
             Library.RemoveFolder(item.Folder.Id);
             Refresh();
@@ -352,7 +352,7 @@ public sealed partial class DrivesPage : Page
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
 
             Library.RemoveMissing(boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Id).ToList());
             Refresh();
@@ -393,7 +393,7 @@ public sealed partial class DrivesPage : Page
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
 
             var name = box.Text.Trim();
             if (name.Length == 0 || name == drive.Label) return;
@@ -422,7 +422,7 @@ public sealed partial class DrivesPage : Page
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await dialog.ShowThemedAsync() != ContentDialogResult.Primary) return;
 
             Library.RemoveDrive(driveId);
             Refresh();
@@ -464,6 +464,6 @@ public sealed partial class DrivesPage : Page
     private async Task ShowInfoDialog(string title, string message)
     {
         var dialog = new ContentDialog { Title = title, Content = message, CloseButtonText = "OK", XamlRoot = XamlRoot };
-        await dialog.ShowAsync();
+        await dialog.ShowThemedAsync();
     }
 }

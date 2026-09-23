@@ -344,7 +344,7 @@ public sealed partial class MainWindow : Window
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = Content.XamlRoot
-            }.ShowAsync();
+            }.ShowThemedAsync();
             if (answer != ContentDialogResult.Primary) return;
             var shown = string.Equals(Library.ActiveShelf, name, StringComparison.CurrentCultureIgnoreCase);
             Library.DeleteShelf(name);

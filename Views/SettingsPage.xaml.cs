@@ -117,7 +117,7 @@ public sealed partial class SettingsPage : Page
 
     private async Task ShowMessage(string text) =>
         await new ContentDialog { Title = "Rebuild covers", Content = text, CloseButtonText = "OK", XamlRoot = XamlRoot }
-            .ShowAsync();
+            .ShowThemedAsync();
 
     private async void OnExportCatalog(object sender, RoutedEventArgs e)
     {

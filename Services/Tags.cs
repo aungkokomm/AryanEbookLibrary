@@ -10,6 +10,7 @@ public sealed class TagEntry
     public int Count => Books.Count;
     public string CountText => Count == 1 ? "1 book" : $"{Count:N0} books";
     public string? CoverPath => Books.FirstOrDefault(b => b.CoverPath is not null)?.CoverPath;
+    public int Finished => Books.Count(b => b.Status == ReadStatus.Finished);
 }
 
 /// <summary>
@@ -56,4 +57,14 @@ public static class Tags
     /// <summary>The field without that tag.</summary>
     public static string Remove(string field, string tag) =>
         string.Join(", ", Split(field).Where(t => !string.Equals(t, tag, StringComparison.CurrentCultureIgnoreCase)));
+
+    /// <summary>
+    /// The field with one tag renamed, in the same place. Renaming to a tag the book already wears leaves it
+    /// once, so renaming "Magazines" to "Assorted Magazines" joins the two shelves.
+    /// </summary>
+    public static string Rename(string field, string from, string to)
+    {
+        var renamed = Split(field).Select(t => string.Equals(t, from, StringComparison.CurrentCultureIgnoreCase) ? to.Trim() : t);
+        return Merge("", string.Join(", ", renamed));
+    }
 }

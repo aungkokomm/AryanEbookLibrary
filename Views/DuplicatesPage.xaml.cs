@@ -78,7 +78,7 @@ public sealed partial class DuplicatesPage : Page
         try
         {
             dialog = new BookDetailsDialog(b, AppServices.Library) { XamlRoot = XamlRoot };
-            await dialog.ShowAsync();
+            await dialog.ShowThemedAsync();
         }
         finally
         {
@@ -90,7 +90,7 @@ public sealed partial class DuplicatesPage : Page
             _dialogOpen = true;
             try
             {
-                await new FindOnlineDialog(b) { XamlRoot = XamlRoot }.ShowAsync();
+                await new FindOnlineDialog(b) { XamlRoot = XamlRoot }.ShowThemedAsync();
             }
             finally
             {

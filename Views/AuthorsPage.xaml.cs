@@ -73,7 +73,7 @@ public sealed partial class AuthorsPage : Page
                 : $"{changed} book(s) now name {group.Canonical}. Undo it in a book's details, under \"Edit title, author and series\".",
             CloseButtonText = "OK",
             XamlRoot = XamlRoot
-        }.ShowAsync();
+        }.ShowThemedAsync();
     }
 
     private void OnNotSame(object sender, RoutedEventArgs e)
