@@ -55,7 +55,7 @@ public sealed class LibraryViewModel : ObservableObject
             if (SetProperty(ref _filter, value))
             {
                 OnPropertyChanged(nameof(HeaderText));
-                ApplyFilter();
+                ViewChanged();
             }
         }
     }
@@ -70,7 +70,7 @@ public sealed class LibraryViewModel : ObservableObject
             if (!SetProperty(ref _seriesFilter, value ?? "")) return;
             if (_seriesFilter.Length > 0) _tagFilter = "";
             OnPropertyChanged(nameof(HeaderText));
-            ApplyFilter();
+            ViewChanged();
         }
     }
 
@@ -84,22 +84,14 @@ public sealed class LibraryViewModel : ObservableObject
             if (!SetProperty(ref _tagFilter, value ?? "")) return;
             if (_tagFilter.Length > 0) _seriesFilter = "";
             OnPropertyChanged(nameof(HeaderText));
-            ApplyFilter();
+            ViewChanged();
         }
     }
 
-    public string HeaderText => SeriesFilter.Length > 0 ? "Series: " + SeriesFilter
+    public string HeaderText => ActiveShelf.Length > 0 ? ActiveShelf
+        : SeriesFilter.Length > 0 ? "Series: " + SeriesFilter
         : TagFilter.Length > 0 ? "Tag: " + TagFilter
-        : Filter switch
-    {
-        LibraryFilter.ContinueReading => "Continue Reading",
-        LibraryFilter.RecentlyAdded => "Recently Added",
-        LibraryFilter.Favorites => "Favorites",
-        LibraryFilter.Unread => "Unread",
-        LibraryFilter.Finished => "Finished",
-        LibraryFilter.NeedsDetails => "Needs Details",
-        _ => "All Books"
-    };
+        : ShelfFilter.ListName(Filter);
 
     private string _searchText = "";
     public string SearchText
@@ -109,6 +101,7 @@ public sealed class LibraryViewModel : ObservableObject
         {
             if (SetProperty(ref _searchText, value ?? ""))
             {
+                if (!_applyingView) LeaveShelf();
                 _searchTimer.Stop();
                 _searchTimer.Start();
             }
@@ -121,8 +114,178 @@ public sealed class LibraryViewModel : ObservableObject
         get => _formatIndex;
         set
         {
-            if (SetProperty(ref _formatIndex, value)) ApplyFilter();
+            if (SetProperty(ref _formatIndex, value)) ViewChanged();
         }
+    }
+
+    // ---- the Filters menu: language, decade, publisher, rating, connected drives ----
+
+    private string _languageFilter = "";
+    /// <summary>A language key ("my", "en"), <see cref="ShelfFilter.NotStated"/>, or empty for any.</summary>
+    public string LanguageFilter
+    {
+        get => _languageFilter;
+        set { if (SetProperty(ref _languageFilter, value ?? "")) ViewChanged(); }
+    }
+
+    private string _decadeFilter = "";
+    public string DecadeFilter
+    {
+        get => _decadeFilter;
+        set { if (SetProperty(ref _decadeFilter, value ?? "")) ViewChanged(); }
+    }
+
+    private string _publisherFilter = "";
+    public string PublisherFilter
+    {
+        get => _publisherFilter;
+        set { if (SetProperty(ref _publisherFilter, value ?? "")) ViewChanged(); }
+    }
+
+    private int _minRating;
+    public int MinRating
+    {
+        get => _minRating;
+        set { if (SetProperty(ref _minRating, Math.Clamp(value, 0, 5))) ViewChanged(); }
+    }
+
+    private bool _connectedOnly;
+    /// <summary>Only books on a drive that is plugged in now, so every one of them opens.</summary>
+    public bool ConnectedOnly
+    {
+        get => _connectedOnly;
+        set { if (SetProperty(ref _connectedOnly, value)) ViewChanged(); }
+    }
+
+    public List<FacetOption> LanguageOptions() => ShelfFilter.Languages(_all, CurrentView());
+    public List<FacetOption> DecadeOptions() => ShelfFilter.Decades(_all, CurrentView());
+    public List<FacetOption> PublisherOptions() => ShelfFilter.Publishers(_all, CurrentView());
+    public List<FacetOption> RatingOptions() => ShelfFilter.Ratings(_all, CurrentView());
+
+    /// <summary>How many of the Filters menu's filters are on (the button says so).</summary>
+    public int MenuFilterCount => ShelfFilter.MenuFilters(CurrentView()).Count;
+
+    /// <summary>Anything narrower than the plain list is showing: format, search, tag, series or a menu filter.</summary>
+    public bool IsFiltered => ShelfFilter.IsFiltered(CurrentView());
+
+    // ---- shelves: saved views ----
+
+    private bool _applyingView;
+
+    private string _activeShelf = "";
+    /// <summary>The shelf being shown, until any filter changes. Empty when the view is not a saved one.</summary>
+    public string ActiveShelf => _activeShelf;
+
+    /// <summary>The shelves changed (saved, renamed, deleted): the navigation pane rebuilds its list.</summary>
+    public event EventHandler? ShelvesChanged;
+
+    public IReadOnlyList<Shelf> Shelves => Settings.Shelves;
+
+    public Shelf? FindShelf(string name) =>
+        Settings.Shelves.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.CurrentCultureIgnoreCase));
+
+    public Shelf CurrentView() => new()
+    {
+        List = Filter,
+        Format = FormatIndex,
+        Language = LanguageFilter,
+        Decade = DecadeFilter,
+        Publisher = PublisherFilter,
+        MinRating = MinRating,
+        ConnectedOnly = ConnectedOnly,
+        Tag = TagFilter,
+        Series = SeriesFilter,
+        Search = SearchText
+    };
+
+    /// <summary>A filter changed: refresh, and the view is no longer the shelf it came from.</summary>
+    private void ViewChanged()
+    {
+        if (_applyingView) return;
+        LeaveShelf();
+        ApplyFilter();
+    }
+
+    private void LeaveShelf()
+    {
+        if (_activeShelf.Length == 0) return;
+        _activeShelf = "";
+        OnPropertyChanged(nameof(ActiveShelf));
+        OnPropertyChanged(nameof(HeaderText));
+    }
+
+    /// <summary>Sets every part of the view at once, with one refresh instead of one per filter.</summary>
+    private void SetView(Shelf v, string activeShelf)
+    {
+        _applyingView = true;
+        try
+        {
+            Filter = v.List;
+            FormatIndex = v.Format;
+            LanguageFilter = v.Language;
+            DecadeFilter = v.Decade;
+            PublisherFilter = v.Publisher;
+            MinRating = v.MinRating;
+            ConnectedOnly = v.ConnectedOnly;
+            SeriesFilter = v.Series;
+            TagFilter = v.Tag;
+            SearchText = v.Search;
+        }
+        finally
+        {
+            _applyingView = false;
+        }
+        _searchTimer.Stop();
+        _activeShelf = activeShelf;
+        OnPropertyChanged(nameof(ActiveShelf));
+        OnPropertyChanged(nameof(HeaderText));
+        ApplyFilter();
+    }
+
+    public void ShowShelf(Shelf shelf) => SetView(shelf, shelf.Name);
+
+    /// <summary>Back to the plain list: every filter off, the list itself (Unread, Favorites...) kept.</summary>
+    public void ClearFilters() => SetView(new Shelf { List = Filter }, "");
+
+    /// <summary>Saves what is showing as a shelf, replacing one of the same name, and shows it as that shelf.</summary>
+    public void SaveShelf(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) return;
+        var shelf = CurrentView().Copy(name);
+        var at = Settings.Shelves.FindIndex(s => string.Equals(s.Name, name, StringComparison.CurrentCultureIgnoreCase));
+        if (at >= 0) Settings.Shelves[at] = shelf;
+        else Settings.Shelves.Add(shelf);
+        Settings.Save();
+        _activeShelf = name;
+        OnPropertyChanged(nameof(ActiveShelf));
+        OnPropertyChanged(nameof(HeaderText));
+        ShelvesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RenameShelf(string from, string to)
+    {
+        to = to.Trim();
+        var shelf = FindShelf(from);
+        if (shelf is null || to.Length == 0 || FindShelf(to) is { } other && other != shelf) return;
+        shelf.Name = to;
+        Settings.Save();
+        if (string.Equals(_activeShelf, from, StringComparison.CurrentCultureIgnoreCase))
+        {
+            _activeShelf = to;
+            OnPropertyChanged(nameof(ActiveShelf));
+            OnPropertyChanged(nameof(HeaderText));
+        }
+        ShelvesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Forgets the shelf. Its books are untouched: a shelf is only a saved way of looking.</summary>
+    public void DeleteShelf(string name)
+    {
+        if (Settings.Shelves.RemoveAll(s => string.Equals(s.Name, name, StringComparison.CurrentCultureIgnoreCase)) == 0) return;
+        Settings.Save();
+        if (string.Equals(_activeShelf, name, StringComparison.CurrentCultureIgnoreCase)) LeaveShelf();
+        ShelvesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private int _sortIndex;
@@ -284,6 +447,7 @@ public sealed class LibraryViewModel : ObservableObject
 
             foreach (var b in _all)
                 b.IsAvailable = DriveRegistry.IsOnline(b.DriveId);
+            if (ConnectedOnly) ApplyFilter();   // a drive coming or going changes which books this view shows
 
             var arrived = drives.FirstOrDefault(d => !before[d.Id] && DriveRegistry.IsOnline(d.Id));
             var left = drives.FirstOrDefault(d => before[d.Id] && !DriveRegistry.IsOnline(d.Id));
@@ -302,46 +466,10 @@ public sealed class LibraryViewModel : ObservableObject
 
     // ------------------------------------------------------------ filter / sort
 
-    private static readonly BookFormat[][] FormatGroups =
-    {
-        Array.Empty<BookFormat>(),
-        new[] { BookFormat.Epub },
-        new[] { BookFormat.Pdf },
-        new[] { BookFormat.Mobi, BookFormat.Azw3 },
-        new[] { BookFormat.Cbz, BookFormat.Cbr }
-    };
-
     public void ApplyFilter()
     {
-        IEnumerable<Book> q = _all;
-
-        if (FormatIndex > 0 && FormatIndex < FormatGroups.Length)
-        {
-            var formats = FormatGroups[FormatIndex];
-            q = q.Where(b => formats.Contains(b.Format));
-        }
-
-        q = Filter switch
-        {
-            LibraryFilter.ContinueReading => q.Where(b => b.Status == ReadStatus.Reading),
-            LibraryFilter.Favorites => q.Where(b => b.IsFavorite),
-            LibraryFilter.Unread => q.Where(b => b.Status == ReadStatus.Unread),
-            LibraryFilter.Finished => q.Where(b => b.Status == ReadStatus.Finished),
-            LibraryFilter.NeedsDetails => q.Where(b => b.NeedsDetails),
-            _ => q
-        };
-
-        if (SeriesFilter.Length > 0)
-            q = q.Where(b => string.Equals(b.Series, SeriesFilter, StringComparison.CurrentCultureIgnoreCase));
-        if (TagFilter.Length > 0)
-            q = q.Where(b => Tags.Has(b, TagFilter));
-
-        var tokens = SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var token in tokens)
-        {
-            var t = token;
-            q = q.Where(b => b.SearchBlob.Contains(t, StringComparison.OrdinalIgnoreCase));
-        }
+        var view = CurrentView();
+        var q = ShelfFilter.Apply(_all, view);
 
         IEnumerable<Book> sorted;
         if (SeriesFilter.Length > 0)
@@ -360,9 +488,14 @@ public sealed class LibraryViewModel : ObservableObject
         EmptyMessage = _all.Count == 0
             ? "Your library is empty. Open Drives & Folders and add a folder with books."
             : "No books match the current filter.";
-        CountText = result.Count == _all.Count || Filter == LibraryFilter.RecentlyAdded
+        var count = result.Count == _all.Count || Filter == LibraryFilter.RecentlyAdded
             ? $"{result.Count:N0} books"
             : $"{result.Count:N0} of {_all.Count:N0} books";
+        // The Filters menu hides its choices, so the line under the title says which are on.
+        var menu = ShelfFilter.MenuFilters(view);
+        CountText = menu.Count == 0 ? count : count + "  ·  " + string.Join("  ·  ", menu);
+        OnPropertyChanged(nameof(MenuFilterCount));
+        OnPropertyChanged(nameof(IsFiltered));
 
         if (!IsScanning) StatusText = $"{_all.Count:N0} books in catalog  ·  {_all.Count(b => b.IsAvailable):N0} available";
     }
@@ -749,10 +882,10 @@ public sealed class LibraryViewModel : ObservableObject
         return changed;
     }
 
-    public int SetStatusForSelected(ReadStatus status)
+    public int SetStatusForSelected(ReadStatus status, bool stampDate = true)
     {
         var books = Selected;
-        foreach (var book in books) SetStatus(book, status);
+        foreach (var book in books) SetStatus(book, status, stampDate);
         return books.Count;
     }
 
@@ -791,19 +924,14 @@ public sealed class LibraryViewModel : ObservableObject
         if (Filter == LibraryFilter.Favorites) ApplyFilter();
     }
 
-    public void SetStatus(Book book, ReadStatus status)
+    /// <summary>
+    /// A book finished now is finished today; with <paramref name="stampDate"/> false it was finished some
+    /// time ago and gets no date (it counts for all time, not in any month of the reading log). A book that
+    /// was already finished keeps its date.
+    /// </summary>
+    public void SetStatus(Book book, ReadStatus status, bool stampDate = true)
     {
-        book.Status = status;
-        if (status == ReadStatus.Finished)
-        {
-            book.FinishedUtc = DateTime.UtcNow;
-            book.Progress = 100;
-        }
-        else if (status == ReadStatus.Unread)
-        {
-            book.Progress = 0;
-            book.FinishedUtc = null;
-        }
+        ReadingLog.SetStatus(book, status, stampDate ? DateTime.UtcNow : null);
         SaveState(book);
         if (Filter is LibraryFilter.ContinueReading or LibraryFilter.Unread or LibraryFilter.Finished) ApplyFilter();
     }

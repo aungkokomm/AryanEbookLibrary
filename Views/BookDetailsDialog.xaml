@@ -115,11 +115,17 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="Status" VerticalAlignment="Center" />
-                    <ComboBox x:Name="StatusBox" Grid.Row="0" Grid.Column="1" Width="160">
-                        <ComboBoxItem Content="Unread" />
-                        <ComboBoxItem Content="Reading" />
-                        <ComboBoxItem Content="Finished" />
-                    </ComboBox>
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <ComboBox x:Name="StatusBox" Width="160" SelectionChanged="OnStatusChanged">
+                            <ComboBoxItem Content="Unread" />
+                            <ComboBoxItem Content="Reading" />
+                            <ComboBoxItem Content="Finished" />
+                        </ComboBox>
+                        <!-- The day it was finished: what the reading log counts. Empty = finished, date not known. -->
+                        <CalendarDatePicker x:Name="FinishedPicker" Visibility="Collapsed" PlaceholderText="Date not known"
+                                            AutomationProperties.Name="Finished on"
+                                            ToolTipService.ToolTip="When you finished it. Leave it empty if you do not know." />
+                    </StackPanel>
 
                     <TextBlock Grid.Row="1" Text="Progress" VerticalAlignment="Center" />
                     <Slider x:Name="ProgressSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100"

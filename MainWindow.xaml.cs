@@ -34,6 +34,11 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed += (_, e) => { if (e.DidSizeChange) SyncTitleBar(); };
         AppTitleBar.Loaded += (_, _) => SyncTitleBar();
         Library.PropertyChanged += OnLibraryChanged;
+        Library.ShelvesChanged += (_, _) => BuildShelves();
+        BuildShelves();
+        ShelvesItem.IsExpanded = AppServices.Settings.ShelvesExpanded;
+        NavView.Expanding += (_, e) => { if (e.ExpandingItemContainer == ShelvesItem) RememberShelvesOpen(true); };
+        NavView.Collapsed += (_, e) => { if (e.CollapsedItemContainer == ShelvesItem) RememberShelvesOpen(false); };
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
 
@@ -137,9 +142,19 @@ public sealed partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>The page cleared the search (its "Clear filters"), so the box follows.</summary>
+    /// <summary>
+    /// The page cleared the search (its "Clear filters"), so the box follows. A shelf shown or left moves the
+    /// pane's selection with it.
+    /// </summary>
     private void OnLibraryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(LibraryViewModel.ActiveShelf))
+        {
+            if (Library.ActiveShelf.Length > 0) SelectShelf(Library.ActiveShelf);
+            else if (NavView.SelectedItem is NavigationViewItem { Tag: string tag } && tag.StartsWith(ShelfTag))
+                SelectNav(ListTag(Library.Filter));   // a filter changed: this is no longer the shelf
+            return;
+        }
         if (e.PropertyName != nameof(LibraryViewModel.SearchText)) return;
         if (TitleSearch.Text == Library.SearchText) return;
         _syncingSearch = true;
@@ -161,7 +176,18 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        switch (args.InvokedItemContainer?.Tag as string)
+        var invoked = args.InvokedItemContainer?.Tag as string ?? "";
+        if (invoked.StartsWith(ShelfTag))
+        {
+            if (Library.FindShelf(invoked[ShelfTag.Length..]) is { } shelf)
+            {
+                Library.ShowShelf(shelf);
+                Navigate(typeof(LibraryPage));
+            }
+            return;
+        }
+
+        switch (invoked)
         {
             case "all": ShowLibrary(LibraryFilter.All); break;
             case "continue": ShowLibrary(LibraryFilter.ContinueReading); break;
@@ -173,6 +199,7 @@ public sealed partial class MainWindow : Window
             case "authors": Navigate(typeof(AuthorsPage)); break;
             case "series": Navigate(typeof(SeriesPage)); break;
             case "tags": Navigate(typeof(TagsPage)); break;
+            case "reading": Navigate(typeof(ReadingPage)); break;
             case "duplicates": Navigate(typeof(DuplicatesPage)); break;
             case "missing": Navigate(typeof(MissingPage)); break;
             case "drives": Navigate(typeof(DrivesPage)); break;
@@ -181,15 +208,23 @@ public sealed partial class MainWindow : Window
 
     private void ShowLibrary(LibraryFilter filter)
     {
+        LeaveShelfView();
         Library.SeriesFilter = "";
         Library.TagFilter = "";
         Library.Filter = filter;
         Navigate(typeof(LibraryPage));
     }
 
+    /// <summary>Going anywhere else from a shelf drops what the shelf set, or its filters would follow along.</summary>
+    private void LeaveShelfView()
+    {
+        if (Library.ActiveShelf.Length > 0) Library.ClearFilters();
+    }
+
     /// <summary>Shows every book naming this person (from the Authors page).</summary>
     public void ShowBooksBy(string author)
     {
+        LeaveShelfView();
         Library.SeriesFilter = "";
         Library.TagFilter = "";
         Library.Filter = LibraryFilter.All;
@@ -201,6 +236,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Shows one series, its numbered books in order (from the Series page).</summary>
     public void ShowSeries(string series)
     {
+        LeaveShelfView();
         Library.Filter = LibraryFilter.All;
         Library.SearchText = "";
         Library.SeriesFilter = series;
@@ -211,6 +247,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Shows every book wearing one tag (from the Tags page).</summary>
     public void ShowTag(string tag)
     {
+        LeaveShelfView();
         Library.Filter = LibraryFilter.All;
         Library.SearchText = "";
         Library.TagFilter = tag;
@@ -219,7 +256,105 @@ public sealed partial class MainWindow : Window
     }
 
     private void SelectNav(string tag) =>
-        NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string?)i.Tag == tag);
+        NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>()
+            .SelectMany(i => i.MenuItems.OfType<NavigationViewItem>().Prepend(i))
+            .FirstOrDefault(i => (string?)i.Tag == tag);
+
+    private static string ListTag(LibraryFilter list) => list switch
+    {
+        LibraryFilter.ContinueReading => "continue",
+        LibraryFilter.RecentlyAdded => "recent",
+        LibraryFilter.Favorites => "favorites",
+        LibraryFilter.Unread => "unread",
+        LibraryFilter.Finished => "finished",
+        LibraryFilter.NeedsDetails => "needs",
+        _ => "all"
+    };
+
+    // ---- shelves ----
+
+    private const string ShelfTag = "shelf:";
+
+    private void SelectShelf(string name) =>
+        NavView.SelectedItem = ShelvesItem.MenuItems.OfType<NavigationViewItem>()
+            .FirstOrDefault(i => string.Equals((string?)i.Tag, ShelfTag + name, StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>One pane item per saved shelf, under "Shelves", each with Rename and Delete on right-click.</summary>
+    private void BuildShelves()
+    {
+        ShelvesItem.MenuItems.Clear();
+        foreach (var shelf in Library.Shelves)
+        {
+            var name = shelf.Name;
+            var item = new NavigationViewItem
+            {
+                Content = name,
+                Tag = ShelfTag + name,
+                Icon = new FontIcon { Glyph = ((char)0xE71C).ToString() }   // the Filters button's funnel
+            };
+            ToolTipService.SetToolTip(item, ShelfFilter.SuggestName(shelf));   // what is on it
+
+            var rename = new MenuFlyoutItem { Text = "Rename...", Icon = new SymbolIcon(Symbol.Rename) };
+            rename.Click += async (_, _) => await RenameShelfAsync(name);
+            var delete = new MenuFlyoutItem { Text = "Delete shelf", Icon = new SymbolIcon(Symbol.Delete) };
+            delete.Click += async (_, _) => await DeleteShelfAsync(name);
+            item.ContextFlyout = new MenuFlyout { Items = { rename, delete } };
+
+            ShelvesItem.MenuItems.Add(item);
+        }
+        ShelvesItem.Visibility = Library.Shelves.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (Library.ActiveShelf.Length > 0) SelectShelf(Library.ActiveShelf);
+    }
+
+    private static void RememberShelvesOpen(bool open)
+    {
+        if (AppServices.Settings.ShelvesExpanded == open) return;
+        AppServices.Settings.ShelvesExpanded = open;
+        AppServices.Settings.Save();
+    }
+
+    private bool _shelfDialogOpen;
+
+    private async Task RenameShelfAsync(string name)
+    {
+        if (_shelfDialogOpen || Content.XamlRoot is null) return;
+        _shelfDialogOpen = true;
+        try
+        {
+            var to = await ShelfDialogs.AskNameAsync(Content.XamlRoot, "Rename shelf", "Rename", name, renaming: name);
+            if (to is not null && to != name) Library.RenameShelf(name, to);
+        }
+        finally
+        {
+            _shelfDialogOpen = false;
+        }
+    }
+
+    private async Task DeleteShelfAsync(string name)
+    {
+        if (_shelfDialogOpen || Content.XamlRoot is null) return;
+        _shelfDialogOpen = true;
+        try
+        {
+            var answer = await new ContentDialog
+            {
+                Title = "Delete this shelf?",
+                Content = $"“{name}” goes from the navigation pane. Its books stay in the library: a shelf is only a saved view.",
+                PrimaryButtonText = "Delete",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = Content.XamlRoot
+            }.ShowAsync();
+            if (answer != ContentDialogResult.Primary) return;
+            var shown = string.Equals(Library.ActiveShelf, name, StringComparison.CurrentCultureIgnoreCase);
+            Library.DeleteShelf(name);
+            if (shown) Library.ClearFilters();   // the shelf is gone, so its plain list shows
+        }
+        finally
+        {
+            _shelfDialogOpen = false;
+        }
+    }
 
     private void Navigate(Type page)
     {

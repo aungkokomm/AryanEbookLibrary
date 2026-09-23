@@ -1,0 +1,187 @@
+<Page
+    x:Class="AryanEbookLibrary.Views.ReadingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AryanEbookLibrary.Views"
+    xmlns:helpers="using:AryanEbookLibrary.Helpers">
+
+    <Grid Padding="28,20,28,0" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Reading log" Style="{StaticResource PageTitleStyle}" TextWrapping="NoWrap" />
+            <TextBlock x:Name="SummaryText" Style="{StaticResource PageSubtitleStyle}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="16" Padding="0,0,0,28">
+
+                <!-- The numbers at a glance -->
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource CardPanelStyle}">
+                        <StackPanel>
+                            <TextBlock x:Name="ThisYearNumber" Style="{StaticResource TitleTextBlockStyle}" />
+                            <TextBlock x:Name="ThisYearLabel" Style="{StaticResource PageHintStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource CardPanelStyle}">
+                        <StackPanel>
+                            <TextBlock x:Name="LastYearNumber" Style="{StaticResource TitleTextBlockStyle}" />
+                            <TextBlock x:Name="LastYearLabel" Style="{StaticResource PageHintStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource CardPanelStyle}">
+                        <StackPanel>
+                            <TextBlock x:Name="AllTimeNumber" Style="{StaticResource TitleTextBlockStyle}" />
+                            <TextBlock Text="All time" Style="{StaticResource PageHintStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="3" Style="{StaticResource CardPanelStyle}">
+                        <StackPanel>
+                            <TextBlock x:Name="ReadingNumber" Style="{StaticResource TitleTextBlockStyle}" />
+                            <TextBlock Text="Reading now" Style="{StaticResource PageHintStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- One year: the goal and the books finished each month -->
+                <Border Style="{StaticResource CardPanelStyle}">
+                    <StackPanel Spacing="14">
+                        <!-- The year list gives way first on a narrow window, so the goal box is never cut off -->
+                        <Grid ColumnSpacing="16" ColumnDefinitions="*,Auto">
+                            <ComboBox x:Name="YearBox" MinWidth="140" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Year" SelectionChanged="OnYearChanged" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="Goal" VerticalAlignment="Center" />
+                                <NumberBox x:Name="GoalBox" Width="120" Minimum="0" Maximum="999" SmallChange="1"
+                                           SpinButtonPlacementMode="Compact" PlaceholderText="None"
+                                           AutomationProperties.Name="Books to finish this year"
+                                           ValueChanged="OnGoalChanged" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel x:Name="GoalPanel" Spacing="6">
+                            <ProgressBar x:Name="GoalBar" Minimum="0" Height="6" CornerRadius="3" />
+                            <TextBlock x:Name="GoalText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- Twelve equal columns: each month's bar with its count over it. A template, not code, so the
+                             theme brushes follow the app's theme (code gets the system theme's brushes). -->
+                        <ItemsRepeater x:Name="MonthChart" AutomationProperties.Name="Books finished each month">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout Orientation="Horizontal" MaximumRowsOrColumns="12" ItemsStretch="Fill"
+                                                   MinItemWidth="20" MinItemHeight="170" MinColumnSpacing="6" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="local:MonthBar">
+                                    <Grid RowDefinitions="*,Auto">
+                                        <StackPanel VerticalAlignment="Bottom" Spacing="4">
+                                            <TextBlock Text="{x:Bind CountText}" FontSize="12" HorizontalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <Rectangle Height="{x:Bind BarHeight}" MaxWidth="44" RadiusX="3" RadiusY="3"
+                                                       Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                                       Visibility="{x:Bind helpers:Fn.Vis(HasBooks)}" />
+                                            <Rectangle Height="2" MaxWidth="44" Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                                       Visibility="{x:Bind helpers:Fn.VisNot(HasBooks)}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1" Text="{x:Bind Name}" FontSize="12" Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" TextTrimming="Clip" FontWeight="{x:Bind Weight}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+                </Border>
+
+                <!-- What to read next -->
+                <Border Style="{StaticResource CardPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Up next" FontWeight="SemiBold" />
+                        <TextBlock x:Name="UpNextEmpty" Style="{StaticResource PageHintStyle}" Visibility="Collapsed"
+                                   Text="Nothing yet. The books you are reading show here, and the next unread volume of a series you have been reading." />
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Auto" VerticalScrollMode="Disabled">
+                            <ItemsControl x:Name="UpNextList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,0,0,12" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:LogBook">
+                                        <Button Width="136" Padding="6" Click="OnBookClick" Tag="{x:Bind Book}"
+                                                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top"
+                                                Background="Transparent" BorderThickness="0"
+                                                AutomationProperties.Name="{x:Bind Book.Title}">
+                                            <StackPanel Spacing="6">
+                                                <Border Width="124" Height="180" CornerRadius="6"
+                                                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                                    <Grid>
+                                                        <TextBlock Text="{x:Bind Book.Title}" Margin="8" FontSize="12" TextWrapping="Wrap"
+                                                                   TextAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                   Visibility="{x:Bind helpers:Fn.VisEmpty(Book.CoverFile)}" />
+                                                        <Image Source="{x:Bind helpers:Fn.Cover(Book.CoverPath)}" Stretch="UniformToFill" />
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Text="{x:Bind Book.Title}" FontSize="13" FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Why}" Style="{StaticResource PageHintStyle}"
+                                                           MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- The log itself: every book finished in the chosen year, newest first -->
+                <Border Style="{StaticResource CardPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock x:Name="ListHeader" FontWeight="SemiBold" />
+                        <TextBlock x:Name="ListEmpty" Style="{StaticResource PageHintStyle}" Visibility="Collapsed" />
+                        <ItemsControl x:Name="FinishedList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:LogBook">
+                                    <Button Click="OnBookClick" Tag="{x:Bind Book}" Padding="8,6" Margin="0,0,0,2"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                            Background="Transparent" BorderThickness="0"
+                                            AutomationProperties.Name="{x:Bind Book.Title}">
+                                        <Grid ColumnSpacing="14" ColumnDefinitions="64,32,*,Auto">
+                                            <TextBlock Text="{x:Bind Why}" VerticalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <Border Grid.Column="1" Width="32" Height="46" CornerRadius="3"
+                                                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                                <Image Source="{x:Bind helpers:Fn.CoverThumb(Book.CoverPath)}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Book.Title}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Book.DisplayAuthor}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="3" Text="{x:Bind helpers:Fn.Stars(Book.Rating)}" Foreground="#FAAC17"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="UndatedText" Style="{StaticResource PageHintStyle}" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

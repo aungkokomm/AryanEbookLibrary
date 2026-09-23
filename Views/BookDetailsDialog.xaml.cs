@@ -29,6 +29,8 @@ public sealed partial class BookDetailsDialog : ContentDialog
         _vm = vm;
         InitializeComponent();
 
+        FinishedPicker.MaxDate = DateTimeOffset.Now;
+        if (book.FinishedUtc is { } finished) FinishedPicker.Date = new DateTimeOffset(finished.ToLocalTime().Date);
         StatusBox.SelectedIndex = (int)book.Status;
         ProgressSlider.Value = book.Progress;
         RatingBox.Value = book.Rating > 0 ? book.Rating : -1;
@@ -56,6 +58,28 @@ public sealed partial class BookDetailsDialog : ContentDialog
         Closing += OnClosing;
         // Focus starts on Open, not on the first link: Enter must never remove details or open the editor.
         Opened += (_, _) => (GetTemplateChild("PrimaryButton") as Control)?.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>The date shows for a finished book; one being finished now starts at today.</summary>
+    private void OnStatusChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var finished = StatusBox.SelectedIndex == (int)ReadStatus.Finished;
+        FinishedPicker.Visibility = finished ? Visibility.Visible : Visibility.Collapsed;
+        if (finished && Book.Status != ReadStatus.Finished && FinishedPicker.Date is null)
+            FinishedPicker.Date = new DateTimeOffset(DateTime.Today);
+    }
+
+    /// <summary>
+    /// The finish date the dialog asks for, and whether it differs from the book's. Only the day counts: an
+    /// untouched picker keeps the stored time, and a picked day is stored at noon so it stays that day.
+    /// </summary>
+    private (DateTime? Utc, bool Changed) PickedFinish(ReadStatus status)
+    {
+        if (status != ReadStatus.Finished) return (Book.FinishedUtc, false);
+        var picked = FinishedPicker.Date?.Date;
+        var had = Book.Status == ReadStatus.Finished ? Book.FinishedUtc?.ToLocalTime().Date : null;
+        if (picked == had) return (Book.FinishedUtc, false);
+        return (picked is { } day ? DateTime.SpecifyKind(day.AddHours(12), DateTimeKind.Local).ToUniversalTime() : null, true);
     }
 
     private void OnEditDetails(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
@@ -170,8 +194,11 @@ public sealed partial class BookDetailsDialog : ContentDialog
         var detailsChanged = customTitle != Book.CustomTitle || customAuthor != Book.CustomAuthor ||
                              customSeries != Book.CustomSeries;
 
+        var (finishedUtc, finishedChanged) = PickedFinish(status);
+
         var changed = status != Book.Status || progress != Book.Progress || rating != Book.Rating ||
-                      favorite != Book.IsFavorite || tags != Book.UserTags || notes != Book.Notes || detailsChanged;
+                      favorite != Book.IsFavorite || tags != Book.UserTags || notes != Book.Notes || detailsChanged ||
+                      finishedChanged;
         if (!changed) return;
 
         var statusChanged = status != Book.Status;
@@ -184,7 +211,9 @@ public sealed partial class BookDetailsDialog : ContentDialog
 
         if (statusChanged)
             _vm.SetStatus(Book, status);   // also stamps finished date and saves
-        else
+        if (finishedChanged)
+            Book.FinishedUtc = finishedUtc;   // the day the user gave (or none), over SetStatus's "now"
+        if (!statusChanged || finishedChanged)
             _vm.SaveState(Book);
 
         _vm.ApplyFilter();

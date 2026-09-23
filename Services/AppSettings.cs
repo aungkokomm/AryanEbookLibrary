@@ -20,6 +20,11 @@ public sealed class AppSettings
     public Dictionary<string, string> KeptCopies { get; set; } = new();
     // Tags the library suggested and the user turned down, so they are not offered again.
     public List<string> NoTags { get; set; } = new();
+    // Saved library views, shown in the navigation pane in this order.
+    public List<Shelf> Shelves { get; set; } = new();
+    public bool ShelvesExpanded { get; set; } = true;   // folded away, they leave room for the rest of the pane
+    // How many books the user means to finish in a year, by year. Missing or 0 means no goal.
+    public Dictionary<int, int> ReadingGoals { get; set; } = new();
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

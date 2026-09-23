@@ -62,6 +62,11 @@ public sealed partial class LibraryPage : Page
             case nameof(LibraryViewModel.SearchText):
             case nameof(LibraryViewModel.SeriesFilter):
             case nameof(LibraryViewModel.TagFilter):
+            case nameof(LibraryViewModel.LanguageFilter):
+            case nameof(LibraryViewModel.DecadeFilter):
+            case nameof(LibraryViewModel.PublisherFilter):
+            case nameof(LibraryViewModel.MinRating):
+            case nameof(LibraryViewModel.ConnectedOnly):
             case nameof(LibraryViewModel.SortIndex):
                 // A new question starts at the top; an edit or toggle (which also refreshes the list) keeps the place.
                 _scrollToTopOnNextResult = true;
@@ -74,6 +79,12 @@ public sealed partial class LibraryPage : Page
                     MainScroller.ChangeView(null, 0, null, disableAnimation: true);
                 }
                 EmptyTitle.Text = ViewModel.TotalCount == 0 ? "Your library is empty" : "No books match";
+                break;
+            case nameof(LibraryViewModel.ActiveShelf):
+                SyncFilterBar();
+                break;
+            case nameof(LibraryViewModel.HeaderText):
+                LayoutTopBar();   // a longer title may need the tools on a row of their own
                 break;
         }
     }
@@ -183,16 +194,20 @@ public sealed partial class LibraryPage : Page
             : $"{changed} book(s) updated. Every change can be undone in that book's own details.");
     }
 
-    private async void OnBulkFinished(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Finished, "finished");
+    private async void OnBulkFinished(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Finished, "finished today");
+
+    private async void OnBulkFinishedEarlier(object sender, RoutedEventArgs e) =>
+        await Mark(ReadStatus.Finished, "finished, with no date. They count as read, but not in any month of the reading log; " +
+                                        "a book's details can give it its date", stampDate: false);
 
     private async void OnBulkReading(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Reading, "being read");
 
     private async void OnBulkUnread(object sender, RoutedEventArgs e) => await Mark(ReadStatus.Unread, "unread");
 
-    private async Task Mark(ReadStatus status, string what)
+    private async Task Mark(ReadStatus status, string what, bool stampDate = true)
     {
         if (!await HaveSelection()) return;
-        var count = ViewModel.SetStatusForSelected(status);
+        var count = ViewModel.SetStatusForSelected(status, stampDate);
         await Say("Books marked", $"{count} book(s) marked {what}.");
     }
 
@@ -259,24 +274,105 @@ public sealed partial class LibraryPage : Page
         if (sender is Button { Tag: string tag } && int.TryParse(tag, out var index)) ViewModel.FormatIndex = index;
     }
 
-    private void OnClearFilters(object sender, RoutedEventArgs e)
-    {
-        ViewModel.SearchText = "";        // the title bar's search box follows this
-        ViewModel.FormatIndex = 0;
-        ViewModel.SeriesFilter = "";
-        ViewModel.TagFilter = "";
-    }
+    // The title bar's search box follows the view model, so clearing the search here clears it there too.
+    private void OnClearFilters(object sender, RoutedEventArgs e) => ViewModel.ClearFilters();
 
     private void SyncFilterBar()
     {
         Button[] pills = { PillAll, PillEpub, PillPdf, PillKindle, PillComics };
         for (var i = 0; i < pills.Length; i++)
-            pills[i].Style = (Style)Application.Current.Resources[i == ViewModel.FormatIndex ? "PillButtonActiveStyle" : "PillButtonStyle"];
+            pills[i].Style = Pill(i == ViewModel.FormatIndex);
 
-        ClearFiltersBtn.Visibility = ViewModel.FormatIndex > 0 || ViewModel.SearchText.Length > 0 ||
-                                     ViewModel.SeriesFilter.Length > 0 || ViewModel.TagFilter.Length > 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        var menu = ViewModel.MenuFilterCount;
+        FiltersBtn.Style = Pill(menu > 0);
+        FiltersText.Text = menu > 0 ? $"Filters · {menu}" : "Filters";
+
+        var filtered = ViewModel.IsFiltered;
+        ClearFiltersBtn.Visibility = filtered ? Visibility.Visible : Visibility.Collapsed;
+        SaveShelfBtn.Visibility = filtered && ViewModel.ActiveShelf.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        static Style Pill(bool on) => (Style)Application.Current.Resources[on ? "PillButtonActiveStyle" : "PillButtonStyle"];
+    }
+
+    // ---- the Filters menu ----
+
+    private bool _fillingFacets;
+
+    private void OnFiltersOpening(object? sender, object e) => FillFacets(null);
+
+    /// <summary>
+    /// Fills the menu's lists with what the view can show, each choice counted with the other filters on.
+    /// The list the user just used is left alone: refilling it would snap its selection back mid-change.
+    /// </summary>
+    private void FillFacets(ComboBox? skip)
+    {
+        _fillingFacets = true;
+        try
+        {
+            Fill(LanguageBox, ViewModel.LanguageOptions(), ViewModel.LanguageFilter);
+            Fill(DecadeBox, ViewModel.DecadeOptions(), ViewModel.DecadeFilter);
+            Fill(PublisherBox, ViewModel.PublisherOptions(), ViewModel.PublisherFilter);
+            Fill(RatingBox, ViewModel.RatingOptions(), ViewModel.MinRating.ToString());
+            ConnectedSwitch.IsOn = ViewModel.ConnectedOnly;
+        }
+        finally
+        {
+            _fillingFacets = false;
+        }
+
+        void Fill(ComboBox box, List<FacetOption> options, string chosen)
+        {
+            if (box == skip) return;
+            box.ItemsSource = options;
+            var at = options.FindIndex(o => string.Equals(o.Key, chosen, StringComparison.CurrentCultureIgnoreCase));
+            box.SelectedIndex = Math.Max(0, at);
+        }
+    }
+
+    private void OnFacetChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_fillingFacets || sender is not ComboBox { SelectedItem: FacetOption option } box) return;
+        if (box == LanguageBox) ViewModel.LanguageFilter = option.Key;
+        else if (box == DecadeBox) ViewModel.DecadeFilter = option.Key;
+        else if (box == PublisherBox) ViewModel.PublisherFilter = option.Key;
+        else if (box == RatingBox) ViewModel.MinRating = int.TryParse(option.Key, out var stars) ? stars : 0;
+        FillFacets(box);
+    }
+
+    private void OnConnectedToggled(object sender, RoutedEventArgs e)
+    {
+        if (_fillingFacets) return;
+        ViewModel.ConnectedOnly = ConnectedSwitch.IsOn;
+        FillFacets(null);
+    }
+
+    private void OnClearMenuFilters(object sender, RoutedEventArgs e)
+    {
+        ViewModel.LanguageFilter = "";
+        ViewModel.DecadeFilter = "";
+        ViewModel.PublisherFilter = "";
+        ViewModel.MinRating = 0;
+        ViewModel.ConnectedOnly = false;
+        FillFacets(null);
+    }
+
+    // ---- shelves ----
+
+    private async void OnSaveShelf(object sender, RoutedEventArgs e)
+    {
+        if (_dialogOpen || XamlRoot is null) return;
+        _dialogOpen = true;
+        string? name;
+        try
+        {
+            name = await ShelfDialogs.AskNameAsync(XamlRoot, "Save as shelf", "Save",
+                ShelfFilter.SuggestName(ViewModel.CurrentView()));
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+        if (name is not null) ViewModel.SaveShelf(name);
     }
 
     // ---- view mode + card size ----
@@ -297,7 +393,7 @@ public sealed partial class LibraryPage : Page
     {
         GridViewToggle.IsChecked = ViewModel.IsGridView;
         ListViewToggle.IsChecked = ViewModel.IsListView;
-        DensityGroup.Visibility = ViewModel.IsGridView ? Visibility.Visible : Visibility.Collapsed;
+        LayoutTopBar();   // the card sizes show only in grid view, and only when there is room for them
     }
 
     private void OnDensityClick(object sender, RoutedEventArgs e)
@@ -352,19 +448,30 @@ public sealed partial class LibraryPage : Page
         GridLayout.MinItemHeight = height;
     }
 
+    private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e) => LayoutTopBar();
+
+    // The S/M/L/XL group and the gap before it, as laid out in the XAML: four 36 px toggles, a 1 px border
+    // each side, 12 px spacing.
+    private const double DensityWidth = 4 * 36 + 2 + 12;
+
     /// <summary>
     /// Narrow page: the tools get their own row under the title instead of squeezing it away, and when
-    /// even that is too tight the card sizes go (the least needed of them). Both decisions are made from
-    /// the width the tools want with everything showing, so they cannot flip back and forth.
+    /// even that is too tight the card sizes go (the least needed of them). The width the tools want is
+    /// counted with the card sizes showing (in grid view) whether or not they show now, so the decision
+    /// cannot flip back and forth.
     /// </summary>
-    private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e)
+    private void LayoutTopBar()
     {
-        if (_toolsWanted <= 0 && DensityGroup.Visibility == Visibility.Visible)
-            _toolsWanted = ToolsPanel.DesiredSize.Width;
-        if (_toolsWanted <= 0) return;
-        var room = e.NewSize.Width - TopBar.Padding.Left - TopBar.Padding.Right;
+        var measured = ToolsPanel.DesiredSize.Width;
+        if (measured <= 0 || TopBar.ActualWidth <= 0)
+        {
+            DensityGroup.Visibility = ViewModel.IsGridView ? Visibility.Visible : Visibility.Collapsed;   // before the first layout
+            return;
+        }
+        var wanted = measured + (ViewModel.IsGridView && DensityGroup.Visibility != Visibility.Visible ? DensityWidth : 0);
+        var room = TopBar.ActualWidth - TopBar.Padding.Left - TopBar.Padding.Right;
 
-        var stacked = room - _toolsWanted < 160;    // no room left for the title beside them
+        var stacked = room - wanted - 16 < TitleWidth();    // the title would be cut beside them
         if (stacked != _toolsStacked)
         {
             _toolsStacked = stacked;
@@ -375,14 +482,24 @@ public sealed partial class LibraryPage : Page
             ToolsPanel.Margin = stacked ? new Thickness(0, 12, 0, 0) : new Thickness(0);
         }
 
-        var hideDensity = room < _toolsWanted;      // not even on a row of their own
-        if (hideDensity == _densityHidden) return;
-        _densityHidden = hideDensity;
-        DensityGroup.Visibility = hideDensity ? Visibility.Collapsed : Visibility.Visible;
+        var show = ViewModel.IsGridView && room >= wanted;   // not even on a row of their own: they go
+        DensityGroup.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private double _toolsWanted;
-    private bool _toolsStacked, _densityHidden;
+    private bool _toolsStacked;
+    private readonly TextBlock _titleProbe = new() { TextWrapping = TextWrapping.NoWrap };
+
+    /// <summary>
+    /// How wide the title is when nothing cuts it, at least 160: measured on a copy outside the page, since
+    /// the one on the page only ever gets the width left over.
+    /// </summary>
+    private double TitleWidth()
+    {
+        _titleProbe.Style = HeaderTitle.Style;
+        _titleProbe.Text = ViewModel.HeaderText;   // not HeaderTitle.Text, which the binding may not have updated yet
+        _titleProbe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        return Math.Max(160, Math.Ceiling(_titleProbe.DesiredSize.Width));
+    }
 
     // ---- surprise ----
 

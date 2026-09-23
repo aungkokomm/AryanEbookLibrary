@@ -71,6 +71,12 @@
                 <NavigationViewItem Content="Finished" Tag="finished">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <!-- The user's saved views ("Save as shelf" on the library page); filled in code, hidden while there are none -->
+                <NavigationViewItem x:Name="ShelvesItem" Content="Shelves" Tag="shelves" Visibility="Collapsed"
+                                    SelectsOnInvoked="False" IsExpanded="True"
+                                    ToolTipService.ToolTip="Your saved views of the library">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BC;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItemHeader Content="Browse" />
                 <NavigationViewItem Content="Authors" Tag="authors">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE77B;" /></NavigationViewItem.Icon>
@@ -80,6 +86,10 @@
                 </NavigationViewItem>
                 <NavigationViewItem Content="Tags" Tag="tags">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE8EC;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Reading log" Tag="reading"
+                                    ToolTipService.ToolTip="Books finished by month and year, your yearly goal, and what to read next">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D2;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Check" Tag="check"
                                     ToolTipService.ToolTip="Duplicates, missing files and books that need details">

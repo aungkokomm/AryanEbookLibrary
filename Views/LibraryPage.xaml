@@ -52,15 +52,17 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
+                <TextBlock x:Name="HeaderTitle" Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
                            Style="{StaticResource PageTitleStyle}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <!-- The count, and the Filters menu's filters in words: up to two lines, so they can be read -->
                 <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}"
                            Style="{StaticResource PageHintStyle}" Margin="0,2,0,0"
-                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                           MaxLines="2" TextTrimming="CharacterEllipsis" />
             </StackPanel>
 
-            <StackPanel x:Name="ToolsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <StackPanel x:Name="ToolsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center"
+                        SizeChanged="OnTopBarSizeChanged">
                 <ComboBox x:Name="SortCombo" MinWidth="140" Height="36" CornerRadius="8"
                           VerticalAlignment="Center" SelectionChanged="OnSortChanged"
                           AutomationProperties.Name="Sort by" />
@@ -123,16 +125,59 @@
             </StackPanel>
         </Grid>
 
-        <!-- ═══ FILTER BAR: count + format pills ═══ -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="28,4,28,14">
-            <Button x:Name="PillAll" Content="All" Tag="0" Click="OnFormatPill" />
-            <Button x:Name="PillEpub" Content="EPUB" Tag="1" Click="OnFormatPill" />
-            <Button x:Name="PillPdf" Content="PDF" Tag="2" Click="OnFormatPill" />
-            <Button x:Name="PillKindle" Content="Kindle" Tag="3" Click="OnFormatPill" />
-            <Button x:Name="PillComics" Content="Comics" Tag="4" Click="OnFormatPill" />
-            <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters" Click="OnClearFilters"
-                    Style="{StaticResource PillButtonStyle}" Margin="12,0,0,0" Visibility="Collapsed" />
-        </StackPanel>
+        <!-- ═══ FILTER BAR: format pills, the Filters menu, save and clear ═══ -->
+        <!-- It scrolls sideways when the window is narrow, so nothing in it is ever cut off. -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                      HorizontalScrollMode="Auto" VerticalScrollMode="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="8" Padding="28,4,28,14">
+                <Button x:Name="PillAll" Content="All" Tag="0" Click="OnFormatPill" />
+                <Button x:Name="PillEpub" Content="EPUB" Tag="1" Click="OnFormatPill" />
+                <Button x:Name="PillPdf" Content="PDF" Tag="2" Click="OnFormatPill" />
+                <Button x:Name="PillKindle" Content="Kindle" Tag="3" Click="OnFormatPill" />
+                <Button x:Name="PillComics" Content="Comics" Tag="4" Click="OnFormatPill" />
+                <Rectangle Width="1" Height="20" Margin="4,0" VerticalAlignment="Center"
+                           Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                <Button x:Name="FiltersBtn" Style="{StaticResource PillButtonStyle}"
+                        AutomationProperties.Name="Filters"
+                        ToolTipService.ToolTip="Language, year, publisher, rating and connected drives">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE71C;" FontSize="12" />
+                        <TextBlock x:Name="FiltersText" Text="Filters" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout x:Name="FiltersFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnFiltersOpening">
+                            <StackPanel Width="300" Spacing="12">
+                                <ComboBox x:Name="LanguageBox" Header="Language" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnFacetChanged" />
+                                <TextBlock Style="{StaticResource PageHintStyle}" Margin="0,-6,0,0"
+                                           Text="What the file says, or the script of its title. Most English files say nothing, so they are under Not stated." />
+                                <ComboBox x:Name="DecadeBox" Header="Year" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnFacetChanged" />
+                                <ComboBox x:Name="PublisherBox" Header="Publisher" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnFacetChanged" />
+                                <ComboBox x:Name="RatingBox" Header="My rating" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnFacetChanged" />
+                                <ToggleSwitch x:Name="ConnectedSwitch" Header="Only books on connected drives"
+                                              Toggled="OnConnectedToggled" />
+                                <Button Content="Clear these" Click="OnClearMenuFilters" />
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <Button x:Name="SaveShelfBtn" Style="{StaticResource PillButtonStyle}" Click="OnSaveShelf"
+                        Visibility="Collapsed" AutomationProperties.Name="Save as shelf"
+                        ToolTipService.ToolTip="Keep this view in the navigation pane. It fills itself as books come and go.">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7BC;" FontSize="12" />
+                        <TextBlock Text="Save as shelf" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters" Click="OnClearFilters"
+                        Style="{StaticResource PillButtonStyle}" Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- ═══ SELECTION BAR: what to do with the ticked books ═══ -->
         <Border x:Name="SelectionBar" Grid.Row="2" Margin="28,0,28,12"
@@ -156,7 +201,9 @@
                                 ToolTipService.ToolTip="Finished, reading, unread or favorite">
                         <Button.Flyout>
                             <MenuFlyout>
-                                <MenuFlyoutItem Text="Finished" Click="OnBulkFinished" />
+                                <MenuFlyoutItem Text="Finished today" Click="OnBulkFinished" />
+                                <MenuFlyoutItem Text="Finished earlier (no date)" Click="OnBulkFinishedEarlier"
+                                                ToolTipService.ToolTip="Counted as read, but not in any month of the reading log" />
                                 <MenuFlyoutItem Text="Reading" Click="OnBulkReading" />
                                 <MenuFlyoutItem Text="Unread" Click="OnBulkUnread" />
                                 <MenuFlyoutSeparator />
