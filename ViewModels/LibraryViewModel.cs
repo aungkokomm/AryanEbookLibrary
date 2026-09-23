@@ -496,8 +496,6 @@ public sealed class LibraryViewModel : ObservableObject
         CountText = menu.Count == 0 ? count : count + "  ·  " + string.Join("  ·  ", menu);
         OnPropertyChanged(nameof(MenuFilterCount));
         OnPropertyChanged(nameof(IsFiltered));
-
-        if (!IsScanning) StatusText = $"{_all.Count:N0} books in catalog  ·  {_all.Count(b => b.IsAvailable):N0} available";
     }
 
     private IEnumerable<Book> Sort(IEnumerable<Book> q)

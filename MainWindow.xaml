@@ -122,8 +122,8 @@
             </Border>
         </NavigationView>
 
-        <!-- Status bar: a quiet line, not a coloured band -->
-        <Border Grid.Row="2" BorderThickness="0,1,0,0"
+        <!-- Status bar: a quiet line, not a coloured band, and only while there is something to say -->
+        <Border x:Name="StatusBar" Grid.Row="2" BorderThickness="0,1,0,0" Visibility="Collapsed"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 Background="{ThemeResource SolidBackgroundFillColorBaseAltBrush}">
             <Grid Padding="20,7" ColumnSpacing="14">

@@ -6,7 +6,7 @@
     xmlns:models="using:AryanEbookLibrary.Models">
 
     <Page.Resources>
-        <!-- Checked toolbar toggles (grid/list, S/M/L/XL) use the brand blue, as CineLibrary uses its brand colour -->
+        <!-- The Select toggle, when on, uses the brand blue, as CineLibrary uses its brand colour -->
         <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#186BD5" />
         <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#2A7BE0" />
         <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#145CB8" />
@@ -17,15 +17,13 @@
         <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
         <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
 
-        <Style x:Key="SegmentToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+        <!-- The toolbar's quiet buttons: no fill or border until the pointer is over them -->
+        <Style x:Key="ToolButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Width" Value="36" />
-            <Setter Property="Height" Value="36" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Height" Value="32" />
         </Style>
     </Page.Resources>
 
@@ -40,7 +38,7 @@
         <!-- ═══ TOP BAR ═══ (search lives in the title bar) -->
         <!-- The tools keep their natural width, so the title is the part that has to give way: it is
              trimmed, and when there is no room left for it the tools drop to a line of their own. -->
-        <Grid x:Name="TopBar" Grid.Row="0" Padding="28,16,28,8" ColumnSpacing="16"
+        <Grid x:Name="TopBar" Grid.Row="0" Padding="28,12,28,6" ColumnSpacing="16"
               SizeChanged="OnTopBarSizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -51,77 +49,55 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="HeaderTitle" Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}"
-                           Style="{StaticResource PageTitleStyle}"
-                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                <!-- The count, and the Filters menu's filters in words: up to two lines, so they can be read -->
-                <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}"
-                           Style="{StaticResource PageHintStyle}" Margin="0,2,0,0"
-                           MaxLines="2" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
+            <!-- The title with its count beside it, and the Filters menu's filters in words, on one line. -->
+            <TextBlock x:Name="HeaderTitle" Style="{StaticResource PageTitleStyle}" VerticalAlignment="Center"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                       ToolTipService.ToolTip="{x:Bind ViewModel.CountText, Mode=OneWay}">
+                <Run Text="{x:Bind ViewModel.HeaderText, Mode=OneWay}" />
+                <Run Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="14" FontWeight="Normal"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </TextBlock>
 
-            <StackPanel x:Name="ToolsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center"
+            <StackPanel x:Name="ToolsPanel" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                         SizeChanged="OnTopBarSizeChanged">
-                <ComboBox x:Name="SortCombo" MinWidth="140" Height="36" CornerRadius="8"
-                          VerticalAlignment="Center" SelectionChanged="OnSortChanged"
-                          AutomationProperties.Name="Sort by" />
+                <DropDownButton Height="32" Padding="8,0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="Sort by" ToolTipService.ToolTip="Sort by">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8CB;" FontSize="16" />
+                        <TextBlock x:Name="SortText" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
 
-                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="OnSurprise"
+                <Button Style="{StaticResource ToolButtonStyle}" Click="OnSurprise"
                         AutomationProperties.Name="Surprise me"
                         ToolTipService.ToolTip="Surprise me: a random pick from what is shown">
-                    <FontIcon Glyph="&#xE8B1;" FontSize="15" />
+                    <FontIcon Glyph="&#xE8B1;" FontSize="16" />
                 </Button>
 
-                <Button x:Name="SelectButton" Height="36" Padding="12,0" CornerRadius="8" Click="OnSelectMode"
-                        Content="Select" AutomationProperties.Name="Select books"
-                        ToolTipService.ToolTip="Work on several books at once" />
+                <ToggleButton x:Name="SelectButton" Width="36" Height="32" Padding="0" Background="Transparent"
+                              BorderThickness="0" Click="OnSelectMode" AutomationProperties.Name="Select books"
+                              ToolTipService.ToolTip="Select books to work on several at once">
+                    <FontIcon Glyph="&#xE762;" FontSize="16" />
+                </ToggleButton>
 
-                <!-- View mode: grid / list -->
-                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        CornerRadius="8" Height="38"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton x:Name="GridViewToggle" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnViewGrid" AutomationProperties.Name="Grid view"
-                                      ToolTipService.ToolTip="Grid view">
-                            <FontIcon Glyph="&#xE8A9;" FontSize="16" />
-                        </ToggleButton>
-                        <ToggleButton x:Name="ListViewToggle" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnViewList" AutomationProperties.Name="List view"
-                                      ToolTipService.ToolTip="List view">
-                            <FontIcon Glyph="&#xE8FD;" FontSize="16" />
-                        </ToggleButton>
-                    </StackPanel>
-                </Border>
-
-                <!-- Card size: S / M / L / XL -->
-                <Border x:Name="DensityGroup" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="8" Height="38"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton x:Name="DensityS" Tag="S" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnDensityClick" AutomationProperties.Name="Small covers"
-                                      ToolTipService.ToolTip="Small covers">
-                            <TextBlock Text="S" FontSize="12" FontWeight="SemiBold" />
-                        </ToggleButton>
-                        <ToggleButton x:Name="DensityM" Tag="M" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnDensityClick" AutomationProperties.Name="Medium covers"
-                                      ToolTipService.ToolTip="Medium covers">
-                            <TextBlock Text="M" FontSize="12" FontWeight="SemiBold" />
-                        </ToggleButton>
-                        <ToggleButton x:Name="DensityL" Tag="L" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnDensityClick" AutomationProperties.Name="Large covers"
-                                      ToolTipService.ToolTip="Large covers">
-                            <TextBlock Text="L" FontSize="12" FontWeight="SemiBold" />
-                        </ToggleButton>
-                        <ToggleButton x:Name="DensityXL" Tag="XL" Style="{StaticResource SegmentToggleStyle}"
-                                      Click="OnDensityClick" AutomationProperties.Name="Extra large covers"
-                                      ToolTipService.ToolTip="Extra large covers">
-                            <TextBlock Text="XL" FontSize="12" FontWeight="SemiBold" />
-                        </ToggleButton>
-                    </StackPanel>
-                </Border>
+                <!-- Grid or list, and the size of the covers, in one menu as File Explorer's View -->
+                <DropDownButton x:Name="ViewButton" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0"
+                                AutomationProperties.Name="View" ToolTipService.ToolTip="View and cover size">
+                    <FontIcon x:Name="ViewIcon" Glyph="&#xE8A9;" FontSize="16" />
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <RadioMenuFlyoutItem x:Name="ViewXL" Text="Extra large covers" GroupName="View" Tag="XL" Click="OnViewChoice" />
+                            <RadioMenuFlyoutItem x:Name="ViewL" Text="Large covers" GroupName="View" Tag="L" Click="OnViewChoice" />
+                            <RadioMenuFlyoutItem x:Name="ViewM" Text="Medium covers" GroupName="View" Tag="M" Click="OnViewChoice" />
+                            <RadioMenuFlyoutItem x:Name="ViewS" Text="Small covers" GroupName="View" Tag="S" Click="OnViewChoice" />
+                            <MenuFlyoutSeparator />
+                            <RadioMenuFlyoutItem x:Name="ViewList" Text="List" GroupName="View" Tag="List" Click="OnViewChoice" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
             </StackPanel>
         </Grid>
 
@@ -129,7 +105,7 @@
         <!-- It scrolls sideways when the window is narrow, so nothing in it is ever cut off. -->
         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                       HorizontalScrollMode="Auto" VerticalScrollMode="Disabled">
-            <StackPanel Orientation="Horizontal" Spacing="8" Padding="28,4,28,14">
+            <StackPanel Orientation="Horizontal" Spacing="8" Padding="28,2,28,10">
                 <Button x:Name="PillAll" Content="All" Tag="0" Click="OnFormatPill" />
                 <Button x:Name="PillEpub" Content="EPUB" Tag="1" Click="OnFormatPill" />
                 <Button x:Name="PillPdf" Content="PDF" Tag="2" Click="OnFormatPill" />

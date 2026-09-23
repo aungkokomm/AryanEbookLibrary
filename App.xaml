@@ -42,7 +42,7 @@
             </Style>
 
             <!-- One look for every page: the same title, the same quiet line under it, the same cards -->
-            <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+            <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             </Style>
             <Style x:Key="PageSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">

@@ -153,6 +153,12 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnLibraryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(LibraryViewModel.StatusText) or nameof(LibraryViewModel.OnlineStatusText)
+            or nameof(LibraryViewModel.IsScanning))
+        {
+            ShowStatus();
+            return;
+        }
         if (e.PropertyName == nameof(LibraryViewModel.ActiveShelf))
         {
             if (Library.ActiveShelf.Length > 0) SelectShelf(Library.ActiveShelf);
@@ -368,4 +374,26 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnCancelScan(object sender, RoutedEventArgs e) => Library.CancelScan();
+
+    // ---- status bar ----
+
+    private static readonly TimeSpan StatusLinger = TimeSpan.FromSeconds(8);
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _statusTimer;
+
+    private bool Working => Library.IsScanning || Library.OnlineStatusText.Length > 0;
+
+    /// <summary>The status bar shows while a scan or an online lookup runs, and for a few seconds after any news.</summary>
+    private void ShowStatus()
+    {
+        StatusBar.Visibility = Visibility.Visible;
+        if (_statusTimer is null)
+        {
+            _statusTimer = DispatcherQueue.CreateTimer();
+            _statusTimer.Interval = StatusLinger;
+            _statusTimer.IsRepeating = false;
+            _statusTimer.Tick += (_, _) => { if (!Working) StatusBar.Visibility = Visibility.Collapsed; };
+        }
+        _statusTimer.Stop();
+        if (!Working) _statusTimer.Start();
+    }
 }

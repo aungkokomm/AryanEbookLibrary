@@ -4,7 +4,6 @@ using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 
 namespace AryanEbookLibrary.Views;
@@ -39,10 +38,15 @@ public sealed partial class LibraryPage : Page
         InitializeComponent();
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
 
-        foreach (var choice in SortChoices) SortCombo.Items.Add(choice.Label);
-        SyncSortCombo();
+        for (var i = 0; i < SortChoices.Length; i++)
+        {
+            var item = new RadioMenuFlyoutItem { Text = SortChoices[i].Label, GroupName = "Sort", Tag = i };
+            item.Click += OnSortChoice;
+            SortMenu.Items.Add(item);
+        }
+        SyncSortMenu();
         ApplyDensity(AppServices.Settings.GridDensity);
-        SyncViewToggles();
+        SyncViewMenu();
         SyncFilterBar();
 
         // One cached page instance lives for the whole session, so these are subscribed once.
@@ -164,7 +168,7 @@ public sealed partial class LibraryPage : Page
     {
         ViewModel.SelectionMode = !ViewModel.SelectionMode;
         SelectionBar.Visibility = ViewModel.SelectionMode ? Visibility.Visible : Visibility.Collapsed;
-        SelectButton.Content = ViewModel.SelectionMode ? "Done" : "Select";
+        SelectButton.IsChecked = ViewModel.SelectionMode;
     }
 
     private void OnSelectAll(object sender, RoutedEventArgs e) => ViewModel.SelectAllShown();
@@ -253,18 +257,21 @@ public sealed partial class LibraryPage : Page
 
     // ---- sort ----
 
-    private void SyncSortCombo()
+    /// <summary>The Sort button names the order in use, and its menu ticks it.</summary>
+    private void SyncSortMenu()
     {
         var mode = (SortMode)ViewModel.SortIndex;
-        var index = Array.FindIndex(SortChoices, c => c.Mode == mode && c.Descending == ViewModel.SortDescending);
-        SortCombo.SelectedIndex = Math.Max(0, index);
+        var index = Math.Max(0, Array.FindIndex(SortChoices, c => c.Mode == mode && c.Descending == ViewModel.SortDescending));
+        ((RadioMenuFlyoutItem)SortMenu.Items[index]).IsChecked = true;
+        SortText.Text = SortChoices[index].Label;
     }
 
-    private void OnSortChanged(object sender, SelectionChangedEventArgs e)
+    private void OnSortChoice(object sender, RoutedEventArgs e)
     {
-        if (!_ready || SortCombo.SelectedIndex < 0) return;
-        var choice = SortChoices[SortCombo.SelectedIndex];
+        if (!_ready || sender is not RadioMenuFlyoutItem { Tag: int index }) return;
+        var choice = SortChoices[index];
         ViewModel.SetSort(choice.Mode, choice.Descending);
+        SyncSortMenu();
     }
 
     // ---- format pills ----
@@ -377,30 +384,31 @@ public sealed partial class LibraryPage : Page
 
     // ---- view mode + card size ----
 
-    private void OnViewGrid(object sender, RoutedEventArgs e)
+    /// <summary>The View menu: a cover size shows the grid at that size, or the list.</summary>
+    private void OnViewChoice(object sender, RoutedEventArgs e)
     {
-        ViewModel.ViewMode = ViewMode.Grid;
-        SyncViewToggles();
+        if (sender is not RadioMenuFlyoutItem { Tag: string tag }) return;
+        if (tag == "List")
+        {
+            ViewModel.ViewMode = ViewMode.List;
+        }
+        else
+        {
+            ApplyDensity(tag);
+            AppServices.Settings.GridDensity = tag;
+            ViewModel.ViewMode = ViewMode.Grid;
+        }
+        SyncViewMenu();
     }
 
-    private void OnViewList(object sender, RoutedEventArgs e)
+    /// <summary>The View button shows the grid or list icon, and its menu ticks the view in use.</summary>
+    private void SyncViewMenu()
     {
-        ViewModel.ViewMode = ViewMode.List;
-        SyncViewToggles();
-    }
-
-    private void SyncViewToggles()
-    {
-        GridViewToggle.IsChecked = ViewModel.IsGridView;
-        ListViewToggle.IsChecked = ViewModel.IsListView;
-        LayoutTopBar();   // the card sizes show only in grid view, and only when there is room for them
-    }
-
-    private void OnDensityClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ToggleButton { Tag: string tag }) return;
-        ApplyDensity(tag);
-        AppServices.Settings.GridDensity = tag;
+        var density = AppServices.Settings.GridDensity;
+        ViewIcon.Glyph = ((char)(ViewModel.IsListView ? 0xE8FD : 0xE8A9)).ToString();
+        var item = ViewModel.IsListView ? ViewList
+            : density switch { "S" => ViewS, "L" => ViewL, "XL" => ViewXL, _ => ViewM };
+        item.IsChecked = true;
     }
 
     /// <summary>Base card sizes. Close to a book cover's 2:3, a little taller so the title strip hides less of it.</summary>
@@ -413,10 +421,6 @@ public sealed partial class LibraryPage : Page
             "XL" => (240.0, 376.0),
             _ => (150.0, 240.0)
         };
-        DensityS.IsChecked = tag == "S";
-        DensityM.IsChecked = tag is not ("S" or "L" or "XL");
-        DensityL.IsChecked = tag == "L";
-        DensityXL.IsChecked = tag == "XL";
         FitCards();
     }
 
@@ -450,40 +454,21 @@ public sealed partial class LibraryPage : Page
 
     private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e) => LayoutTopBar();
 
-    // The S/M/L/XL group and the gap before it, as laid out in the XAML: four 36 px toggles, a 1 px border
-    // each side, 12 px spacing.
-    private const double DensityWidth = 4 * 36 + 2 + 12;
-
-    /// <summary>
-    /// Narrow page: the tools get their own row under the title instead of squeezing it away, and when
-    /// even that is too tight the card sizes go (the least needed of them). The width the tools want is
-    /// counted with the card sizes showing (in grid view) whether or not they show now, so the decision
-    /// cannot flip back and forth.
-    /// </summary>
+    /// <summary>Narrow page: the tools get their own row under the title instead of squeezing it away.</summary>
     private void LayoutTopBar()
     {
-        var measured = ToolsPanel.DesiredSize.Width;
-        if (measured <= 0 || TopBar.ActualWidth <= 0)
-        {
-            DensityGroup.Visibility = ViewModel.IsGridView ? Visibility.Visible : Visibility.Collapsed;   // before the first layout
-            return;
-        }
-        var wanted = measured + (ViewModel.IsGridView && DensityGroup.Visibility != Visibility.Visible ? DensityWidth : 0);
+        var wanted = ToolsPanel.DesiredSize.Width;
+        if (wanted <= 0 || TopBar.ActualWidth <= 0) return;
         var room = TopBar.ActualWidth - TopBar.Padding.Left - TopBar.Padding.Right;
 
         var stacked = room - wanted - 16 < TitleWidth();    // the title would be cut beside them
-        if (stacked != _toolsStacked)
-        {
-            _toolsStacked = stacked;
-            Grid.SetRow(ToolsPanel, stacked ? 1 : 0);
-            Grid.SetColumn(ToolsPanel, stacked ? 0 : 1);
-            Grid.SetColumnSpan(ToolsPanel, stacked ? 2 : 1);
-            ToolsPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-            ToolsPanel.Margin = stacked ? new Thickness(0, 12, 0, 0) : new Thickness(0);
-        }
-
-        var show = ViewModel.IsGridView && room >= wanted;   // not even on a row of their own: they go
-        DensityGroup.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (stacked == _toolsStacked) return;
+        _toolsStacked = stacked;
+        Grid.SetRow(ToolsPanel, stacked ? 1 : 0);
+        Grid.SetColumn(ToolsPanel, stacked ? 0 : 1);
+        Grid.SetColumnSpan(ToolsPanel, stacked ? 2 : 1);
+        ToolsPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        ToolsPanel.Margin = stacked ? new Thickness(-8, 8, 0, 0) : new Thickness(0);
     }
 
     private bool _toolsStacked;
