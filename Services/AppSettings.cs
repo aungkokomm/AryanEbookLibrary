@@ -33,7 +33,7 @@ public sealed class AppSettings
     public string ReaderFlow { get; set; } = "paginated";      // paginated | scrolled
     // And for CBZ and CBR comics.
     public bool ReadComicsInApp { get; set; } = true;
-    public string ReaderComicFit { get; set; } = "Page";       // Page | Width
+    public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width
     public string ReaderPageTheme { get; set; } = "Paper";     // Paper | Sepia | Night
     public bool ReaderContentsOpen { get; set; }
     public int ReaderWidth { get; set; } = 1100;

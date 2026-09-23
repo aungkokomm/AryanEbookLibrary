@@ -5,9 +5,12 @@ using AryanEbookLibrary.Reader.Comic;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 using Windows.System;
@@ -15,17 +18,21 @@ using Windows.System;
 namespace AryanEbookLibrary.Reader;
 
 /// <summary>
-/// Reads a CBZ or CBR comic one page at a time, fitted to the page or to the width. Each page is decoded off the UI
-/// thread at exactly the size it is shown (a high-quality downscale, where the screen's own scaling would shimmer on
-/// the printed dots), again at a higher resolution when zoomed, and the pages either side are made ready before
-/// they are asked for. Arrow keys, Page Up and Down, Space, the wheel at a page's end and a click near either side
-/// turn the page.
+/// Reads a CBZ or CBR comic as one continuous column of pages as wide as the view, or one page at a time fitted to the
+/// page or to the width. Each page is decoded off the UI thread at exactly the size it is shown (a high-quality
+/// downscale, where the screen's own scaling would shimmer on the printed dots), again at a higher resolution when
+/// zoomed, and the pages either side are made ready before they are asked for. Arrow keys, Page Up and Down, Space,
+/// the wheel at a page's end and a click near either side turn the page.
 /// </summary>
 public sealed partial class ComicReaderView : UserControl, IReaderView
 {
     /// <summary>Wheel notches closer together than this turn one page: a touchpad sends a stream of them.</summary>
     private static readonly TimeSpan WheelGap = TimeSpan.FromMilliseconds(350);
     private const string PositionTag = "comic1";
+    /// <summary>A page's shape before it has been read, in continuous view: most comic pages are about this.</summary>
+    private static readonly Size UnknownPage = new(1000, 1540);
+
+    private enum ViewMode { Continuous, Page, Width }
 
     public event Action<int, int>? PageChanged;
 
@@ -55,7 +62,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private ComicBook? _book;
     private bool _closed;
     private int _page = -1;
-    private bool _fitWidth;
+    private ViewMode _mode;
     private bool _placePending;
     private bool _showBottom;
     private double _zoomBucket = 1;
@@ -65,12 +72,21 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private readonly Dictionary<int, PageBitmap> _images = new();
     private readonly HashSet<int> _failed = new();
 
+    // Continuous view: an Image per page, each page's size once it has been read, and each page's top in DIPs.
+    private readonly List<Image> _strip = new();
+    private readonly Dictionary<int, Size> _sizes = new();
+    private Size? _typical;
+    private double[] _tops = [];
+    private bool _placing;
+
     public ComicReaderView()
     {
         InitializeComponent();
-        _fitWidth = AppServices.Settings.ReaderComicFit == "Width";
-        (_fitWidth ? FitWidthItem : FitPageItem).IsChecked = true;
-        FitButton.Content = _fitWidth ? "Fit width" : "Fit page";
+        _mode = Enum.TryParse<ViewMode>(AppServices.Settings.ReaderComicView, out var mode) ? mode : ViewMode.Continuous;
+        var item = _mode switch { ViewMode.Page => FitPageItem, ViewMode.Width => FitWidthItem, _ => ContinuousItem };
+        item.IsChecked = true;
+        FitButton.Content = item.Text;
+        ShowMode();
         Scroller.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnWheel), true);
         AddAccelerators();
     }
@@ -120,22 +136,32 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     // ================================================================ pages
 
+    private bool Continuous => _mode == ViewMode.Continuous;
+
+    /// <summary>Shows the page from its top. In continuous view that scrolls to it, even when it is already the page being read.</summary>
     private void GoTo(int page, bool showBottom = false)
     {
         if (_book is null) return;
+        var wanted = page;
         page = Math.Clamp(page, 0, _book.PageCount - 1);
-        if (page == _page) return;
-        _page = page;
+        // Past either end nothing happens; in continuous view it would scroll back to the page's top.
+        if (page == _page && (!Continuous || page != wanted)) return;
         _placePending = true;
         _showBottom = showBottom;
-        _zoomBucket = 1;
-        ShowPageNumber();
+        if (!Continuous) _zoomBucket = 1;
+        if (page != _page) SetPage(page);
         ShowCurrent();
         Evict();
         Pump();
+    }
 
+    /// <summary>The page being read is now this one: its number, the reading record, and at the end the offer to finish.</summary>
+    private void SetPage(int page)
+    {
+        _page = page;
+        ShowPageNumber();
         PageChanged?.Invoke(page, page);
-        if (OfferFinish && !_endOffered && page == _book.PageCount - 1)
+        if (OfferFinish && !_endOffered && page == _book!.PageCount - 1)
         {
             _endOffered = true;
             EndBar.IsOpen = true;
@@ -145,6 +171,11 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     /// <summary>The current page at the current fit, even while a sharper decode for it is on its way.</summary>
     private void ShowCurrent()
     {
+        if (Continuous)
+        {
+            ShowStrip();
+            return;
+        }
         if (_failed.Contains(_page))
         {
             PageImage.Source = null;
@@ -178,22 +209,89 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         return (naturalWidth * scale, naturalHeight * scale);
     }
 
+    /// <summary>
+    /// Continuous view: every page laid out at its size, the ones decoded showing their pictures. A page not read yet
+    /// is laid out like the first one that was, and takes its own size once it is read.
+    /// </summary>
+    private void ShowStrip()
+    {
+        if (_book is null || CurrentLayout(1) is not { } layout) return;
+        HideMessage();
+        if (_strip.Count == 0)
+        {
+            for (var i = 0; i < _book.PageCount; i++)
+            {
+                var image = new Image { Stretch = Stretch.Fill };
+                AutomationProperties.SetName(image, $"Page {i + 1}");
+                Strip.Children.Add(image);
+                Scroller.RegisterAnchorCandidate(image);
+                _strip.Add(image);
+            }
+        }
+
+        var tops = new double[_strip.Count];
+        var top = 0.0;
+        for (var i = 0; i < _strip.Count; i++)
+        {
+            var size = _sizes.TryGetValue(i, out var known) ? known : _typical ?? UnknownPage;
+            var (w, h) = DisplaySize(size.Width, size.Height, layout);
+            _strip[i].Width = w;
+            _strip[i].Height = h;
+            tops[i] = top;
+            top += h + Strip.Spacing;
+        }
+        _tops = tops;
+        foreach (var (page, image) in _images)
+            if (!ReferenceEquals(_strip[page].Source, image.Source)) _strip[page].Source = image.Source;
+
+        // A jump, to the page's top. Until the view gets there a page above it can learn its size and move that top,
+        // so it is asked again.
+        if (!_placePending && !_placing) return;
+        _placePending = false;
+        _placing = true;
+        Scroller.UpdateLayout();
+        Scroller.ChangeView(null, _tops[_page] * Scroller.ZoomFactor, null, disableAnimation: true);
+    }
+
+    /// <summary>The pages in the view: in continuous view the ones the view crosses, otherwise the one page.</summary>
+    private (int First, int Last) InView()
+    {
+        if (!Continuous || _tops.Length == 0) return (_page, _page);
+        var zoom = Scroller.ZoomFactor;
+        var top = Scroller.VerticalOffset / zoom;
+        var (first, last) = (PageAt(top), PageAt(top + Scroller.ViewportHeight / zoom));
+        // Until a jump has been scrolled to, the page jumped to.
+        return _page >= first && _page <= last ? (first, last) : (_page, _page);
+    }
+
+    /// <summary>Continuous view: the page at this height in the column.</summary>
+    private int PageAt(double y)
+    {
+        var i = Array.BinarySearch(_tops, y);
+        return Math.Clamp(i >= 0 ? i : ~i - 1, 0, _tops.Length - 1);
+    }
+
     /// <summary>The layout pages are decoded for now; null until the view has a size.</summary>
     private Layout? CurrentLayout(double zoom)
     {
         var w = Scroller.ActualWidth;
         var h = Scroller.ActualHeight;
         if (w < 1 || h < 1 || XamlRoot is null) return null;
-        return new Layout(_fitWidth, w, h, XamlRoot.RasterizationScale, zoom);
+        return new Layout(_mode != ViewMode.Page, w, h, XamlRoot.RasterizationScale, zoom);
     }
 
-    private Layout? WantedLayout(int page) => CurrentLayout(page == _page ? _zoomBucket : 1);
+    private Layout? WantedLayout(int page)
+    {
+        var (first, last) = InView();
+        return CurrentLayout(page >= first && page <= last ? _zoomBucket : 1);
+    }
 
-    /// <summary>This page first, then the next two, then the one before: the order they are likely to be wanted.</summary>
+    /// <summary>The pages in view first, then the next two, then the one before: the order they are likely to be wanted.</summary>
     private (int Page, Layout Layout)? NextWanted()
     {
         if (_book is null) return null;
-        foreach (var page in new[] { _page, _page + 1, _page + 2, _page - 1 })
+        var (first, last) = InView();
+        foreach (var page in Enumerable.Range(first, last - first + 1).Append(last + 1).Append(last + 2).Append(first - 1))
         {
             if (page < 0 || page >= _book.PageCount || _failed.Contains(page)) continue;
             if (WantedLayout(page) is not { } layout) return null;
@@ -244,7 +342,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
                 }
                 var old = _images.GetValueOrDefault(page);
                 _images[page] = decodedPage;
-                if (page == _page) ShowCurrent();
+                _sizes[page] = new Size(d.Width, d.Height);
+                _typical ??= _sizes[page];
+                if (page == _page || Continuous) ShowCurrent();
                 old?.Dispose();
                 Evict();
             }
@@ -277,12 +377,14 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         return (bitmap, naturalWidth, naturalHeight);
     }
 
-    /// <summary>Keeps the page before, this one and the two after; the rest go.</summary>
+    /// <summary>Keeps the page before, the ones in view and the two after; the rest go.</summary>
     private void Evict()
     {
-        foreach (var page in _images.Keys.Where(p => p < _page - 1 || p > _page + 2).ToList())
+        var (first, last) = InView();
+        foreach (var page in _images.Keys.Where(p => p < first - 1 || p > last + 2).ToList())
         {
             _images.Remove(page, out var image);
+            if (page < _strip.Count) _strip[page].Source = null;
             if (!ReferenceEquals(PageImage.Source, image!.Source)) image.Dispose();
         }
     }
@@ -299,11 +401,33 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     /// <summary>Zoomed in, the page is decoded again at the new size so it stays sharp.</summary>
     private void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        if (Continuous)
+        {
+            // A jump has arrived, or the reader has taken over the scrolling.
+            if (_placing && (e.IsIntermediate || Math.Abs(Scroller.VerticalOffset
+                    - Math.Min(_tops[_page] * Scroller.ZoomFactor, Scroller.ScrollableHeight)) < 1))
+                _placing = false;
+            FollowScroll();
+        }
         if (e.IsIntermediate) return;
         var zoom = Scroller.ZoomFactor;
         var bucket = zoom <= 1.05f ? 1 : Math.Min(4, Math.Ceiling(zoom * 2) / 2);
         if (bucket == _zoomBucket) return;
         _zoomBucket = bucket;
+        Pump();
+    }
+
+    /// <summary>
+    /// Continuous view, as it scrolls: the page across the upper middle of the view is the one being read (the last
+    /// once the end is showing), the pages coming into view are decoded and the ones left behind let go.
+    /// </summary>
+    private void FollowScroll()
+    {
+        if (_book is null || _tops.Length == 0 || _placePending || _placing) return;
+        var y = (Scroller.VerticalOffset + Scroller.ViewportHeight * 0.4) / Scroller.ZoomFactor;
+        var page = Scroller.ScrollableHeight >= 1 && AtBottom ? _tops.Length - 1 : PageAt(y);
+        if (page != _page) SetPage(page);
+        Evict();
         Pump();
     }
 
@@ -356,10 +480,13 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         e.Handled = true;
     }
 
-    /// <summary>The wheel scrolls a long page, and turns it once the page's end (or start) is already showing.</summary>
+    /// <summary>
+    /// The wheel scrolls a long page, and turns it once the page's end (or start) is already showing. In continuous
+    /// view it only scrolls.
+    /// </summary>
     private void OnWheel(object sender, PointerRoutedEventArgs e)
     {
-        if (_book is null || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control)) return;
+        if (_book is null || Continuous || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control)) return;
         var delta = e.GetCurrentPoint(Scroller).Properties.MouseWheelDelta;
         var now = DateTime.UtcNow;
         if (delta == 0 || now - _lastWheelTurn < WheelGap) return;
@@ -451,18 +578,29 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnFit(object sender, RoutedEventArgs e)
     {
-        if ((sender as RadioMenuFlyoutItem)?.Tag is not string tag) return;
-        var fitWidth = tag == "Width";
-        if (fitWidth == _fitWidth) return;
-        _fitWidth = fitWidth;
-        FitButton.Content = fitWidth ? "Fit width" : "Fit page";
-        AppServices.Settings.ReaderComicFit = tag;
+        if (sender is not RadioMenuFlyoutItem { Tag: string tag } item || !Enum.TryParse<ViewMode>(tag, out var mode)) return;
+        if (mode == _mode) return;
+        _mode = mode;
+        FitButton.Content = item.Text;
+        AppServices.Settings.ReaderComicView = tag;
         AppServices.Settings.Save();
+        ShowMode();
         _placePending = true;
         _showBottom = false;
+        if (!Continuous) _zoomBucket = 1;
         ShowCurrent();
+        Evict();
         Pump();
         FocusPages();
+    }
+
+    /// <summary>The column of pages in continuous view, the one page otherwise; the other lets go of its pictures.</summary>
+    private void ShowMode()
+    {
+        Strip.Visibility = Continuous ? Visibility.Visible : Visibility.Collapsed;
+        PageImage.Visibility = Continuous ? Visibility.Collapsed : Visibility.Visible;
+        if (Continuous) PageImage.Source = null;
+        else foreach (var image in _strip) image.Source = null;
     }
 
     public void SetTimeLeft(string text) => TimeLeftText.Text = text;
@@ -514,6 +652,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         if (_closed) return;
         _closed = true;
         PageImage.Source = null;
+        foreach (var image in _strip) image.Source = null;
         foreach (var image in _images.Values) image.Dispose();
         _images.Clear();
         // A page being read holds the book's lock; closing it waits for that, so not on the UI thread.

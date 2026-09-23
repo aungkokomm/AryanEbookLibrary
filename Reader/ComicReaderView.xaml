@@ -59,6 +59,8 @@
                 <DropDownButton x:Name="FitButton" Height="32" MinWidth="100" AutomationProperties.Name="Fit">
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <RadioMenuFlyoutItem x:Name="ContinuousItem" Text="Continuous" GroupName="Fit" Tag="Continuous" Click="OnFit" />
+                            <MenuFlyoutSeparator />
                             <RadioMenuFlyoutItem x:Name="FitPageItem" Text="Fit page" GroupName="Fit" Tag="Page" Click="OnFit" />
                             <RadioMenuFlyoutItem x:Name="FitWidthItem" Text="Fit width" GroupName="Fit" Tag="Width" Click="OnFit" />
                         </MenuFlyout>
@@ -73,14 +75,18 @@
 
         <!-- ═══ the page ═══ -->
         <Grid x:Name="Surface" Grid.Row="1" Background="{ThemeResource ReaderSurfaceBrush}">
-            <!-- The page is laid out at its fitted size; the scroller only zooms past that (Ctrl+wheel). -->
+            <!-- The page is laid out at its fitted size; the scroller only zooms past that (Ctrl+wheel). The anchor
+                 keeps the page being read still when a page above it learns its real size. -->
             <ScrollViewer x:Name="Scroller" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="4"
                           HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollMode="Enabled" VerticalScrollMode="Enabled" IsTabStop="True"
+                          VerticalAnchorRatio="0"
                           UseSystemFocusVisuals="False" ViewChanged="OnViewChanged" SizeChanged="OnScrollerSizeChanged">
                 <Grid x:Name="PageHost" Background="Transparent" Tapped="OnPageTapped">
                     <Image x:Name="PageImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center"
                            AutomationProperties.Name="Page" />
+                    <!-- Continuous: every page, one under the other, each as wide as the view. -->
+                    <StackPanel x:Name="Strip" Spacing="6" VerticalAlignment="Top" Visibility="Collapsed" />
                 </Grid>
             </ScrollViewer>
 
