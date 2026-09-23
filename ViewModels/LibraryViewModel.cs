@@ -703,6 +703,11 @@ public sealed class LibraryViewModel : ObservableObject
             await ReloadAsync();
             throw;
         }
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // Cancelled while a step was using the database, which the app closing has just shut: a cancelled scan.
+            throw new OperationCanceledException(ct);
+        }
         catch (Exception ex)
         {
             Log.Write("Scan failed: " + ex);

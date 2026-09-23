@@ -53,6 +53,7 @@ public static class AppServices
             Sync.FlushAll();
             Settings.Save();
             Db.Dispose();
+            Log.Write("app: closed");
         }
         catch (Exception ex)
         {

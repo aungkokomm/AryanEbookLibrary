@@ -21,6 +21,7 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         AppServices.Init();
+        Log.Write("app: started " + typeof(App).Assembly.GetName().Version?.ToString(3));
         AppServices.Library = new LibraryViewModel();
         BookLauncher.InAppReader = Reader.ReaderWindow.Open;
 

@@ -49,7 +49,10 @@ public sealed partial class MainWindow : Window
 
         Closed += (_, _) =>
         {
+            Log.Write("app: closing");
             _deviceWatcher.Dispose();
+            // A scan still running would go on writing to the database after it closes.
+            Library.CancelScan();
             // The readers first: each saves its place and reading time, and the database closes after.
             Reader.ReaderWindow.CloseAll();
             AppServices.Shutdown();

@@ -221,7 +221,8 @@ public sealed class ScannerService
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref result.Failed);
-                    Log.Write($"Index failed for {item.File.FullName}: {ex.Message}");
+                    // Once cancelled (the app closing), a book still in hand fails on the closed database: expected.
+                    if (!ct.IsCancellationRequested) Log.Write($"Index failed for {item.File.FullName}: {ex.Message}");
                 }
 
                 if (Interlocked.Increment(ref done) % 5 == 0) Report(item.File.DirectoryName);
