@@ -1,7 +1,10 @@
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using AryanEbookLibrary.Models;
+using AryanEbookLibrary.Reader.Pdf;
 using Windows.Data.Pdf;
+using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
@@ -18,7 +21,7 @@ namespace AryanEbookLibrary.Services.Metadata;
 ///  - ISBN: the text of the first 6 and last 2 pages (copyright page, back cover), checksum-validated, as
 ///    Zotero does. 26% of a real library's PDFs without an ISBN in their metadata have one there.
 ///  - Whether page 1 is a text page (a scan's notes, a copyright page) rather than a cover.
-///  - Cover + page count: rendered by the built-in Windows.Data.Pdf renderer (page 1).
+///  - Cover + page count: rendered by the built-in Windows.Data.Pdf renderer (page 1), or by PDFium when Windows cannot.
 /// </summary>
 public static class PdfReader
 {
@@ -51,8 +54,10 @@ public static class PdfReader
             }
             catch (Exception ex)
             {
-                // password-protected or damaged PDFs: keep whatever metadata was found
-                Log.Write($"PDF render failed ({Path.GetFileName(path)}): {ex.Message}");
+                // Windows cannot draw some PDFs that PDFium, the reader's engine, can (two Burmese books in a real
+                // library, with an empty error). Password-protected or damaged ones: keep whatever metadata was found.
+                if (!await RenderFirstPageWithPdfiumAsync(path, md))
+                    Log.Write($"PDF render failed ({Path.GetFileName(path)}): {ex.Message}");
                 break;
             }
         }
@@ -87,6 +92,44 @@ public static class PdfReader
 
         md.Cover = bytes;
         md.CoverExt = ".png";
+    }
+
+    /// <summary>Page 1 by PDFium, as the same 480 px PNG, or false when PDFium cannot open the file either.</summary>
+    private static async Task<bool> RenderFirstPageWithPdfiumAsync(string path, BookMetadata md)
+    {
+        (int Width, int Height, byte[] Bgra)? page;
+        int pages;
+        try
+        {
+            var (book, _) = PdfBook.Open(path);
+            if (book is null) return false;
+            using (book)
+            {
+                pages = book.PageCount;
+                page = pages > 0 ? book.RenderPage(0, 480) : null;
+            }
+        }
+        catch (Exception)
+        {
+            return false;   // no native engine (a harness without it) or a file it chokes on
+        }
+        if (page is not { } p) return false;
+
+        using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(p.Bgra.AsBuffer(), BitmapPixelFormat.Bgra8, p.Width, p.Height, BitmapAlphaMode.Ignore);
+        using var stream = new InMemoryRandomAccessStream();
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        encoder.SetSoftwareBitmap(bitmap);
+        await encoder.FlushAsync();
+        var bytes = new byte[stream.Size];
+        using var reader = new DataReader(stream.GetInputStreamAt(0));
+        await reader.LoadAsync((uint)stream.Size);
+        reader.ReadBytes(bytes);
+
+        md.PageCount = pages;
+        md.Cover = bytes;
+        md.CoverExt = ".png";
+        Log.Write($"PDF cover drawn by PDFium ({Path.GetFileName(path)})");
+        return true;
     }
 
     private static int _documentsSinceCollect;

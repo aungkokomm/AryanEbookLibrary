@@ -48,6 +48,11 @@ public static class FileNameParser
         @"(^|[\s_(\[-])-?(www[\s.])?(oceanofpdf|pdfdrive|44books|dokumen|epdf|ebook3000|allitebooks|it-?ebooks|freebookspot|bookzz|b-ok|1lib|z[\s_-]?library|z-?lib|libgen|pdfroom|pdfcoffee|pdfbooksworld|sanet|avaxhome)([\s._](com|org|net|pub|in|info|tips|cc|st|ws|li|rs|is|gs))?(?=$|[\s_)\]-])[\s_)\]-]*",
         RegexOptions.IgnoreCase);
 
+    /// <summary>Any web address in brackets is a site's stamp, whatever the site: "[smtebooks.com]", "(By azamworld.blogspot.com)".</summary>
+    private static readonly Regex BracketedSite = new(
+        @"\s*[\[(]\s*(by\s+)?(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|in|info|co|io|me|pk|ru|to|cc|biz|xyz)\s*[\])]",
+        RegexOptions.IgnoreCase);
+
     private static readonly Regex ZLibraryTag = new(@"z[\s_-]?lib(rary|\.org)?\b", RegexOptions.IgnoreCase);
     private static readonly Regex ArchiveOrgId = new(@"^\d{4}\.\d{4,}\.");
     private static readonly Regex CatalogueNumber = new(@"^(0\d{1,5})\s+");
@@ -118,7 +123,7 @@ public static class FileNameParser
         name = Regex.Replace(name, @"\)-\d$", ")");                   // "(Z-Library)-1" copies
         name = Squash(name.Replace('_', ' '));
         var zLibrary = ZLibraryTag.IsMatch(name);
-        name = Squash(SiteTag.Replace(name, " "));
+        name = Squash(BracketedSite.Replace(SiteTag.Replace(name, " "), " "));
         foreach (var rx in Noise) name = Squash(rx.Replace(name, " "));
         name = ArchiveOrgId.Replace(name, "");
         md.Isbn = Isbn.Find(name);   // "isbn_0671818325", "9780596008949"
@@ -661,7 +666,17 @@ public static class FileNameParser
     public static string Squash(string s) => Regex.Replace(s, @"\s+", " ").Trim();
 
     /// <summary>A title written inside a book can carry a download site too: "Principles of Neural Science - PDFDrive.com".</summary>
-    public static string StripSiteTags(string title) => Squash(SiteTag.Replace(title, " ")).Trim(' ', '-', ':', '|');
+    public static string StripSiteTags(string title) =>
+        Squash(BracketedSite.Replace(SiteTag.Replace(title, " "), " ")).Trim(' ', '-', ':', '|');
+
+    /// <summary>
+    /// A catalogue number written in front of a title, "00095 Jasma of Odes": the number, and the title without it.
+    /// Only a number with a leading zero, so "1001 Magic Tricks" keeps its number.
+    /// </summary>
+    public static (int Number, string Title)? SplitCatalogueNumber(string title) =>
+        CatalogueNumber.Match(title) is { Success: true } m && m.Length < title.Length
+            ? (int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), title[m.Length..].Trim())
+            : null;
 }
 
 /// <summary>

@@ -16,8 +16,10 @@ public static class MetadataService
     /// 2: file-name parser with library context, author lists tidied, ISBN from PDF text, text-page covers.
     /// 3: scanner stamps ("ACDSee", "GonVisor", "Full page photo") and bare domains are not titles.
     /// 4: Burmese written in Zawgyi, or with ေ and ြ out of order, is shown in Unicode.
+    /// 5: any bracketed web address ("[smtebooks.com]") goes, a catalogue number in front of a title becomes its
+    ///    number in the series, and a file name left as the title reads with spaces ("Aath_Pahar_Youn_Jhumte").
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
 
     public static async Task<BookMetadata> ReadAsync(string path, BookFormat format, bool useCalibre, bool readCover = true)
     {
@@ -57,11 +59,22 @@ public static class MetadataService
         if (md.Title is { } t)
         {
             t = FileNameParser.StripSiteTags(t);
+            // A file name left as the title: "Aath_Pahar_Youn_Jhumte", "Harsha-The Great Ruler of Thaneshwar.cbz".
+            if (t.Contains('_') && !t.Contains(' ')) t = FileNameParser.Squash(t.Replace('_', ' '));
+            t = Regex.Replace(t, @"\.(pdf|epub|mobi|azw3|cbz|cbr)$", "", RegexOptions.IgnoreCase);
             md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://\S+|www\.\S+|[\w-]+\.(com|net|org|info|biz|ru|cc|to))$", RegexOptions.IgnoreCase) ? null : t;
         }
         // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
         if (!string.IsNullOrWhiteSpace(md.Author)) md.Author = PeopleParser.Tidy(md.Author);
-        FillFromFileName(md, path);
+        var name = FillFromFileName(md, path);
+        // "00095 Jasma of Odes": the number in front is the book's place in its series, or the one its file name gives
+        // too, not part of its title. Any other number stays: "1001 Magic Tricks", "090 Hari Maut" filed as 120.
+        if (md.Title is { } numbered && FileNameParser.SplitCatalogueNumber(numbered) is { } catalogue
+            && (!string.IsNullOrWhiteSpace(md.Series) || name.SeriesIndex == catalogue.Number))
+        {
+            md.Title = catalogue.Title;
+            md.SeriesIndex ??= catalogue.Number;
+        }
         FixBurmese(md);
         if (string.IsNullOrWhiteSpace(md.Title)) md.Title = "Untitled";
         return md;
@@ -83,8 +96,11 @@ public static class MetadataService
         static string? Burmese(string? s) => string.IsNullOrEmpty(s) ? s : Zawgyi.Fix(s);
     }
 
-    /// <summary>Whatever the book itself did not say, from the file name, remembering which details those were.</summary>
-    public static void FillFromFileName(BookMetadata md, string path)
+    /// <summary>
+    /// Whatever the book itself did not say, from the file name, remembering which details those were. Returns what the
+    /// file name says.
+    /// </summary>
+    public static BookMetadata FillFromFileName(BookMetadata md, string path)
     {
         var name = FileNameParser.Parse(path);
         var fields = 0;
@@ -95,5 +111,6 @@ public static class MetadataService
         if (string.IsNullOrWhiteSpace(md.Publisher) && !string.IsNullOrWhiteSpace(name.Publisher)) fields |= BookMetadata.NameField.Publisher;
         md.MergeFrom(name, overwrite: false);
         md.NameFields = fields;
+        return name;
     }
 }

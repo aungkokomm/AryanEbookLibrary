@@ -203,7 +203,8 @@ public sealed partial class BookCardControl : UserControl
     {
         TitleText.Text = b.Title;
         PlaceholderTitle.Text = b.Title;
-        MetaText.Text = b.DisplayAuthor;
+        // No "Unknown author" on half the shelf: a book without one shows its series, or nothing.
+        MetaText.Text = string.IsNullOrWhiteSpace(b.Author) ? b.SeriesLine : b.Author;
         AutomationProperties.SetName(this, b.Title);
 
         if (b.Rating > 0)

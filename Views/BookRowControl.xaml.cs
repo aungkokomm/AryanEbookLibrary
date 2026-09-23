@@ -99,7 +99,8 @@ public sealed partial class BookRowControl : UserControl
         AutomationProperties.SetName(this, b.Title);
         RowFav.Visibility = b.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
 
-        var meta = new List<string> { b.DisplayAuthor };
+        var meta = new List<string>();
+        if (!string.IsNullOrWhiteSpace(b.Author)) meta.Add(b.Author);   // no "Unknown author" in every other row
         if (!string.IsNullOrWhiteSpace(b.SeriesLine)) meta.Add(b.SeriesLine);
         meta.Add(b.FormatLabel);
         if (b.Year.HasValue) meta.Add(b.Year.Value.ToString());
