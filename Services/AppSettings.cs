@@ -27,6 +27,10 @@ public sealed class AppSettings
     public Dictionary<int, int> ReadingGoals { get; set; } = new();
     // The app's own reader. Off, PDFs open in the default app as before.
     public bool ReadPdfInApp { get; set; } = true;
+    // The same for EPUB, MOBI and AZW3 books.
+    public bool ReadEpubInApp { get; set; } = true;
+    public int ReaderFontSize { get; set; } = 100;             // percent of the book's own size
+    public string ReaderFlow { get; set; } = "paginated";      // paginated | scrolled
     public string ReaderPageTheme { get; set; } = "Paper";     // Paper | Sepia | Night
     public bool ReaderContentsOpen { get; set; }
     public int ReaderWidth { get; set; } = 1100;

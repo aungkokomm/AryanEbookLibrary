@@ -13,8 +13,12 @@ public static class BookLauncher
     public static Func<Book, string?>? InAppReader { get; set; }
 
     /// <summary>Whether "Open" goes to the app's own reader for this book.</summary>
-    public static bool ReadsInApp(Book book) =>
-        InAppReader is not null && book.Format == BookFormat.Pdf && AppServices.Settings.ReadPdfInApp;
+    public static bool ReadsInApp(Book book) => InAppReader is not null && book.Format switch
+    {
+        BookFormat.Pdf => AppServices.Settings.ReadPdfInApp,
+        BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3 => AppServices.Settings.ReadEpubInApp,
+        _ => false,
+    };
 
     public static string? Open(Book book, bool withDefaultApp = false)
     {

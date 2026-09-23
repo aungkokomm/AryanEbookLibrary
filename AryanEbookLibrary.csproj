@@ -63,6 +63,9 @@
     <Content Include="native\reader_core\vendor\pdfium\LICENSE" Link="Licenses\PDFium-binaries-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <!-- Define's offline dictionaries (from Ayaan PDF): WordNet, the AKK English-Myanmar dictionary, the Hindi list. -->
     <Content Include="Assets\Dictionary\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The EPUB reader: foliate-js (MIT, see Assets\Epub\foliate\SOURCE.txt) in a WebView2, and Aryan's page around it. -->
+    <Content Include="Assets\Epub\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Epub\foliate\LICENSE" Link="Licenses\foliate-js-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Builds the reading core when its source changed (offline: every crate it needs is in the local cargo cache). -->

@@ -1,0 +1,3 @@
+foliate-js by John Factotum, MIT (see LICENSE), from https://github.com/johnfactotum/foliate-js
+commit 78914aef4466eb960965702401634c2cb348e9b1 (2026-05-01), copied unchanged.
+Only the modules the EPUB, MOBI/AZW3, FB2 and CBZ path imports: pdf.js, tts.js, opds.js, dict.js and the demo UI are left out.

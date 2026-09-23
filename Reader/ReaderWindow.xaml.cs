@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
@@ -28,6 +29,7 @@ public sealed partial class ReaderWindow : Window
     private static readonly Dictionary<string, ReaderWindow> Open_ = new(StringComparer.Ordinal);
 
     private readonly Book _book;
+    private readonly IReaderView _view;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _clock;
     private DateTime _lastInput = DateTime.UtcNow;
     private bool _inFront = true;
@@ -37,6 +39,7 @@ public sealed partial class ReaderWindow : Window
     private int _seconds;
     private readonly HashSet<int> _pagesRead = new();
     private int _page = -1;
+    private int _lastOnScreen = -1;
     private int _secondsOnPage;
     private int _firstPage = -1;
     private double? _secondsPerPage;
@@ -51,6 +54,8 @@ public sealed partial class ReaderWindow : Window
         }
         var path = book.FullPath;
         if (path is null || !File.Exists(path)) return "The file is not there any more.";
+        if (book.Format is not (BookFormat.Pdf or BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3))
+            return "The reader cannot open " + book.FormatLabel + " books.";
 
         var window = new ReaderWindow(book, path);
         Open_[book.StateKey] = window;
@@ -99,11 +104,20 @@ public sealed partial class ReaderWindow : Window
             if (_inFront) Touch();
         };
 
-        PdfView.OfferFinish = book.Status != ReadStatus.Finished;
-        PdfView.PageChanged += OnPageChanged;
-        PdfView.FullScreenRequested += ToggleFullScreen;
-        PdfView.FinishedRequested += OnFinished;
-        PdfView.OpenExternallyRequested += () =>
+        _view = book.Format == BookFormat.Pdf ? new PdfReaderView() : new EpubReaderView();
+        var element = (FrameworkElement)_view;
+        Grid.SetRow(element, 1);
+        RootGrid.Children.Add(element);
+        _view.OfferFinish = book.Status != ReadStatus.Finished;
+        _view.PageChanged += OnPageChanged;
+        _view.Activity += Touch;
+        _view.FullScreenRequested += ToggleFullScreen;
+        _view.EscapeRequested += () =>
+        {
+            if (AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen) ToggleFullScreen();
+        };
+        _view.FinishedRequested += OnFinished;
+        _view.OpenExternallyRequested += () =>
         {
             BookLauncher.Open(_book, withDefaultApp: true);
             Close();
@@ -117,9 +131,9 @@ public sealed partial class ReaderWindow : Window
         Closed += OnClosed;
 
         var position = AppServices.Sessions.GetPosition(book.StateKey);
-        _ = PdfView.OpenAsync(path, position);
+        _ = _view.OpenAsync(path, position);
         _ = LoadPaceAsync();
-        PdfView.Loaded += (_, _) => PdfView.FocusPages();
+        element.Loaded += (_, _) => _view.FocusPages();
     }
 
     // ---- title bar ----
@@ -164,7 +178,7 @@ public sealed partial class ReaderWindow : Window
         }
         else if (e.Key == VirtualKey.Escape)
         {
-            if (PdfView.HandleEscape()) e.Handled = true;
+            if (_view.HandleEscape()) e.Handled = true;
             else if (AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen)
             {
                 ToggleFullScreen();
@@ -178,8 +192,8 @@ public sealed partial class ReaderWindow : Window
         var full = AppWindow.Presenter.Kind != AppWindowPresenterKind.FullScreen;
         AppWindow.SetPresenter(full ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         TitleBar.Visibility = full ? Visibility.Collapsed : Visibility.Visible;
-        PdfView.SetChromeVisible(!full);
-        PdfView.FocusPages();
+        _view.SetChromeVisible(!full);
+        _view.FocusPages();
     }
 
     // ---- the record of reading ----
@@ -193,15 +207,17 @@ public sealed partial class ReaderWindow : Window
         if (!Reading) return;
         _seconds++;
         _secondsOnPage++;
-        if (_secondsOnPage == SecondsPerPageSeen) _pagesRead.Add(_page);
+        if (_secondsOnPage == SecondsPerPageSeen)
+            for (var p = _page; p <= _lastOnScreen; p++) _pagesRead.Add(p);
         if (_seconds % 30 == 0) SaveSession();
     }
 
-    private void OnPageChanged(int page)
+    private void OnPageChanged(int first, int last)
     {
         Touch();
-        if (_firstPage < 0) _firstPage = page;
-        _page = page;
+        if (_firstPage < 0) _firstPage = first;
+        _page = first;
+        _lastOnScreen = Math.Max(first, last);
         _secondsOnPage = 0;
         ShowTimeLeft();
     }
@@ -217,15 +233,15 @@ public sealed partial class ReaderWindow : Window
             {
                 var started = now.AddSeconds(-_seconds);
                 var s = new ReadingSession(0, _book.StateKey, started, now, _seconds, _pagesRead.Count,
-                    Math.Max(0, _firstPage), _page, PdfView.PageCount);
+                    Math.Max(0, _firstPage), _page, _view.PageCount);
                 _session = s with { Id = AppServices.Sessions.Add(s) };
             }
             else
             {
-                _session = _session with { EndedUtc = now, Seconds = _seconds, Pages = _pagesRead.Count, LastPage = _page, PageCount = PdfView.PageCount };
+                _session = _session with { EndedUtc = now, Seconds = _seconds, Pages = _pagesRead.Count, LastPage = _page, PageCount = _view.PageCount };
                 AppServices.Sessions.Update(_session);
             }
-            if (PdfView.Position() is { } position) AppServices.Sessions.SavePosition(_book.StateKey, position);
+            if (_view.Position() is { } position) AppServices.Sessions.SavePosition(_book.StateKey, position);
         }
         catch (Exception ex)
         {
@@ -256,13 +272,13 @@ public sealed partial class ReaderWindow : Window
 
     private void ShowTimeLeft()
     {
-        var left = PdfView.PageCount - _page - 1;
+        var left = _view.PageCount - _page - 1;
         if (_secondsPerPage is not { } pace || _page < 0 || left <= 0)
         {
-            PdfView.SetTimeLeft("");
+            _view.SetTimeLeft("");
             return;
         }
-        PdfView.SetTimeLeft($"About {ReadingTime.Format((int)Math.Round(left * pace))} left");
+        _view.SetTimeLeft($"About {ReadingTime.Format((int)Math.Round(left * pace))} left");
     }
 
     // ---- finishing and closing ----
@@ -270,7 +286,7 @@ public sealed partial class ReaderWindow : Window
     private void OnFinished()
     {
         AppServices.Library.SetStatus(_book, ReadStatus.Finished);
-        PdfView.OfferFinish = false;
+        _view.OfferFinish = false;
     }
 
     private void OnClosed(object sender, WindowEventArgs args)
@@ -285,9 +301,9 @@ public sealed partial class ReaderWindow : Window
         try
         {
             // How far through the book, for the library's progress bar, while it is being read.
-            if (_book.Status == ReadStatus.Reading && PdfView.PageCount > 0 && _page >= 0)
+            if (_book.Status == ReadStatus.Reading && _view.PageCount > 0 && _page >= 0)
             {
-                var percent = (int)Math.Round(100.0 * (_page + 1) / PdfView.PageCount);
+                var percent = (int)Math.Round(100.0 * (_page + 1) / _view.PageCount);
                 if (percent != _book.Progress)
                 {
                     _book.Progress = Math.Clamp(percent, 1, 99);
@@ -308,6 +324,6 @@ public sealed partial class ReaderWindow : Window
         }
 
         Log.Write($"reader: closed {Path.GetFileName(_book.RelPath)} at page {_page + 1}, {_seconds} s read, {_pagesRead.Count} pages");
-        PdfView.Close();
+        _view.Close();
     }
 }

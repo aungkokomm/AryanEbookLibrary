@@ -1,21 +1,17 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
-using AryanEbookLibrary.Reader.Define;
 using AryanEbookLibrary.Reader.Pdf;
 using AryanEbookLibrary.Services;
 using Microsoft.UI;
 using Microsoft.UI.Input;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
-using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.System;
 
@@ -26,7 +22,7 @@ namespace AryanEbookLibrary.Reader;
 /// and Define. The reading half of Ayaan PDF: its native core (native\reader_core), its tile pyramid, text layer, night
 /// mode and dictionaries, with a view of its own that has nothing to do with editing.
 /// </summary>
-public sealed partial class PdfReaderView : UserControl
+public sealed partial class PdfReaderView : UserControl, IReaderView
 {
     /// <summary>The widest page, in "slot" DIPs at zoom 1. Every other page is scaled to it.</summary>
     private const double BaseWidth = 1000;
@@ -37,7 +33,11 @@ public sealed partial class PdfReaderView : UserControl
     /// <summary>Up to this level a page is rendered whole (2048 px wide); deeper zoom is drawn from tiles.</summary>
     private const int WholePageLevels = 2;
 
-    public event Action<int>? PageChanged;
+    public event Action<int, int>? PageChanged;
+
+    // The pages are XAML, so the window hears their input and Escape itself.
+    public event Action? Activity { add { } remove { } }
+    public event Action? EscapeRequested { add { } remove { } }
     public event Action? FullScreenRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
@@ -180,7 +180,7 @@ public sealed partial class PdfReaderView : UserControl
         Scroller.UpdateLayout();
         GoTo(page, Math.Clamp(fraction, 0, 0.999), zoom ?? FitZoom(page));
         ShowPageNumber();
-        PageChanged?.Invoke(page);
+        PageChanged?.Invoke(page, page);
     }
 
     /// <summary>
@@ -533,7 +533,7 @@ public sealed partial class PdfReaderView : UserControl
         {
             _currentPage = middle;
             ShowPageNumber();
-            PageChanged?.Invoke(middle);
+            PageChanged?.Invoke(middle, middle);
             if (middle == _book.PageCount - 1 && OfferFinish && !_endOffered && _book.PageCount > 1)
             {
                 _endOffered = true;
@@ -813,7 +813,7 @@ public sealed partial class PdfReaderView : UserControl
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var w = e.NewSize.Width;
-        TimeLeftText.Visibility = w < 900 ? Visibility.Collapsed : Visibility.Visible;
+        TimeLeftText.Visibility = w < 1040 ? Visibility.Collapsed : Visibility.Visible;
         SearchBox.Width = w < 760 ? 130 : 200;
         SearchCountText.Visibility = w < 700 ? Visibility.Collapsed : Visibility.Visible;
         ZoomGroup.Visibility = w < 600 ? Visibility.Collapsed : Visibility.Visible;
@@ -997,10 +997,7 @@ public sealed partial class PdfReaderView : UserControl
     private void CopySelection()
     {
         var text = SelectedText();
-        if (text.Length == 0) return;
-        var package = new DataPackage();
-        package.SetText(text);
-        Clipboard.SetContent(package);
+        if (text.Length > 0) WordMenu.CopyText(text);
     }
 
     // ---- highlights: search matches under the selection ----
@@ -1058,65 +1055,26 @@ public sealed partial class PdfReaderView : UserControl
         var at = e.GetPosition(PageCanvas);
         var word = WordAt(at);
         var selected = SelectedText();
-        var menu = new MenuFlyout();
-
-        // Define: the selection when it is one English word, else the English word under the pointer.
-        string? define = EnglishWord.TryNormalize(selected, out var s) ? s
-            : selected.Length == 0 && word is { } w && EnglishWord.TryNormalize(w.Text, out var ww) ? ww : null;
-        if (define is not null)
-        {
-            var anchorWord = word;
-            var item = new MenuFlyoutItem { Text = $"Define \u201C{define}\u201D", Icon = new FontIcon { Glyph = "\uE82D" } };
-            item.Click += (_, _) => ShowDefinition(define, anchorWord);
-            menu.Items.Add(item);
-        }
-
-        if (selected.Length > 0)
-        {
-            var copy = new MenuFlyoutItem { Text = "Copy", Icon = new SymbolIcon(Symbol.Copy) };
-            copy.KeyboardAcceleratorTextOverride = "Ctrl+C";
-            copy.Click += (_, _) => CopySelection();
-            menu.Items.Add(copy);
-        }
-        else if (word is { } wc)
-        {
-            var copy = new MenuFlyoutItem { Text = $"Copy \u201C{Shorten(wc.Text)}\u201D", Icon = new SymbolIcon(Symbol.Copy) };
-            copy.Click += (_, _) =>
+        var menu = WordMenu.Build(selected, word?.Text ?? "",
+            define: w => ShowDefinition(w, selected.Length > 0 ? null : word),
+            copy: WordMenu.CopyText,
+            find: text =>
             {
-                var package = new DataPackage();
-                package.SetText(wc.Text);
-                Clipboard.SetContent(package);
-            };
-            menu.Items.Add(copy);
-        }
-
-        var findText = selected.Length is > 0 and <= 80 && !selected.Contains('\n') ? selected : word?.Text;
-        if (!string.IsNullOrWhiteSpace(findText))
-        {
-            var find = new MenuFlyoutItem { Text = $"Find \u201C{Shorten(findText)}\u201D in this book", Icon = new SymbolIcon(Symbol.Find) };
-            find.Click += (_, _) =>
-            {
-                SearchBox.Text = findText.Trim();
+                SearchBox.Text = text;
                 StartSearch();
-            };
-            menu.Items.Add(find);
-        }
-
-        if (menu.Items.Count == 0) return;
+            });
+        if (menu is null) return;
         e.Handled = true;
         menu.ShowAt(PageCanvas, new FlyoutShowOptions { Position = at });
     }
 
-    private static string Shorten(string text) => text.Length <= 24 ? text : text[..22] + "...";
-
     // ================================================================ Define (Ayaan PDF's popup)
 
     private (int Page, Rect Box)? _defineAnchor;
-    private int _defineRequest;
 
-    private async void ShowDefinition(string word, (int Page, int Start, int Length, string Text)? at)
+    /// <summary>Define for <paramref name="word"/>, beside the word on the page, or beside the selection.</summary>
+    private void ShowDefinition(string word, (int Page, int Start, int Length, string Text)? at)
     {
-        var request = ++_defineRequest;
         _defineAnchor = null;
         if (at is { } a && Text(a.Page) is { } layer)
         {
@@ -1139,157 +1097,27 @@ public sealed partial class PdfReaderView : UserControl
             }
         }
 
-        DefinitionWord.Text = word;
-        var english = DefinitionDictionary.LoadAsync();
-        var myanmar = AppServices.Settings.DefineShowsMyanmar ? DefinitionDictionary.LoadMyanmarAsync() : Task.FromResult<MyanmarGlosses?>(null);
-        var hindi = AppServices.Settings.DefineShowsHindi ? DefinitionDictionary.LoadHindiAsync() : Task.FromResult<HindiGlosses?>(null);
-        if (!english.IsCompleted || !myanmar.IsCompleted || !hindi.IsCompleted)
-        {
-            DefinitionText.Text = "Looking up...";
-            DefinitionRule.Visibility = DefinitionMyanmar.Visibility = DefinitionHindi.Visibility = Visibility.Collapsed;
-            DefinitionPopup.Visibility = Visibility.Visible;
-            PlaceDefinition();
-        }
-
-        var dictionary = await english;
-        var glosses = await myanmar;
-        var hindiGlosses = await hindi;
-        if (request != _defineRequest || _closed) return;
-
-        DefinitionPopup.Visibility = Visibility.Visible;
-        FillDefinition(word, dictionary, glosses, hindiGlosses);
+        Definition.Show(word);
         PlaceDefinition();
     }
 
-    /// <summary>
-    /// A glance, not an entry: up to three parts of speech, two senses each, one example, then the Myanmar and Hindi
-    /// meanings of the same headword and part of speech. Ayaan PDF's FillDefinition, as it is there.
-    /// </summary>
-    private void FillDefinition(string word, WordDefinitions? dictionary, MyanmarGlosses? glosses, HindiGlosses? hindi)
-    {
-        DefinitionMyanmar.Inlines.Clear();
-        DefinitionHindi.Inlines.Clear();
-        DefinitionRule.Visibility = DefinitionMyanmar.Visibility = DefinitionHindi.Visibility = Visibility.Collapsed;
-
-        if (dictionary is null)
-        {
-            DefinitionText.Text = "The dictionary could not be loaded.";
-            return;
-        }
-
-        void AddLine(TextBlock block, string label, IReadOnlyList<string> meanings)
-        {
-            var isMyanmar = ReferenceEquals(block, DefinitionMyanmar);
-            if (block.Inlines.Count > 0) block.Inlines.Add(new LineBreak());
-            block.Inlines.Add(new Run { Text = label + ": ", FontWeight = FontWeights.SemiBold });
-            block.Inlines.Add(new Run
-            {
-                Text = string.Join(isMyanmar ? "\u104A " : ", ", meanings),
-                FontFamily = new FontFamily(isMyanmar ? "Pyidaungsu, Myanmar Text" : "Nirmala UI"),
-            });
-        }
-
-        void ShowTranslations(int myanmarLines, int hindiLines)
-        {
-            DefinitionRule.Visibility = myanmarLines + hindiLines > 0 ? Visibility.Visible : Visibility.Collapsed;
-            DefinitionMyanmar.Visibility = myanmarLines > 0 ? Visibility.Visible : Visibility.Collapsed;
-            DefinitionHindi.Visibility = hindiLines > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        if (dictionary.Lookup(word) is not { } found)
-        {
-            // No English entry, but the Myanmar and Hindi lists may still know the word. Grammar words stay refused.
-            var grammarWord = WordDefinitions.IsGrammarWord(word);
-            var none = Array.Empty<(string PartOfSpeech, IReadOnlyList<string> Meanings)>();
-            var myanmarOnly = grammarWord || glosses is null ? none : glosses.ForWord(word);
-            var hindiOnly = grammarWord || hindi is null ? none : hindi.ForWord(word);
-            if (myanmarOnly.Count + hindiOnly.Count == 0)
-            {
-                DefinitionText.Text = $"No definition found for \u201C{word}\u201D.";
-                return;
-            }
-            DefinitionText.Text = "No English definition.";
-            foreach (var (pos, meanings) in myanmarOnly) AddLine(DefinitionMyanmar, pos, meanings);
-            foreach (var (pos, meanings) in hindiOnly) AddLine(DefinitionHindi, pos, meanings);
-            ShowTranslations(myanmarOnly.Count, hindiOnly.Count);
-            return;
-        }
-
-        string LabelFor(WordSense sense) =>
-            string.Equals(sense.Headword, word, StringComparison.OrdinalIgnoreCase) ? sense.PartOfSpeech : $"{sense.PartOfSpeech}, {sense.Headword}";
-
-        // Inlines.Clear, not Text = "": empty text leaves an empty Run behind that counts as a first line.
-        DefinitionText.Inlines.Clear();
-        foreach (var sense in found.Senses)
-        {
-            if (DefinitionText.Inlines.Count > 0) DefinitionText.Inlines.Add(new LineBreak());
-            var meaning = sense.Definitions.Count > 1 ? $"{sense.Definitions[0]}; {sense.Definitions[1]}" : sense.Definitions[0];
-            DefinitionText.Inlines.Add(new Run { Text = LabelFor(sense) + ": ", FontWeight = FontWeights.SemiBold });
-            DefinitionText.Inlines.Add(new Run { Text = meaning });
-            if (ReferenceEquals(sense, found.Senses[0]) && sense.Example is { Length: > 0 } example)
-            {
-                DefinitionText.Inlines.Add(new LineBreak());
-                DefinitionText.Inlines.Add(new Run { Text = "\u201C" + example + "\u201D", FontStyle = Windows.UI.Text.FontStyle.Italic });
-            }
-        }
-
-        var myanmarLines = 0;
-        foreach (var sense in found.Senses)
-        {
-            if (glosses?.For(sense.Headword, sense.PartOfSpeech) is not { Count: > 0 } meanings) continue;
-            myanmarLines++;
-            AddLine(DefinitionMyanmar, LabelFor(sense), meanings);
-        }
-        var hindiLines = 0;
-        foreach (var sense in found.Senses)
-        {
-            if (hindi?.For(sense.Headword, sense.PartOfSpeech) is not { Count: > 0 } meanings) continue;
-            hindiLines++;
-            AddLine(DefinitionHindi, LabelFor(sense), meanings);
-        }
-        ShowTranslations(myanmarLines, hindiLines);
-    }
-
-    private void OnDefinitionSizeChanged(object sender, SizeChangedEventArgs e) => PlaceDefinition();
-
-    /// <summary>Above the word, below it when there is no room, always inside the view; hidden while the word is scrolled away.</summary>
+    /// <summary>Keeps the popup beside its word as the pages scroll and zoom; hidden while the word is out of view.</summary>
     private void PlaceDefinition()
     {
-        if (DefinitionPopup.Visibility != Visibility.Visible) return;
-        var w = DefinitionPopup.ActualWidth;
-        var h = DefinitionPopup.ActualHeight;
-        var viewW = Surface.ActualWidth;
-        var viewH = Surface.ActualHeight;
-
-        Rect box;
-        if (_defineAnchor is { } a && _cards.ContainsKey(a.Page))
+        if (!Definition.IsOpen) return;
+        var area = new Size(Surface.ActualWidth, Surface.ActualHeight);
+        if (_defineAnchor is not { } a)
         {
-            box = CanvasToView(new Rect(SlotLeft(a.Page) + a.Box.X, SlotTop(a.Page) + a.Box.Y, a.Box.Width, a.Box.Height));
-            if (box.Bottom < 0 || box.Top > viewH)
-            {
-                DefinitionPopup.Opacity = 0;
-                return;
-            }
+            Definition.PlaceNear(null, area);
+            return;
         }
-        else
-        {
-            box = new Rect(viewW / 2, viewH / 3, 0, 0);
-        }
-
-        var left = Math.Clamp(box.X, 12, Math.Max(12, viewW - w - 12));
-        var top = box.Y - h - 10;
-        if (top < 12) top = box.Bottom + 10;
-        top = Math.Clamp(top, 12, Math.Max(12, viewH - h - 12));
-        DefinitionPopup.Translation = new System.Numerics.Vector3((float)left, (float)top, 32);
-        DefinitionPopup.Opacity = w > 0 ? 1 : 0;
+        var box = _cards.ContainsKey(a.Page)
+            ? CanvasToView(new Rect(SlotLeft(a.Page) + a.Box.X, SlotTop(a.Page) + a.Box.Y, a.Box.Width, a.Box.Height))
+            : new Rect(-1000, -1000, 0, 0);
+        Definition.PlaceNear(box, area);
     }
 
-    private void HideDefinition()
-    {
-        if (DefinitionPopup.Visibility != Visibility.Visible) return;
-        _defineRequest++;
-        DefinitionPopup.Visibility = Visibility.Collapsed;
-    }
+    private void HideDefinition() => Definition.Hide();
 
     // ================================================================ find in book
 
@@ -1496,7 +1324,7 @@ public sealed partial class PdfReaderView : UserControl
     /// <summary>Escape from the window: puts away the definition, then the selection. True when it did something.</summary>
     public bool HandleEscape()
     {
-        if (DefinitionPopup.Visibility == Visibility.Visible)
+        if (Definition.IsOpen)
         {
             HideDefinition();
             return true;

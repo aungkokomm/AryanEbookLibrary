@@ -29,8 +29,10 @@
                 <TextBlock Text="Reading" FontWeight="SemiBold" />
                 <ToggleSwitch x:Name="ReadInAppSwitch" Header="Open PDF books in Aryan's own reader"
                               Toggled="OnReadInAppToggled" />
+                <ToggleSwitch x:Name="ReadEpubInAppSwitch" Header="Open EPUB, MOBI and AZW3 books in Aryan's own reader"
+                              Toggled="OnReadInAppToggled" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="The reader remembers your page, keeps a record of the time you spend reading for the Reading log, and can define an English word: right-click it on the page. Off, PDFs open in your default app as before. Any book can still go to the default app: right-click it and choose Open with default app." />
+                           Text="The reader remembers your page, keeps a record of the time you spend reading for the Reading log, and can define an English word: right-click it on the page. Off, those books open in your default app as before. Any book can still go to the default app: right-click it and choose Open with default app." />
                 <CheckBox x:Name="DefineMyanmarBox" Content="Define also shows Myanmar meanings (AKK dictionary)"
                           Click="OnDefineLanguagesChanged" />
                 <CheckBox x:Name="DefineHindiBox" Content="Define also shows Hindi meanings"

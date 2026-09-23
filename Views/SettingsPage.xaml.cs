@@ -20,6 +20,7 @@ public sealed partial class SettingsPage : Page
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
         ReadInAppSwitch.IsOn = AppServices.Settings.ReadPdfInApp;
+        ReadEpubInAppSwitch.IsOn = AppServices.Settings.ReadEpubInApp;
         DefineMyanmarBox.IsChecked = AppServices.Settings.DefineShowsMyanmar;
         DefineHindiBox.IsChecked = AppServices.Settings.DefineShowsHindi;
         Select(LanguageBox, AppServices.Settings.PreferredLanguage);
@@ -50,6 +51,7 @@ public sealed partial class SettingsPage : Page
     {
         if (_loading) return;
         AppServices.Settings.ReadPdfInApp = ReadInAppSwitch.IsOn;
+        AppServices.Settings.ReadEpubInApp = ReadEpubInAppSwitch.IsOn;
         AppServices.Settings.Save();
     }
 
