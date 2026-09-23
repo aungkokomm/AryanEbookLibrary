@@ -3,113 +3,256 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!-- Windows 11 Settings' layout: groups of cards, one setting per card, its control on the right. The long
+         explanations stay out of sight in expanders. -->
+    <Page.Resources>
+        <Style x:Key="SettingCardStyle" TargetType="Border" BasedOn="{StaticResource CardPanelStyle}">
+            <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="MinHeight" Value="64" />
+        </Style>
+        <Style x:Key="SettingGroupStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+            <Setter Property="Margin" Value="1,22,0,6" />
+        </Style>
+        <Style x:Key="SettingDescriptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="SettingIconStyle" TargetType="FontIcon">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style TargetType="Expander">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <!-- The switch alone, flush with the buttons: no On/Off words beside it. It asks for 154 wide whatever its
+             MinWidth, so it is given the width of its track. -->
+        <Style TargetType="ToggleSwitch">
+            <Setter Property="OnContent" Value="" />
+            <Setter Property="OffContent" Value="" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Page.Resources>
+
     <ScrollViewer>
-        <StackPanel Spacing="18" Padding="28,20,28,30" MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Appearance" FontWeight="SemiBold" />
-                <ComboBox x:Name="ThemeBox" Width="200" SelectionChanged="OnThemeChanged">
-                    <ComboBoxItem Content="Use system setting" Tag="System" />
-                    <ComboBoxItem Content="Light" Tag="Light" />
-                    <ComboBoxItem Content="Dark" Tag="Dark" />
-                </ComboBox>
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Library" FontWeight="SemiBold" />
-                <ToggleSwitch x:Name="AutoScanSwitch" Header="Scan connected folders when the app starts"
-                              Toggled="OnAutoScanToggled" />
-                <TextBlock Text="Clears the cover cache and re-reads every book on the next scan."
-                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
-                <Button Content="Rebuild covers" Click="OnRebuildCovers" HorizontalAlignment="Left" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Reading" FontWeight="SemiBold" />
-                <ToggleSwitch x:Name="ReadInAppSwitch" Header="Open PDF books in Aryan's own reader"
-                              Toggled="OnReadInAppToggled" />
-                <ToggleSwitch x:Name="ReadEpubInAppSwitch" Header="Open EPUB, MOBI and AZW3 books in Aryan's own reader"
-                              Toggled="OnReadInAppToggled" />
-                <ToggleSwitch x:Name="ReadComicsInAppSwitch" Header="Open CBZ and CBR comics in Aryan's own reader"
-                              Toggled="OnReadInAppToggled" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="The reader remembers your page, keeps a record of the time you spend reading for the Reading log, and can define an English word: right-click it on the page. Off, those books open in your default app as before. Any book can still go to the default app: right-click it and choose Open with default app." />
-                <CheckBox x:Name="DefineMyanmarBox" Content="Define also shows Myanmar meanings (AKK dictionary)"
-                          Click="OnDefineLanguagesChanged" />
-                <CheckBox x:Name="DefineHindiBox" Content="Define also shows Hindi meanings"
-                          Click="OnDefineLanguagesChanged" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Online details" FontWeight="SemiBold" />
-                <ToggleSwitch x:Name="LookupOnlineSwitch" Header="Fill in missing details from Open Library"
-                              Toggled="OnLookupOnlineToggled" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="Looks up books that have no author, description or real cover: first on openlibrary.org, the Internet Archive's free book catalogue, then on Wikidata and Wikipedia, which have the descriptions, series numbers and many covers Open Library lacks. Only a book's title, author or ISBN is sent. Details are filled in only when a source clearly has the same book; likely matches wait in the book's details for you to accept, and each detail says where it came from. Your book files are never changed." />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="With this off, any book can still be looked up by hand: right-click it and choose Find details online." />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Duplicates" FontWeight="SemiBold" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="When the same book is in the library more than once, the Duplicates page marks the copy to keep. Your language comes first, then your format, then the biggest file. You can always pick another copy there, and nothing is ever deleted." />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <ComboBox x:Name="LanguageBox" Header="Preferred language" Width="200" SelectionChanged="OnPreferredLanguageChanged">
-                        <ComboBoxItem Content="No preference" Tag="" />
-                        <ComboBoxItem Content="English" Tag="en" />
-                        <ComboBoxItem Content="Hindi" Tag="hi" />
-                        <ComboBoxItem Content="Myanmar" Tag="my" />
-                        <ComboBoxItem Content="Marathi" Tag="mr" />
-                        <ComboBoxItem Content="Sanskrit" Tag="sa" />
-                    </ComboBox>
-                    <ComboBox x:Name="FormatBox" Header="Preferred format" Width="200" SelectionChanged="OnPreferredFormatChanged">
-                        <ComboBoxItem Content="No preference" Tag="" />
-                        <ComboBoxItem Content="EPUB" Tag="EPUB" />
-                        <ComboBoxItem Content="PDF" Tag="PDF" />
-                        <ComboBoxItem Content="MOBI" Tag="MOBI" />
-                        <ComboBoxItem Content="AZW3" Tag="AZW3" />
-                        <ComboBoxItem Content="CBZ" Tag="CBZ" />
-                        <ComboBoxItem Content="CBR" Tag="CBR" />
-                    </ComboBox>
-                </StackPanel>
-                <TextBlock x:Name="KeptCopiesText" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
-                <Button x:Name="ForgetKeptButton" Content="Forget my choices" Click="OnForgetKeptCopies"
-                        HorizontalAlignment="Left" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Catalogue" FontWeight="SemiBold" />
-                <TextBlock Text="Every book with its details, reading state and where the file is, as one CSV file for a spreadsheet."
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <Button Content="Export catalogue..." Click="OnExportCatalog" HorizontalAlignment="Left" />
-                <TextBlock x:Name="CatalogResult" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Backup" FontWeight="SemiBold" />
-                <TextBlock Text="Favorites, reading status, ratings, tags and notes can be exported to one portable JSON file."
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <Button Content="Export backup..." Click="OnExport" />
-                    <Button Content="Restore backup..." Click="OnRestore" />
-                </StackPanel>
-                <TextBlock x:Name="BackupResult" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-                <TextBlock Text="Data" FontWeight="SemiBold" />
-                <TextBlock x:Name="DataPathText" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <Button Content="Open data folder" Click="OnOpenDataFolder" />
-            </StackPanel>
-
+        <!-- As wide as the page up to 900, from the left like the other pages -->
+        <Grid Padding="28,12,28,32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="900" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
-                <TextBlock Text="About" FontWeight="SemiBold" />
-                <TextBlock x:Name="VersionText" />
-                <TextBlock Text="Free, no telemetry, no accounts. Reads metadata that is already inside your books or in Calibre's metadata.opf, never modifies your files, and goes online only to look up details on Open Library, Wikidata and Wikipedia, when you ask or switch it on above."
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" />
+
+                <!-- ═══ Appearance ═══ -->
+                <TextBlock Text="Appearance" Style="{StaticResource SettingGroupStyle}" Margin="1,12,0,6" />
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE790;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="App theme" />
+                            <TextBlock Text="Light, dark, or the same as Windows" Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <ComboBox x:Name="ThemeBox" Grid.Column="2" Width="200" VerticalAlignment="Center"
+                                  SelectionChanged="OnThemeChanged" AutomationProperties.Name="App theme">
+                            <ComboBoxItem Content="Use system setting" Tag="System" />
+                            <ComboBoxItem Content="Light" Tag="Light" />
+                            <ComboBoxItem Content="Dark" Tag="Dark" />
+                        </ComboBox>
+                    </Grid>
+                </Border>
+
+                <!-- ═══ Reading ═══ -->
+                <TextBlock Text="Reading" Style="{StaticResource SettingGroupStyle}" />
+                <Expander AutomationProperties.Name="Open books in Aryan's own reader">
+                    <Expander.Header>
+                        <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*" Padding="0,12">
+                            <FontIcon Glyph="&#xE736;" Style="{StaticResource SettingIconStyle}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Open books in Aryan's own reader" />
+                                <TextBlock Style="{StaticResource SettingDescriptionStyle}"
+                                           Text="It remembers your page, times your reading for the Reading log, and can define a word. Off, books open in your default app." />
+                            </StackPanel>
+                        </Grid>
+                    </Expander.Header>
+                    <StackPanel Spacing="4" Margin="36,0,0,0">
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="40">
+                            <TextBlock Text="PDF" VerticalAlignment="Center" />
+                            <ToggleSwitch x:Name="ReadInAppSwitch" Grid.Column="1" Toggled="OnReadInAppToggled"
+                                          AutomationProperties.Name="Open PDF books in Aryan's own reader" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="40">
+                            <TextBlock Text="EPUB, MOBI and AZW3" VerticalAlignment="Center" />
+                            <ToggleSwitch x:Name="ReadEpubInAppSwitch" Grid.Column="1" Toggled="OnReadInAppToggled"
+                                          AutomationProperties.Name="Open EPUB, MOBI and AZW3 books in Aryan's own reader" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="40">
+                            <TextBlock Text="CBZ and CBR comics" VerticalAlignment="Center" />
+                            <ToggleSwitch x:Name="ReadComicsInAppSwitch" Grid.Column="1" Toggled="OnReadInAppToggled"
+                                          AutomationProperties.Name="Open CBZ and CBR comics in Aryan's own reader" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource SettingDescriptionStyle}" Margin="0,4,0,0"
+                                   Text="Any book can still open in your default app: right-click it and choose Open with default app." />
+                    </StackPanel>
+                </Expander>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE82D;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Define in other languages" />
+                            <TextBlock Text="Meanings shown with the English ones when you right-click a word while reading"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <CheckBox x:Name="DefineMyanmarBox" Content="Myanmar (AKK)" MinWidth="0"
+                                      Click="OnDefineLanguagesChanged"
+                                      AutomationProperties.Name="Define also shows Myanmar meanings (AKK dictionary)" />
+                            <CheckBox x:Name="DefineHindiBox" Content="Hindi" MinWidth="0"
+                                      Click="OnDefineLanguagesChanged"
+                                      AutomationProperties.Name="Define also shows Hindi meanings" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ═══ Library ═══ -->
+                <TextBlock Text="Library" Style="{StaticResource SettingGroupStyle}" />
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE895;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Scan folders when the app starts" />
+                            <TextBlock Text="Finds new, changed and missing books on the drives that are connected"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="AutoScanSwitch" Grid.Column="2" Toggled="OnAutoScanToggled"
+                                      AutomationProperties.Name="Scan connected folders when the app starts" />
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE774;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Fill in missing details online" />
+                            <TextBlock Style="{StaticResource SettingDescriptionStyle}"
+                                       Text="Books with no author, description or real cover are looked up on Open Library, Wikidata and Wikipedia. Only a title, author or ISBN is sent, and your files are never changed." />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="LookupOnlineSwitch" Grid.Column="2" Toggled="OnLookupOnlineToggled"
+                                      AutomationProperties.Name="Fill in missing details from Open Library" />
+                    </Grid>
+                </Border>
+                <Expander AutomationProperties.Name="Duplicates: the copy to keep">
+                    <Expander.Header>
+                        <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*" Padding="0,12">
+                            <FontIcon Glyph="&#xE8C8;" Style="{StaticResource SettingIconStyle}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Duplicates: the copy to keep" />
+                                <TextBlock Style="{StaticResource SettingDescriptionStyle}"
+                                           Text="Your language first, then your format, then the biggest file. You can pick another copy on the Duplicates page, and nothing is ever deleted." />
+                            </StackPanel>
+                        </Grid>
+                    </Expander.Header>
+                    <StackPanel Spacing="4" Margin="36,0,0,0">
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="44">
+                            <TextBlock Text="Preferred language" VerticalAlignment="Center" />
+                            <ComboBox x:Name="LanguageBox" Grid.Column="1" Width="200" VerticalAlignment="Center"
+                                      SelectionChanged="OnPreferredLanguageChanged" AutomationProperties.Name="Preferred language">
+                                <ComboBoxItem Content="No preference" Tag="" />
+                                <ComboBoxItem Content="English" Tag="en" />
+                                <ComboBoxItem Content="Hindi" Tag="hi" />
+                                <ComboBoxItem Content="Myanmar" Tag="my" />
+                                <ComboBoxItem Content="Marathi" Tag="mr" />
+                                <ComboBoxItem Content="Sanskrit" Tag="sa" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="44">
+                            <TextBlock Text="Preferred format" VerticalAlignment="Center" />
+                            <ComboBox x:Name="FormatBox" Grid.Column="1" Width="200" VerticalAlignment="Center"
+                                      SelectionChanged="OnPreferredFormatChanged" AutomationProperties.Name="Preferred format">
+                                <ComboBoxItem Content="No preference" Tag="" />
+                                <ComboBoxItem Content="EPUB" Tag="EPUB" />
+                                <ComboBoxItem Content="PDF" Tag="PDF" />
+                                <ComboBoxItem Content="MOBI" Tag="MOBI" />
+                                <ComboBoxItem Content="AZW3" Tag="AZW3" />
+                                <ComboBoxItem Content="CBZ" Tag="CBZ" />
+                                <ComboBoxItem Content="CBR" Tag="CBR" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" MinHeight="44" ColumnSpacing="16">
+                            <TextBlock x:Name="KeptCopiesText" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ForgetKeptButton" Grid.Column="1" Content="Forget my choices"
+                                    Click="OnForgetKeptCopies" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xEB9F;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Rebuild covers" />
+                            <TextBlock Text="Clears the cover cache and reads every book again on the next scan"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Rebuild covers" Click="OnRebuildCovers" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- ═══ Your data ═══ -->
+                <TextBlock Text="Your data" Style="{StaticResource SettingGroupStyle}" />
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE7B8;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Backup" />
+                            <TextBlock Text="Favorites, reading status, ratings, tags and notes, in one portable file"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                            <TextBlock x:Name="BackupResult" Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Export backup..." Click="OnExport" />
+                            <Button Content="Restore backup..." Click="OnRestore" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE9F9;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Catalogue" />
+                            <TextBlock Text="Every book with its details, reading state and where the file is, as one CSV file for a spreadsheet"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                            <TextBlock x:Name="CatalogResult" Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Export catalogue..." Click="OnExportCatalog" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE8B7;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Data folder" />
+                            <TextBlock x:Name="DataPathText" IsTextSelectionEnabled="True"
+                                       Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Open data folder" Click="OnOpenDataFolder" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- ═══ About ═══ -->
+                <TextBlock Text="About" Style="{StaticResource SettingGroupStyle}" />
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*">
+                        <Image Source="ms-appx:///Assets/AppIcon.png" Width="24" Height="24" VerticalAlignment="Top" Margin="0,2,0,0" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="VersionText" />
+                            <TextBlock Style="{StaticResource SettingDescriptionStyle}"
+                                       Text="Free, no telemetry, no accounts. Reads the details already inside your books or in Calibre's metadata.opf, never changes your files, and goes online only to look up details on Open Library, Wikidata and Wikipedia, when you ask or switch it on above." />
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>
