@@ -199,9 +199,53 @@
         <!-- ═══ BOOK GRID / LIST ═══ -->
         <ScrollViewer x:Name="MainScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Continue reading: one slim line over All Books, the books being read, most recent first. It scrolls
+                     away with the covers, so it takes no room once you are browsing. -->
+                <Grid x:Name="ContinueRow" Padding="28,0,28,14" ColumnSpacing="14" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Continue reading" VerticalAlignment="Center"
+                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                        <ItemsRepeater x:Name="ContinueRepeater" ItemsSource="{x:Bind ViewModel.ContinueBooks, Mode=OneWay}"
+                                       ElementPrepared="OnContinueChipPrepared">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="8" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:Book">
+                                    <Button Padding="4,4,12,4" Click="OnContinueClick" Tag="{x:Bind}"
+                                            AutomationProperties.Name="{x:Bind Title, Mode=OneWay}"
+                                            ToolTipService.ToolTip="{x:Bind Title, Mode=OneWay}">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <Border Width="30" Height="44" CornerRadius="3"
+                                                    Background="{ThemeResource CoverPlaceholderBrush}">
+                                                <Image Stretch="UniformToFill" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center" Width="150" Spacing="6">
+                                                <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind Progress, Mode=OneWay}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                </Grid>
+
                 <!-- Grid view: CineLibrary's UniformGridLayout. The cards are sized in code (FitCards) so each row
                      fills the width exactly with even gaps: no empty band on the right, no loose gaps. -->
-                <Border x:Name="GridArea" Padding="28,0,28,28" SizeChanged="OnGridAreaSizeChanged"
+                <Border x:Name="GridArea" Grid.Row="1" Padding="28,0,28,28" SizeChanged="OnGridAreaSizeChanged"
                         Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
@@ -217,7 +261,7 @@
                 </Border>
 
                 <!-- List view -->
-                <Border Padding="28,0,28,28" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
+                <Border Grid.Row="1" Padding="28,0,28,28" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />

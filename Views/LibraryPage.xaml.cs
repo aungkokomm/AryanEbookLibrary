@@ -1,10 +1,13 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices.WindowsRuntime;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 
 namespace AryanEbookLibrary.Views;
 
@@ -48,6 +51,7 @@ public sealed partial class LibraryPage : Page
         ApplyDensity(AppServices.Settings.GridDensity);
         SyncViewMenu();
         SyncFilterBar();
+        SyncContinueRow();
 
         // One cached page instance lives for the whole session, so these are subscribed once.
         BookCardControl.DetailsRequested += b => _ = ShowDetailsAsync(b);
@@ -90,6 +94,47 @@ public sealed partial class LibraryPage : Page
             case nameof(LibraryViewModel.HeaderText):
                 LayoutTopBar();   // a longer title may need the tools on a row of their own
                 break;
+            case nameof(LibraryViewModel.ContinueBooks):
+                SyncContinueRow();
+                break;
+        }
+    }
+
+    // ---- continue reading ----
+
+    private void SyncContinueRow() =>
+        ContinueRow.Visibility = ViewModel.ContinueBooks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnContinueClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Book book }) _ = OpenAsync(book);
+    }
+
+    /// <summary>
+    /// Each chip's cover, read from the file into memory first: the way that proved safe when thousands of covers
+    /// load at start-up, where handing the image its file path now and then brought the app down.
+    /// </summary>
+    private async void OnContinueChipPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is not Button { Content: StackPanel { Children: [Border { Child: Image image }, ..] } }
+            || sender.ItemsSourceView.GetAt(args.Index) is not Book book) return;
+        image.Tag = book;
+        image.Source = null;
+        if (book.CoverPath is not { } path) return;
+        try
+        {
+            var bytes = await Task.Run(() => File.Exists(path) ? File.ReadAllBytes(path) : null);
+            if (bytes is null || !ReferenceEquals(image.Tag, book)) return;
+            using var stream = new InMemoryRandomAccessStream();
+            await stream.WriteAsync(bytes.AsBuffer());
+            stream.Seek(0);
+            var cover = new BitmapImage { DecodePixelWidth = 60 };
+            await cover.SetSourceAsync(stream);
+            if (ReferenceEquals(image.Tag, book)) image.Source = cover;
+        }
+        catch (Exception)
+        {
+            // an unreadable cover: the placeholder colour stays
         }
     }
 

@@ -379,6 +379,23 @@ public sealed class LibraryViewModel : ObservableObject
     /// <summary>Open Library's background progress, shown at the right of the status bar.</summary>
     public string OnlineStatusText { get => _onlineStatusText; private set => SetProperty(ref _onlineStatusText, value); }
 
+    private List<Book> _continueBooks = new();
+    /// <summary>
+    /// The slim row over All Books: what is being read on a connected drive, most recently opened first. Empty in
+    /// any other view, or with a search or filter on.
+    /// </summary>
+    public List<Book> ContinueBooks { get => _continueBooks; private set => SetProperty(ref _continueBooks, value); }
+
+    private void RefreshContinueBooks()
+    {
+        var show = Filter == LibraryFilter.All && ActiveShelf.Length == 0 && !IsFiltered;
+        var books = show
+            ? _all.Where(b => b.Status == ReadStatus.Reading && b.IsAvailable)
+                .OrderByDescending(b => b.LastOpenedUtc ?? DateTime.MinValue).Take(12).ToList()
+            : new List<Book>();
+        if (!books.SequenceEqual(_continueBooks)) ContinueBooks = books;   // not rebuilt on every keystroke of a search
+    }
+
     /// <summary>Every book in the catalogue, whatever the current filter shows.</summary>
     public IReadOnlyList<Book> AllBooks => _all;
 
@@ -496,6 +513,7 @@ public sealed class LibraryViewModel : ObservableObject
         CountText = menu.Count == 0 ? count : count + "  ·  " + string.Join("  ·  ", menu);
         OnPropertyChanged(nameof(MenuFilterCount));
         OnPropertyChanged(nameof(IsFiltered));
+        RefreshContinueBooks();
     }
 
     private IEnumerable<Book> Sort(IEnumerable<Book> q)
@@ -977,6 +995,7 @@ public sealed class LibraryViewModel : ObservableObject
         ReadingLog.SetStatus(book, status, stampDate ? DateTime.UtcNow : null);
         SaveState(book);
         if (Filter is LibraryFilter.ContinueReading or LibraryFilter.Unread or LibraryFilter.Finished) ApplyFilter();
+        else RefreshContinueBooks();
     }
 
     /// <summary>Opens the book in the default reader and marks it as being read. Returns an error message or null.</summary>
@@ -988,6 +1007,7 @@ public sealed class LibraryViewModel : ObservableObject
         book.LastOpenedUtc = DateTime.UtcNow;
         if (book.Status == ReadStatus.Unread) book.Status = ReadStatus.Reading;
         SaveState(book);
+        RefreshContinueBooks();   // it comes first in the row now
         return null;
     }
 
