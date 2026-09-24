@@ -1,0 +1,57 @@
+<UserControl
+    x:Class="AryanEbookLibrary.Reader.HighlightBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalAlignment="Left" VerticalAlignment="Top"
+    Visibility="Collapsed" Translation="0,0,32"
+    SizeChanged="OnSizeChanged">
+
+    <UserControl.Resources>
+        <Style x:Key="BarButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Over a selection or a highlight: the five colours, a note, copy and delete. -->
+    <Border Background="{ThemeResource SolidBackgroundFillColorQuarternaryBrush}"
+            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}" BorderThickness="1" CornerRadius="8" Padding="6">
+        <Border.Shadow>
+            <ThemeShadow />
+        </Border.Shadow>
+        <StackPanel Spacing="6">
+            <StackPanel x:Name="TopRow" Orientation="Horizontal" Spacing="2">
+                <StackPanel x:Name="Swatches" Orientation="Horizontal" Spacing="2" />
+                <Rectangle x:Name="SwatchRule" Width="1" Height="20" Margin="4,0" VerticalAlignment="Center"
+                           Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Button x:Name="NoteButton" Style="{StaticResource BarButtonStyle}" Click="OnNote"
+                        AutomationProperties.Name="Note" ToolTipService.ToolTip="Add a note">
+                    <FontIcon Glyph="&#xE70B;" FontSize="15" />
+                </Button>
+                <Button x:Name="CopyButton" Style="{StaticResource BarButtonStyle}" Click="OnCopy"
+                        AutomationProperties.Name="Copy" ToolTipService.ToolTip="Copy the words">
+                    <FontIcon Glyph="&#xE8C8;" FontSize="15" />
+                </Button>
+                <Button x:Name="DeleteButton" Style="{StaticResource BarButtonStyle}" Click="OnDelete"
+                        AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete">
+                    <FontIcon Glyph="&#xE74D;" FontSize="15" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="NotePanel" Spacing="6" Visibility="Collapsed">
+                <TextBox x:Name="NoteBox" Width="320" Height="104" AcceptsReturn="True" TextWrapping="Wrap"
+                         PlaceholderText="Your note" KeyDown="OnNoteKeyDown"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Note" />
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                    <TextBlock Text="Ctrl+Enter to save" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <Button Content="Cancel" Click="OnNoteCancel" />
+                    <Button x:Name="SaveNoteButton" Content="Save" Click="OnNoteSave" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

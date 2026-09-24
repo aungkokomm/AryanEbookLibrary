@@ -70,17 +70,33 @@
                 <NavigationViewItem Content="Finished" Tag="finished">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <!-- Every book with a note, and how many (CineLibrary's Notes view) -->
+                <!-- Every highlight and clipped picture from every book, as cards, and how many -->
+                <NavigationViewItem x:Name="HighlightsItem" Tag="highlights" HorizontalContentAlignment="Stretch"
+                                    AutomationProperties.Name="Highlights"
+                                    ToolTipService.ToolTip="Everything you highlighted in Aryan's reader, from every book">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7E6;" /></NavigationViewItem.Icon>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Highlights" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Border Grid.Column="1" Style="{StaticResource PaneBadgeStyle}">
+                            <TextBlock x:Name="HighlightsCount" Text="0" Style="{StaticResource PaneBadgeTextStyle}" />
+                        </Border>
+                    </Grid>
+                </NavigationViewItem>
+                <!-- Every note: on a book (its details), on a highlight, and on a page in the reader -->
                 <NavigationViewItem x:Name="NotesItem" Tag="notes" HorizontalContentAlignment="Stretch"
-                                    AutomationProperties.Name="Notes"
-                                    ToolTipService.ToolTip="Every book you wrote a note on">
+                                    AutomationProperties.Name="My Notes"
+                                    ToolTipService.ToolTip="Every note you wrote, on books, highlights and pages">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" /></NavigationViewItem.Icon>
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Notes" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="My Notes" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         <Border Grid.Column="1" Style="{StaticResource PaneBadgeStyle}">
                             <TextBlock x:Name="NotesCount" Text="0" Style="{StaticResource PaneBadgeTextStyle}" />
                         </Border>

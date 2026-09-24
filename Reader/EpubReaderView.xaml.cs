@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
@@ -249,7 +250,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         {
             case "ready":
                 var cfi = _pending?.Position is { } p && p.StartsWith(PositionPrefix, StringComparison.Ordinal) ? p[PositionPrefix.Length..] : null;
-                Post(new JsonObject { ["type"] = "open", ["url"] = _bookUrl, ["lastLocation"] = cfi, ["prefs"] = Prefs() });
+                Post(new JsonObject { ["type"] = "open", ["url"] = _bookUrl, ["lastLocation"] = cfi, ["prefs"] = Prefs(), ["marks"] = Marks() });
                 break;
             case "opened": OnOpened(m); break;
             case "error": OnOpenFailed(Str(m, "message")); break;
@@ -261,6 +262,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "search": OnSearchProgress(m); break;
             case "probe": ShowDefinition(Str(m, "word"), RectOf(m)); break;
             case "top": _reveal.PointerAtTop(Flag(m, "near")); break;
+            case "selection": OnSelection(m); break;
+            case "mark": OnMarkClicked(m); break;
             case "tap": _reveal.Show(ToolbarReveal.TapHold); break;
         }
     }
@@ -291,9 +294,10 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             foreach (var item in toc.EnumerateArray())
                 rows.Add(new TocRow(Str(item, "label"), Str(item, "href"), (int)Num(item, "depth")));
         TocList.ItemsSource = rows;
-        NoTocText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPaneTab();
         Log.Write($"reader: opened {Path.GetFileName(_path)}, {rows.Count} contents entries, in {_openClock.ElapsedMilliseconds} ms");
         ProbeDefine();
+        ProbeHighlights();
     }
 
     private void OnOpenFailed(string message)
@@ -307,6 +311,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private void OnRelocate(JsonElement m)
     {
         Definition.Hide();
+        if (_notes?.BarOpen == true && !_barStays) _notes.HideBar();
+        _barStays = false;
         var current = (int)Num(m, "current");
         var next = Math.Max(current, (int)Num(m, "next"));
         _current = current;
@@ -323,6 +329,11 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         ToolTipService.SetToolTip(ChapterText, chapter.Length > 0 ? chapter : null);
 
         PageChanged?.Invoke(current, next);
+        if (_pendingReveal is { } reveal)
+        {
+            _pendingReveal = null;
+            Reveal(reveal);
+        }
         if (OfferFinish && !_endOffered && _total > 0 && next >= _total - 1)
         {
             _endOffered = true;
@@ -362,15 +373,25 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private void OnContext(JsonElement m)
     {
         var box = RectOf(m);
-        var menu = WordMenu.Build(Str(m, "selection"), Str(m, "word"),
+        var selected = Str(m, "selection");
+        var menu = WordMenu.Build(selected, Str(m, "word"),
             define: w => ShowDefinition(w, box),
             copy: WordMenu.CopyText,
             find: text =>
             {
                 SearchBox.Text = text;
                 StartSearch();
-            });
-        menu?.ShowAt(Web, new FlyoutShowOptions { Position = new Point(Num(m, "x"), Num(m, "y")) });
+            }) ?? new MenuFlyout();
+        if (_notes is not null)
+        {
+            var canHighlight = selected.Length > 0 && Str(m, "cfi").Length > 0;
+            WordMenu.AddNoteItems(menu,
+                canHighlight ? color => { OnSelection(m); _notes.Choose(color); } : null,
+                canHighlight ? () => { OnSelection(m); _notes.StartNote(); } : null,
+                _cfi.Length > 0 ? NewPageNote : null);
+        }
+        if (menu.Items.Count == 0) return;
+        menu.ShowAt(Web, new FlyoutShowOptions { Position = new Point(Num(m, "x"), Num(m, "y")) });
     }
 
     private void ShowDefinition(string word, Rect? box)
@@ -390,6 +411,21 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         if (string.IsNullOrWhiteSpace(word)) return;
         await Task.Delay(1500);
         Post(new JsonObject { ["type"] = "probe", ["word"] = word });
+    }
+
+    /// <summary>
+    /// For checking highlights without a mouse, each only when its variable is set: ARYAN_READER_SELECT=words selects
+    /// the first place those words are on the page the book opens at, as a drag would, and the bar shows for UI
+    /// Automation to pick a colour; ARYAN_READER_PAGENOTE=1 starts a note on the page.
+    /// </summary>
+    private async void ProbeHighlights()
+    {
+        var select = Environment.GetEnvironmentVariable("ARYAN_READER_SELECT");
+        var note = Environment.GetEnvironmentVariable("ARYAN_READER_PAGENOTE");
+        if (string.IsNullOrWhiteSpace(select) && string.IsNullOrWhiteSpace(note)) return;
+        await Task.Delay(2500);
+        if (!string.IsNullOrWhiteSpace(select)) Post(new JsonObject { ["type"] = "probeSelect", ["word"] = select });
+        else NewPageNote();
     }
 
     // ================================================================ find in book
@@ -655,6 +691,124 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
+    // ================================================================ highlights and notes
+
+    private ReaderAnnotations? _notes;
+    private Annotation? _pendingReveal;
+    /// <summary>A jump to one turns the page; the bar opened for it stays.</summary>
+    private bool _barStays;
+
+    public void UseAnnotations(ReaderAnnotations notes)
+    {
+        _notes = notes;
+        notes.Attach(Bar);
+        notes.Drawn += _ => SendMarks();
+        notes.Removed += _ => SendMarks();
+        notes.Reloaded += SendMarks;
+        HighlightsList.CountChanged += n => HighlightsTab.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
+        HighlightsList.OpenRequested += a =>
+        {
+            Reveal(a);
+            FocusPages();
+        };
+        HighlightsList.NoteRequested += a =>
+        {
+            _barStays = true;
+            Reveal(a);
+            notes.EditNote(a, null, SurfaceSize);
+        };
+        HighlightsList.Bind(notes);
+    }
+
+    private Size SurfaceSize => new(Surface.ActualWidth, Surface.ActualHeight);
+
+    private const string AnchorTag = "epub1:";
+
+    /// <summary>The highlights for the page to draw: where each is and its colour.</summary>
+    private JsonArray Marks()
+    {
+        var marks = new JsonArray();
+        foreach (var a in _notes?.Items ?? [])
+            if (a.Kind == AnnotationKind.Highlight && a.Anchor.StartsWith(AnchorTag, StringComparison.Ordinal))
+                marks.Add(new JsonObject { ["cfi"] = a.Anchor[AnchorTag.Length..], ["color"] = HighlightColors.Hex(a.Color) });
+        return marks;
+    }
+
+    private void SendMarks() => Post(new JsonObject { ["type"] = "marks", ["marks"] = Marks() });
+
+    /// <summary>Words just selected on the page: the bar offers the colours, a note and copy.</summary>
+    private void OnSelection(JsonElement m)
+    {
+        if (_notes is null) return;
+        var cfi = Str(m, "cfi");
+        var words = (m.TryGetProperty("text", out _) ? Str(m, "text") : Str(m, "selection")).Trim();
+        if (cfi.Length == 0 || words.Length == 0) return;
+        var before = Str(m, "before");
+        var after = Str(m, "after");
+        Definition.Hide();
+        _notes.Offer(() =>
+        {
+            Post(new JsonObject { ["type"] = "deselect" });
+            return new Annotation
+            {
+                Kind = AnnotationKind.Highlight,
+                Anchor = AnchorTag + cfi,
+                Page = Math.Max(0, _current),
+                Position = _fraction,
+                Chapter = ChapterText.Text.Trim(),
+                Quote = words,
+                Before = before,
+                After = after,
+            };
+        }, words, RectOf(m), SurfaceSize);
+    }
+
+    /// <summary>A highlight clicked on the page: its colours, note, copy and delete.</summary>
+    private void OnMarkClicked(JsonElement m)
+    {
+        var anchor = AnchorTag + Str(m, "cfi");
+        if (_notes?.Items.FirstOrDefault(a => a.Anchor == anchor && a.Kind == AnnotationKind.Highlight) is not { } a) return;
+        Definition.Hide();
+        _notes.Edit(a, RectOf(m), SurfaceSize);
+    }
+
+    /// <summary>A note on the page being read: it keeps the page's place.</summary>
+    private void NewPageNote()
+    {
+        if (_notes is null || _cfi.Length == 0) return;
+        var cfi = _cfi;
+        _notes.NewPageNote(() => new Annotation
+        {
+            Kind = AnnotationKind.PageNote,
+            Anchor = AnchorTag + cfi,
+            Page = Math.Max(0, _current),
+            Position = _fraction,
+            Chapter = ChapterText.Text.Trim(),
+        }, null, SurfaceSize);
+    }
+
+    /// <summary>Goes to it (a jump, which Back returns from), outlined for a moment; waits for the book to open.</summary>
+    public void Reveal(Annotation a)
+    {
+        if (!a.Anchor.StartsWith(AnchorTag, StringComparison.Ordinal)) return;
+        if (_current < 0)
+        {
+            _pendingReveal = a;
+            return;
+        }
+        Post(new JsonObject { ["type"] = "reveal", ["cfi"] = a.Anchor[AnchorTag.Length..] });
+    }
+
+    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => ShowPaneTab();
+
+    private void ShowPaneTab()
+    {
+        var highlights = ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab);
+        HighlightsList.Visibility = highlights ? Visibility.Visible : Visibility.Collapsed;
+        TocList.Visibility = highlights ? Visibility.Collapsed : Visibility.Visible;
+        NoTocText.Visibility = !highlights && TocList.ItemsSource is List<TocRow> { Count: 0 } ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // ================================================================ IReaderView
 
     public ReadingPosition? Position() =>
@@ -665,6 +819,12 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     {
         if (_reveal.HasFocus)
         {
+            FocusPages();
+            return true;
+        }
+        if (_notes?.BarOpen == true)
+        {
+            _notes.HideBar();
             FocusPages();
             return true;
         }

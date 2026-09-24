@@ -53,5 +53,14 @@ public interface IReaderView
     /// <summary>Shows the toolbar and moves the keyboard into it, for Alt.</summary>
     void FocusToolbar();
 
+    /// <summary>
+    /// The book's highlights and notes: the view draws them on its pages, offers the bar over what is selected and
+    /// lists them in its side panel. Given before <see cref="OpenAsync"/>.
+    /// </summary>
+    void UseAnnotations(ReaderAnnotations notes);
+
+    /// <summary>Goes to a highlight or note and shows where it is; before the book is shown, as soon as it is.</summary>
+    void Reveal(Models.Annotation annotation);
+
     void Close();
 }

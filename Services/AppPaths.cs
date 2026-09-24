@@ -8,6 +8,7 @@ public static class AppPaths
 {
     public static string DataDir { get; private set; } = "";
     public static string Covers => Path.Combine(DataDir, "Covers");
+    public static string Clips => Path.Combine(DataDir, "Clips");
     public static string DbFile => Path.Combine(DataDir, "library.db");
     public static string SettingsFile => Path.Combine(DataDir, "settings.json");
     public static string LogFile => Path.Combine(DataDir, "aryan.log");
@@ -21,6 +22,7 @@ public static class AppPaths
 
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(Covers);
+        Directory.CreateDirectory(Clips);
     }
 
     private static bool TryUse(string dir)

@@ -334,7 +334,7 @@ internal static class ListActions
     /// answering; then the user is told, rather than the click seeming to do nothing (it had reached the app's
     /// last-resort handler, which only logs).
     /// </summary>
-    private static async Task<T?> PickAsync<T>(XamlRoot root, Func<Windows.Foundation.IAsyncOperation<T>> pick) where T : class
+    internal static async Task<T?> PickAsync<T>(XamlRoot root, Func<Windows.Foundation.IAsyncOperation<T>> pick) where T : class
     {
         try
         {
@@ -348,7 +348,7 @@ internal static class ListActions
         }
     }
 
-    private static async Task Say(XamlRoot root, string title, string text) =>
+    internal static async Task Say(XamlRoot root, string title, string text) =>
         await new ContentDialog { Title = title, Content = text, CloseButtonText = "OK", XamlRoot = root }.ShowThemedAsync();
 
     private static string Books(int n) => n == 1 ? "1 book" : $"{n:N0} books";

@@ -312,6 +312,35 @@ public sealed class Database : IDisposable
                 """);
             Exec("PRAGMA user_version = 7;");
         }
+        if (version < 8)
+        {
+            // Highlights, clipped areas and notes on pages, made in the app's own reader. Keyed like book_state
+            // (drive + path), so they follow the book; a deleted one stays as a marker (deleted = 1) so an older copy
+            // of the file beside the books cannot bring it back.
+            Exec("""
+                CREATE TABLE annotations (
+                    id           TEXT PRIMARY KEY,
+                    book_key     TEXT NOT NULL,
+                    drive_id     TEXT NOT NULL,
+                    rel_path     TEXT NOT NULL,
+                    kind         INTEGER NOT NULL,
+                    anchor       TEXT NOT NULL,
+                    page         INTEGER NOT NULL DEFAULT 0,
+                    position     REAL NOT NULL DEFAULT 0,
+                    chapter      TEXT,
+                    quote        TEXT,
+                    before_text  TEXT,
+                    after_text   TEXT,
+                    color        INTEGER NOT NULL DEFAULT 1,
+                    note         TEXT,
+                    created_utc  TEXT NOT NULL,
+                    updated_utc  TEXT NOT NULL,
+                    deleted      INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+            Exec("CREATE INDEX idx_annotations_book ON annotations(book_key);");
+            Exec("PRAGMA user_version = 8;");
+        }
     }
 
     public void Dispose()

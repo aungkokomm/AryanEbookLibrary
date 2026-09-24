@@ -127,9 +127,87 @@ public sealed partial class BookDetailsWindow : Window
         RatingBox.RegisterPropertyChangedCallback(RatingControl.ValueProperty, OnRatingChanged);
         Populate();
         ShowNote();
+        ShowHighlights();
+        AppServices.Annotations.Changed += OnAnnotationsChanged;
+        ClipStore.Saved += OnClipSaved;
         _ = LoadImagesAsync();
         // Read first, so Enter reads the book and never removes details or opens an editor.
         RootGrid.Loaded += (_, _) => (ReadBtn.IsEnabled ? ReadBtn : (Control)FavBtn).Focus(FocusState.Pointer);
+    }
+
+    // ------------------------------------------------------------ highlights
+
+    private void OnAnnotationsChanged(string key)
+    {
+        if (key.Length == 0 || key == _book.StateKey) ShowHighlights();
+    }
+
+    private void OnClipSaved(string id)
+    {
+        if (HighlightsRows.Children.OfType<FrameworkElement>().Any(r => (r.Tag as Annotation)?.Id == id)) ShowHighlights();
+    }
+
+    /// <summary>How many, and the three made last, each going to its place in the reader when clicked.</summary>
+    private void ShowHighlights()
+    {
+        var all = AppServices.Annotations.ForBook(_book);
+        HighlightsCard.Visibility = all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HighlightsRows.Children.Clear();
+        if (all.Count == 0) return;
+        var marks = all.Count(a => a.Kind != AnnotationKind.PageNote);
+        var notes = all.Count - marks;
+        var parts = new List<string>();
+        if (marks > 0) parts.Add(marks == 1 ? "1 highlight" : $"{marks:N0} highlights");
+        if (notes > 0) parts.Add(notes == 1 ? "1 note on a page" : $"{notes:N0} notes on pages");
+        HighlightsHeader.Text = string.Join(", ", parts);
+        HighlightsAllBtn.Visibility = marks > 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var a in all.OrderByDescending(a => a.CreatedUtc).Take(3))
+            HighlightsRows.Children.Add(HighlightRow(new AnnotationItem(a, _book)));
+    }
+
+    private Button HighlightRow(AnnotationItem item)
+    {
+        var body = new StackPanel { Spacing = 3 };
+        var words = item.QuoteText.Length > 0 ? item.QuoteText : item.Annotation.Kind == AnnotationKind.PageNote ? item.NoteText : "";
+        if (words.Length > 0)
+            body.Children.Add(new TextBlock { Text = words, FontSize = 13, TextWrapping = TextWrapping.Wrap, MaxLines = 3, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (item.Clip is { } clip)
+            body.Children.Add(new Image { Source = clip, MaxHeight = 90, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left });
+        // The hint style, not the brush itself: a brush looked up in code is the app's theme's, not this window's.
+        body.Children.Add(new TextBlock
+        {
+            Text = item.Where,
+            Style = (Style)Application.Current.Resources["PageHintStyle"],
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        var grid = new Grid { ColumnSpacing = 10 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.Children.Add(new Microsoft.UI.Xaml.Shapes.Rectangle { Fill = item.ColorBrush, RadiusX = 2, RadiusY = 2 });
+        Grid.SetColumn(body, 1);
+        grid.Children.Add(body);
+
+        var row = new Button
+        {
+            Content = grid,
+            Tag = item.Annotation,
+            Padding = new Thickness(6, 6, 6, 6),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(row, item.Spoken);
+        ToolTipService.SetToolTip(row, "Open the book here");
+        row.Click += (_, _) => AnnotationsPage.OpenInReader(_book, item.Annotation);
+        return row;
+    }
+
+    private void OnSeeAllHighlights(object sender, RoutedEventArgs e)
+    {
+        App.MainWindow?.ShowAnnotations(notes: false, _book.StateKey);
+        App.MainWindow?.Activate();
     }
 
     // ------------------------------------------------------------ window
@@ -193,6 +271,8 @@ public sealed partial class BookDetailsWindow : Window
         _refreshTimer.Stop();
         _book.PropertyChanged -= OnBookChanged;
         AppServices.ThemeChanged -= OnThemeChanged;
+        AppServices.Annotations.Changed -= OnAnnotationsChanged;
+        ClipStore.Saved -= OnClipSaved;
         Open_.Remove(_book.StateKey);
         AppServices.Settings.Save();
         if (_changed) _vm.ApplyFilter();

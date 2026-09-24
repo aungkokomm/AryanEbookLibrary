@@ -140,10 +140,13 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ═══ contents: the book's own table of contents ═══ -->
+            <!-- ═══ the side pane: the book's own table of contents, and its highlights and notes ═══ -->
             <Grid x:Name="ContentsPane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
                   BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
-                <TextBlock Text="Contents" Margin="16,12,16,8" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <SelectorBar x:Name="PaneTabs" Margin="4,4,4,0" SelectionChanged="OnPaneTabChanged">
+                    <SelectorBarItem x:Name="ContentsTab" Text="Contents" IsSelected="True" />
+                    <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" />
+                </SelectorBar>
                 <ListView x:Name="TocList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
                           ItemClick="OnTocClick" Padding="0,0,0,12">
                     <ListView.ItemContainerStyle>
@@ -163,6 +166,7 @@
                 <TextBlock x:Name="NoTocText" Grid.Row="1" Margin="16,4,16,0" TextWrapping="Wrap" Visibility="Collapsed"
                            Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="This book has no table of contents of its own." />
+                <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" Visibility="Collapsed" />
             </Grid>
 
             <!-- ═══ the book: foliate-js in a web view ═══ -->
@@ -171,6 +175,9 @@
 
                 <!-- Define: beside the word, above it or below it, inside the view. -->
                 <reader:DefinePopup x:Name="Definition" />
+
+                <!-- Over what is selected or clicked: the colours, a note, copy and delete. -->
+                <reader:HighlightBar x:Name="Bar" />
 
                 <!-- Opening, or why the book could not be opened. -->
                 <StackPanel x:Name="MessagePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12"

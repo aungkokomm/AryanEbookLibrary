@@ -225,6 +225,40 @@ internal static class WordMenu
         return menu.Items.Count == 0 ? null : menu;
     }
 
+    /// <summary>
+    /// The highlight and note items, after Define, Copy and Find: Highlight in a colour and Highlight with a note for
+    /// what is selected, and a note on the page wherever the right-click was. Null actions leave their items out.
+    /// </summary>
+    public static void AddNoteItems(MenuFlyout menu, Action<int>? highlight, Action? highlightWithNote, Action? pageNote)
+    {
+        if (highlight is null && pageNote is null) return;
+        if (menu.Items.Count > 0) menu.Items.Add(new MenuFlyoutSeparator());
+        if (highlight is not null)
+        {
+            var colours = new MenuFlyoutSubItem { Text = "Highlight", Icon = new FontIcon { Glyph = ((char)0xE7E6).ToString() } };
+            for (var i = 1; i <= Models.HighlightColors.Count; i++)
+            {
+                var color = i;
+                var item = new MenuFlyoutItem { Text = Models.HighlightColors.Name(color), Icon = HighlightsPanel.ColorDot(color) };
+                item.Click += (_, _) => highlight(color);
+                colours.Items.Add(item);
+            }
+            menu.Items.Add(colours);
+        }
+        if (highlightWithNote is not null)
+        {
+            var item = new MenuFlyoutItem { Text = "Highlight with a note...", Icon = new FontIcon { Glyph = ((char)0xE70B).ToString() } };
+            item.Click += (_, _) => highlightWithNote();
+            menu.Items.Add(item);
+        }
+        if (pageNote is not null)
+        {
+            var item = new MenuFlyoutItem { Text = "Add a note to this page...", Icon = new FontIcon { Glyph = ((char)0xE70B).ToString() } };
+            item.Click += (_, _) => pageNote();
+            menu.Items.Add(item);
+        }
+    }
+
     private static string Shorten(string text) => text.Length <= 24 ? text : text[..22] + "...";
 
     public static void CopyText(string text)

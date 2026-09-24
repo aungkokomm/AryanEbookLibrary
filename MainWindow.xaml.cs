@@ -60,6 +60,7 @@ public sealed partial class MainWindow : Window
         };
         Library.ListsChanged += (_, _) => BuildLists();
         Library.StateChanged += (_, _) => CountsSoon();
+        AppServices.Annotations.Changed += _ => CountsSoon();
         BuildLists();
         ListsItem.IsExpanded = AppServices.Settings.ListsExpanded;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
@@ -247,7 +248,8 @@ public sealed partial class MainWindow : Window
             case "favorites": ShowLibrary(LibraryFilter.Favorites); break;
             case "unread": ShowLibrary(LibraryFilter.Unread); break;
             case "finished": ShowLibrary(LibraryFilter.Finished); break;
-            case "notes": ShowLibrary(LibraryFilter.Notes); break;
+            case "highlights": ShowAnnotations(notes: false); break;
+            case "notes": ShowAnnotations(notes: true); break;
             case "needs": ShowLibrary(LibraryFilter.NeedsDetails); break;
             case "authors": Navigate(typeof(AuthorsPage)); break;
             case "series": Navigate(typeof(SeriesPage)); break;
@@ -267,6 +269,21 @@ public sealed partial class MainWindow : Window
         Library.ListFilter = "";
         Library.Filter = filter;
         Navigate(typeof(LibraryPage));
+    }
+
+    /// <summary>
+    /// Highlights, or My Notes; with a book's key, only that book's (a book's details "See all"). Going there again
+    /// from the pane keeps the search and filters the page has.
+    /// </summary>
+    public void ShowAnnotations(bool notes, string bookKey = "")
+    {
+        SelectNav(notes ? "notes" : "highlights");
+        if (ContentFrame.Content is AnnotationsPage page && page.View.Notes == notes)
+        {
+            if (bookKey.Length > 0) page.ShowBook(bookKey);
+            return;
+        }
+        ContentFrame.Navigate(typeof(AnnotationsPage), new AnnotationsView(notes, bookKey));
     }
 
     /// <summary>Shows the books on one of My lists (from the pane, or a list chip in a book's details).</summary>
@@ -355,7 +372,6 @@ public sealed partial class MainWindow : Window
         LibraryFilter.Unread => "unread",
         LibraryFilter.Finished => "finished",
         LibraryFilter.NeedsDetails => "needs",
-        LibraryFilter.Notes => "notes",
         _ => "all"
     };
 
@@ -581,7 +597,9 @@ public sealed partial class MainWindow : Window
 
     private void RefreshCounts()
     {
-        NotesCount.Text = Library.NotesCount.ToString("N0");
+        var (highlights, notes) = AppServices.Annotations.Counts();
+        HighlightsCount.Text = highlights.ToString("N0");
+        NotesCount.Text = (Library.NotesCount + notes).ToString("N0");
         var counts = Library.ListCounts();
         foreach (var (name, text) in _listCounts) text.Text = counts.GetValueOrDefault(name).ToString("N0");
     }

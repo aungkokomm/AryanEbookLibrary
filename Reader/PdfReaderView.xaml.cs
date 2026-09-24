@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
+using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Reader.Pdf;
 using AryanEbookLibrary.Services;
 using Microsoft.UI;
@@ -144,6 +145,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _layoutPending = true;
         TryApplyInitialView();
         ProbeDefine();
+        ProbeHighlights();
+        _ = MakeMissingClipsAsync();
     }
 
     private void BuildLayout()
@@ -189,6 +192,11 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         GoTo(page, Math.Clamp(fraction, 0, 0.999), zoom ?? FitZoom(page));
         ShowPageNumber();
         PageChanged?.Invoke(page, page);
+        if (_pendingReveal is { } reveal)
+        {
+            _pendingReveal = null;
+            Reveal(reveal);
+        }
     }
 
     /// <summary>
@@ -217,14 +225,62 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Log.Write($"reader: probe found no \"{word}\" near page {_currentPage + 1}");
     }
 
+    /// <summary>
+    /// For checking highlights without a mouse, each only when its variable is set: ARYAN_READER_SELECT=words selects
+    /// the first place those words are near the page the book opens at, as a drag would; ARYAN_READER_AREA=x,y,w,h
+    /// draws a box (fractions of that page); ARYAN_READER_PAGENOTE=1 starts a note on it. The bar then shows as it
+    /// would, for UI Automation to pick a colour or write the note.
+    /// </summary>
+    private async void ProbeHighlights()
+    {
+        var select = Environment.GetEnvironmentVariable("ARYAN_READER_SELECT");
+        var area = Environment.GetEnvironmentVariable("ARYAN_READER_AREA");
+        var note = Environment.GetEnvironmentVariable("ARYAN_READER_PAGENOTE");
+        if (_book is null || (string.IsNullOrWhiteSpace(select) && string.IsNullOrWhiteSpace(area) && string.IsNullOrWhiteSpace(note))) return;
+        await Task.Delay(2500);
+        if (_closed) return;
+        var page = Math.Max(0, _currentPage);
+        if (!string.IsNullOrWhiteSpace(select))
+        {
+            // "words+40" goes on 40 characters past the words.
+            var extra = 0;
+            var plus = select.LastIndexOf('+');
+            if (plus > 0 && int.TryParse(select[(plus + 1)..], out var more))
+            {
+                extra = more;
+                select = select[..plus];
+            }
+            for (var p = page; p < Math.Min(_book.PageCount, page + 3); p++)
+            {
+                if (Text(p) is not { } layer) continue;
+                var at = layer.FindMatches(select, new SearchOptions());
+                if (at.Count == 0) continue;
+                var (start, length) = at[0];
+                _anchor = (p, start);
+                _focus = (p, Math.Min(layer.CharCount - 1, start + length - 1 + extra));
+                DrawAllMarks();
+                OfferSelection();
+                return;
+            }
+            Log.Write($"reader: probe found no \"{select}\" near page {page + 1}");
+        }
+        else if (!string.IsNullOrWhiteSpace(area))
+        {
+            var n = area.Split(',').Select(v => double.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            OfferArea(page, new Rect(n[0], n[1], n[2], n[3]));
+        }
+        else NewPageNote(page, new Point(SlotWidth(page) / 2, 40));
+    }
+
     private async Task LoadOutlineAsync()
     {
         var book = _book;
         if (book is null) return;
         var outline = await Task.Run(book.ReadOutline);
         if (_closed) return;
+        _outline = outline;
         OutlineList.ItemsSource = outline.Select(e => new OutlineRow(e)).ToList();
-        NoOutlineText.Visibility = outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPaneTab();
     }
 
     // ---- messages: opening, password, failure ----
@@ -504,6 +560,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         }
         UpdateView(final: !e.IsIntermediate);
         PlaceDefinition();
+        PlaceBar();
     }
 
     /// <summary>
@@ -991,18 +1048,36 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (!point.Properties.IsLeftButtonPressed) return;
 
         Scroller.Focus(FocusState.Pointer);
+        _notes?.HideBar();
         ClearSelection();
-        if (HitPage(point.Position) is not { } hit || Text(hit.Page) is not { CharCount: > 0 } layer) return;
+        if (HitPage(point.Position) is not { } hit) return;
+        _pressedAt = point.Position;
+
+        // Highlighting an area, or a page with no text to select (a scan): a drag draws a box.
+        if (AreaButton.IsChecked == true || Text(hit.Page) is not { CharCount: > 0 } layer)
+        {
+            _areaDrag = (hit.Page, hit.Local, hit.Local);
+            PageCanvas.CapturePointer(e.Pointer);
+            return;
+        }
 
         var scale = TextScale(hit.Page);
         _anchor = (hit.Page, layer.HitTestNearest(hit.Local.X / scale, hit.Local.Y / scale));
         _selecting = true;
-        _pressedAt = point.Position;
         PageCanvas.CapturePointer(e.Pointer);
     }
 
     private void OnPageMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_areaDrag is { } drag)
+        {
+            var point = e.GetCurrentPoint(PageCanvas).Position;
+            var end = new Point(Math.Clamp(point.X - SlotLeft(drag.Page), 0, SlotWidth(drag.Page)),
+                Math.Clamp(point.Y - SlotTop(drag.Page), 0, SlotHeight(drag.Page)));
+            _areaDrag = (drag.Page, drag.Start, end);
+            if (_cards.TryGetValue(drag.Page, out var card)) DrawMarks(card);
+            return;
+        }
         if (!_selecting) return;
         var at = e.GetCurrentPoint(PageCanvas).Position;
         if (_focus is null && Math.Abs(at.X - _pressedAt.X) + Math.Abs(at.Y - _pressedAt.Y) < 4) return;
@@ -1014,13 +1089,45 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         DrawAllMarks();
     }
 
+    /// <summary>
+    /// The end of a press on the pages: words dragged over get the bar, a box drawn gets it too, and a click on a
+    /// highlight, a clipped area or a page's note opens it.
+    /// </summary>
     private void OnPageReleased(object sender, PointerRoutedEventArgs e)
     {
+        var selecting = _selecting;
         _selecting = false;
         PageCanvas.ReleasePointerCapture(e.Pointer);
+        var at = e.GetCurrentPoint(PageCanvas).Position;
+        var moved = Math.Abs(at.X - _pressedAt.X) + Math.Abs(at.Y - _pressedAt.Y) >= 4;
+
+        if (_areaDrag is { } drag)
+        {
+            _areaDrag = null;
+            var box = DragBox(drag);
+            if (moved && box.Width >= 8 && box.Height >= 8)
+            {
+                OfferArea(drag.Page, new Rect(box.X / SlotWidth(drag.Page), box.Y / SlotHeight(drag.Page),
+                    box.Width / SlotWidth(drag.Page), box.Height / SlotHeight(drag.Page)));
+                return;
+            }
+            if (_cards.TryGetValue(drag.Page, out var card)) DrawMarks(card);
+        }
+        else if (selecting && _focus is not null)
+        {
+            OfferSelection();
+            return;
+        }
+        if (!moved && HitPage(at) is { } hit && AnnotationAt(hit.Page, hit.Local) is { } a) EditAt(hit.Page, a);
     }
 
-    private void OnPageCaptureLost(object sender, PointerRoutedEventArgs e) => _selecting = false;
+    private void OnPageCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        _selecting = false;
+        if (_areaDrag is not { } drag) return;
+        _areaDrag = null;
+        if (_cards.TryGetValue(drag.Page, out var card)) DrawMarks(card);
+    }
 
     private void OnPageDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
@@ -1028,6 +1135,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _anchor = (word.Page, word.Start);
         _focus = (word.Page, word.Start + word.Length - 1);
         DrawAllMarks();
+        OfferSelection();
     }
 
     private void ClearSelection()
@@ -1079,37 +1187,98 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         foreach (var card in _cards.Values) DrawMarks(card);
     }
 
+    /// <summary>
+    /// One page's marks, bottom to top: highlights and clipped areas, the notes on the page, search matches, the
+    /// selection, a box being drawn, and the outline of one just jumped to.
+    /// </summary>
     private void DrawMarks(PageCard card)
     {
         card.Marks.Children.Clear();
-        var hasMatches = _matches.Count > 0 && MatchesOn(card.Page).Any();
-        var selected = Selection() is { } s && card.Page >= s.Start.Page && card.Page <= s.End.Page;
-        if (!hasMatches && !selected) return;
-        if (Text(card.Page) is not { } layer) return;
-        var scale = TextScale(card.Page);
+        var page = card.Page;
+        var marks = AnnotationsOn(page).ToList();
+        var notes = PageNotesOn(page).ToList();
+        var hasMatches = _matches.Count > 0 && MatchesOn(page).Any();
+        var selected = Selection() is { } s && page >= s.Start.Page && page <= s.End.Page;
+        var dragging = _areaDrag?.Page == page;
+        var pending = _pendingArea?.Page == page;
+        var flashing = _flash?.Page == page;
+        if (marks.Count == 0 && notes.Count == 0 && !hasMatches && !selected && !dragging && !pending && !flashing) return;
+        var layer = Text(page);
+        var scale = TextScale(page);
+
+        void AddBox(Rect r, Windows.UI.Color? fill, Windows.UI.Color? stroke = null, double thickness = 0, bool dashed = false)
+        {
+            var rect = new Rectangle
+            {
+                Width = Math.Max(1, r.Width),
+                Height = Math.Max(1, r.Height),
+                Fill = fill is { } f ? new SolidColorBrush(f) : null,
+                Stroke = stroke is { } k ? new SolidColorBrush(k) : null,
+                StrokeThickness = thickness,
+                RadiusX = 2,
+                RadiusY = 2,
+            };
+            if (dashed) rect.StrokeDashArray = new DoubleCollection { 4, 3 };
+            Canvas.SetLeft(rect, r.X);
+            Canvas.SetTop(rect, r.Y);
+            card.Marks.Children.Add(rect);
+        }
 
         void Add(int start, int length, Windows.UI.Color color)
         {
+            if (layer is null) return;
             foreach (var r in layer.GetRangeRects(start, length))
-            {
-                var rect = new Rectangle
-                {
-                    Width = Math.Max(1, r.Width * scale),
-                    Height = Math.Max(1, r.Height * scale),
-                    Fill = new SolidColorBrush(color),
-                };
-                Canvas.SetLeft(rect, r.Left * scale);
-                Canvas.SetTop(rect, r.Top * scale);
-                card.Marks.Children.Add(rect);
-            }
+                AddBox(new Rect(r.Left * scale, r.Top * scale, r.Width * scale, r.Height * scale), color);
         }
 
-        foreach (var m in MatchesOn(card.Page))
+        foreach (var a in marks)
         {
-            var current = _matchIndex >= 0 && _matchIndex < _matches.Count && _matches[_matchIndex] == m;
-            Add(m.Start, m.Length, current ? Windows.UI.Color.FromArgb(0x80, 0xFF, 0x8C, 0x00) : Windows.UI.Color.FromArgb(0x55, 0xFF, 0xD7, 0x00));
+            if (AreaOf(a) is { } area) AddBox(SlotRect(page, area.Box), HighlightColors.Wash(a.Color, 0x2E), HighlightColors.Of(a.Color), 2);
+            else if (TextRange(a) is { } r && layer is not null && RangeOn(page, r, layer) is { } range) Add(range.Start, range.Length, HighlightColors.Wash(a.Color));
         }
-        if (SelectedOn(card.Page, layer) is { } range) Add(range.Start, range.Length, Windows.UI.Color.FromArgb(0x55, 0x1E, 0x78, 0xE6));
+        for (var i = 0; i < notes.Count; i++) DrawNoteBadge(card, BadgeRect(page, i));
+
+        if (layer is not null)
+        {
+            foreach (var m in MatchesOn(page))
+            {
+                var current = _matchIndex >= 0 && _matchIndex < _matches.Count && _matches[_matchIndex] == m;
+                Add(m.Start, m.Length, current ? Windows.UI.Color.FromArgb(0x80, 0xFF, 0x8C, 0x00) : Windows.UI.Color.FromArgb(0x55, 0xFF, 0xD7, 0x00));
+            }
+            if (SelectedOn(page, layer) is { } range) Add(range.Start, range.Length, Windows.UI.Color.FromArgb(0x55, 0x1E, 0x78, 0xE6));
+        }
+
+        var blue = Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x78, 0xE6);
+        if (dragging && _areaDrag is { } drag) AddBox(DragBox(drag), Windows.UI.Color.FromArgb(0x22, 0x1E, 0x78, 0xE6), blue, 1.5, dashed: true);
+        if (pending && _pendingArea is { } waiting) AddBox(SlotRect(page, waiting.Box), Windows.UI.Color.FromArgb(0x22, 0x1E, 0x78, 0xE6), blue, 1.5, dashed: true);
+        if (flashing && _flash is { } flash)
+        {
+            var b = flash.Box;
+            AddBox(new Rect(b.X - 4, b.Y - 4, b.Width + 8, b.Height + 8), null, Windows.UI.Color.FromArgb(0xFF, 0xFF, 0x8C, 0x00), 3);
+        }
+    }
+
+    /// <summary>A note on a page: a small yellow note in its top corner, the look of Define's popup.</summary>
+    private static void DrawNoteBadge(PageCard card, Rect at)
+    {
+        var badge = new Border
+        {
+            Width = at.Width,
+            Height = at.Height,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xF4, 0xCE)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xE6, 0xC8, 0x4F)),
+            BorderThickness = new Thickness(1),
+            Child = new FontIcon
+            {
+                Glyph = ((char)0xE70B).ToString(),
+                FontSize = 14,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x3D, 0x34, 0x13)),
+            },
+        };
+        Canvas.SetLeft(badge, at.X);
+        Canvas.SetTop(badge, at.Y);
+        card.Marks.Children.Add(badge);
     }
 
     // ================================================================ right-click: define, copy, find
@@ -1134,8 +1303,13 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             {
                 SearchBox.Text = text;
                 StartSearch();
-            });
-        if (menu is null) return;
+            }) ?? new MenuFlyout();
+        if (_notes is not null && HitPage(at) is { } hit)
+            WordMenu.AddNoteItems(menu,
+                selected.Length > 0 ? color => { OfferSelection(); _notes.Choose(color); } : null,
+                selected.Length > 0 ? () => { OfferSelection(); _notes.StartNote(); } : null,
+                () => NewPageNote(hit.Page, hit.Local));
+        if (menu.Items.Count == 0) return;
         e.Handled = true;
         menu.ShowAt(PageCanvas, new FlyoutShowOptions { Position = at });
     }
@@ -1355,6 +1529,350 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Scroller.ChangeView(h, Math.Max(0, cy * z - Scroller.ViewportHeight / 3), null, true);
     }
 
+    // ================================================================ highlights and notes
+
+    private ReaderAnnotations? _notes;
+    private Annotation? _pendingReveal;
+    /// <summary>What the bar is about: a page and a box on it, in slot DIPs.</summary>
+    private (int Page, Rect Box)? _barAnchor;
+    /// <summary>A box being drawn: its page and corners, in slot DIPs.</summary>
+    private (int Page, Point Start, Point End)? _areaDrag;
+    /// <summary>A box drawn and waiting for a colour, in fractions of the page.</summary>
+    private (int Page, Rect Box)? _pendingArea;
+    /// <summary>Outlined for a moment after a jump to it, in slot DIPs.</summary>
+    private (int Page, Rect Box)? _flash;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _flashTimer;
+    private IReadOnlyList<PdfOutlineEntry> _outline = Array.Empty<PdfOutlineEntry>();
+
+    /// <summary>The width a page is drawn at for a clip's picture: sharp enough to read, small enough to keep.</summary>
+    private const int ClipPageWidth = 1600;
+
+    public void UseAnnotations(ReaderAnnotations notes)
+    {
+        _notes = notes;
+        notes.Attach(Bar);
+        notes.Drawn += _ => DrawAllMarks();
+        notes.Removed += _ => DrawAllMarks();
+        notes.Reloaded += DrawAllMarks;
+        notes.Created += a => _ = MakeClipAsync(a);
+        Bar.Closed += OnBarClosed;
+        HighlightsList.CountChanged += n => HighlightsTab.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
+        HighlightsList.OpenRequested += a =>
+        {
+            Reveal(a);
+            FocusPages();
+        };
+        HighlightsList.NoteRequested += a =>
+        {
+            Reveal(a);
+            notes.EditNote(a, BarBox(), SurfaceSize);
+        };
+        HighlightsList.Bind(notes);
+    }
+
+    // ---- anchors ----
+
+    /// <summary>A text highlight's first and last character, or null for any other kind.</summary>
+    private static (int StartPage, int Start, int EndPage, int End)? TextRange(Annotation a) =>
+        Annotation.AnchorNumbers(a.Anchor, "pdf1") is [var sp, var si, var ep, var ei] ? ((int)sp, (int)si, (int)ep, (int)ei) : null;
+
+    /// <summary>A clipped area's page and box, in fractions of the page, or null for any other kind.</summary>
+    private static (int Page, Rect Box)? AreaOf(Annotation a) =>
+        Annotation.AnchorNumbers(a.Anchor, "pdfarea1") is [var p, var x, var y, var w, var h] ? ((int)p, new Rect(x, y, w, h)) : null;
+
+    private static int PageOf(Annotation a) => TextRange(a)?.StartPage ?? AreaOf(a)?.Page ?? a.Page;
+
+    /// <summary>The highlights and clipped areas drawn on a page.</summary>
+    private IEnumerable<Annotation> AnnotationsOn(int page) => _notes is null ? [] : _notes.Items.Where(a =>
+        TextRange(a) is { } r ? page >= r.StartPage && page <= r.EndPage : AreaOf(a) is { } area && area.Page == page);
+
+    private IEnumerable<Annotation> PageNotesOn(int page) =>
+        _notes is null ? [] : _notes.Items.Where(a => a.Kind == AnnotationKind.PageNote && a.Page == page);
+
+    /// <summary>A highlight's part of one page, as a range of that page's text.</summary>
+    private static (int Start, int Length)? RangeOn(int page, (int StartPage, int Start, int EndPage, int End) r, PageTextLayer layer)
+    {
+        var start = page == r.StartPage ? r.Start : 0;
+        var end = Math.Min(page == r.EndPage ? r.End + 1 : layer.CharCount, layer.CharCount);
+        return end > start ? (start, end - start) : null;
+    }
+
+    private Rect SlotRect(int page, Rect fraction) =>
+        new(fraction.X * SlotWidth(page), fraction.Y * SlotHeight(page), fraction.Width * SlotWidth(page), fraction.Height * SlotHeight(page));
+
+    private static Rect DragBox((int Page, Point Start, Point End) drag) =>
+        new(Math.Min(drag.Start.X, drag.End.X), Math.Min(drag.Start.Y, drag.End.Y),
+            Math.Abs(drag.End.X - drag.Start.X), Math.Abs(drag.End.Y - drag.Start.Y));
+
+    /// <summary>Where the i-th note on a page shows: small notes along the page's top edge, from the right.</summary>
+    private Rect BadgeRect(int page, int i) => new(SlotWidth(page) - 36 - i * 34, 8, 28, 28);
+
+    /// <summary>
+    /// Where an annotation is on its first page, in slot DIPs: all of it (for a clip or an outline), or its first line
+    /// (for the bar).
+    /// </summary>
+    private Rect? BoxOf(Annotation a, bool whole)
+    {
+        if (AreaOf(a) is { } area) return SlotRect(area.Page, area.Box);
+        if (a.Kind == AnnotationKind.PageNote)
+        {
+            var index = PageNotesOn(a.Page).ToList().IndexOf(a);
+            return index >= 0 ? BadgeRect(a.Page, index) : null;
+        }
+        if (TextRange(a) is not { } r || Text(r.StartPage) is not { } layer || RangeOn(r.StartPage, r, layer) is not { } range) return null;
+        var rects = layer.GetRangeRects(range.Start, range.Length);
+        if (rects.Count == 0) return null;
+        var scale = TextScale(r.StartPage);
+        var left = whole ? rects.Min(t => t.Left) : rects[0].Left;
+        var top = whole ? rects.Min(t => t.Top) : rects[0].Top;
+        var right = whole ? rects.Max(t => t.Right) : rects[0].Right;
+        var bottom = whole ? rects.Max(t => t.Bottom) : rects[0].Bottom;
+        return new Rect(left * scale, top * scale, (right - left) * scale, (bottom - top) * scale);
+    }
+
+    /// <summary>What is under a click: a note on the page, a clipped area or a highlight; the one on top first.</summary>
+    private Annotation? AnnotationAt(int page, Point local)
+    {
+        var notes = PageNotesOn(page).ToList();
+        for (var i = 0; i < notes.Count; i++)
+            if (BadgeRect(page, i).Contains(local)) return notes[i];
+        var scale = TextScale(page);
+        foreach (var a in AnnotationsOn(page).Reverse())
+        {
+            if (AreaOf(a) is { } area)
+            {
+                if (SlotRect(page, area.Box).Contains(local)) return a;
+            }
+            else if (TextRange(a) is { } r && Text(page) is { } layer && RangeOn(page, r, layer) is { } range)
+            {
+                foreach (var t in layer.GetRangeRects(range.Start, range.Length))
+                    if (new Rect(t.Left * scale, t.Top * scale, t.Width * scale, t.Height * scale).Contains(local)) return a;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The chapter a page is in, by the book's own contents: the last entry at or before it.</summary>
+    private string ChapterOf(int page) =>
+        _outline.Where(e => e.Page >= 0 && e.Page <= page).OrderBy(e => e.Page).LastOrDefault()?.Title.Trim() ?? "";
+
+    private double PositionOf(int page, double within) =>
+        _book is not { PageCount: > 0 } book ? 0 : (page + Math.Clamp(within, 0, 0.999)) / book.PageCount;
+
+    // ---- the bar ----
+
+    private Size SurfaceSize => new(Surface.ActualWidth, Surface.ActualHeight);
+
+    /// <summary>What the bar is about, where it is in the view now.</summary>
+    private Rect? BarBox() => _barAnchor is { } a
+        ? CanvasToView(new Rect(SlotLeft(a.Page) + a.Box.X, SlotTop(a.Page) + a.Box.Y, a.Box.Width, a.Box.Height))
+        : null;
+
+    private void PlaceBar()
+    {
+        if (_notes?.BarOpen == true) _notes.Place(BarBox(), SurfaceSize);
+    }
+
+    /// <summary>Words just selected: the bar offers the colours, a note and copy.</summary>
+    private void OfferSelection()
+    {
+        if (_notes is null || Selection() is not { } s) return;
+        var words = SelectedText();
+        if (words.Length == 0 || Text(s.Start.Page) is not { } layer || SelectedOn(s.Start.Page, layer) is not { } range) return;
+        var rects = layer.GetRangeRects(range.Start, range.Length);
+        if (rects.Count == 0) return;
+        var scale = TextScale(s.Start.Page);
+        _barAnchor = (s.Start.Page, new Rect(rects[0].Left * scale, rects[0].Top * scale, rects[0].Width * scale, rects[0].Height * scale));
+        HideDefinition();
+        _notes.Offer(() => MakeHighlight(s, words), words, BarBox(), SurfaceSize);
+    }
+
+    private Annotation MakeHighlight(((int Page, int Index) Start, (int Page, int Index) End) s, string words)
+    {
+        var first = Text(s.Start.Page);
+        var last = Text(s.End.Page);
+        var before = first is null ? "" : first.Text[Math.Max(0, s.Start.Index - 40)..Math.Min(first.Text.Length, s.Start.Index)];
+        var afterStart = last is null ? 0 : Math.Min(last.Text.Length, s.End.Index + 1);
+        var after = last is null ? "" : last.Text[afterStart..Math.Min(last.Text.Length, afterStart + 40)];
+        ClearSelection();
+        return new Annotation
+        {
+            Kind = AnnotationKind.Highlight,
+            Anchor = Annotation.MakeAnchor("pdf1", s.Start.Page, s.Start.Index, s.End.Page, s.End.Index),
+            Page = s.Start.Page,
+            Position = PositionOf(s.Start.Page, s.Start.Index / (double)Math.Max(1, first?.CharCount ?? 1)),
+            Chapter = ChapterOf(s.Start.Page),
+            Quote = Flowing(words),
+            Before = before,
+            After = after,
+        };
+    }
+
+    /// <summary>
+    /// A PDF's words as a card shows them: its lines are where the page wrapped, so they run on as one text, and a
+    /// word broken over two lines with a hyphen is whole again.
+    /// </summary>
+    private static string Flowing(string words)
+    {
+        var text = System.Text.RegularExpressions.Regex.Replace(words.Replace("\r\n", "\n").Replace('\r', '\n'), @"(\p{L})-\n(\p{Ll})", "$1$2");
+        return System.Text.RegularExpressions.Regex.Replace(text.Replace('\n', ' '), @" {2,}", " ").Trim();
+    }
+
+    /// <summary>A box just drawn: the bar offers the colours for it.</summary>
+    private void OfferArea(int page, Rect fraction)
+    {
+        if (_notes is null) return;
+        _pendingArea = (page, fraction);
+        _barAnchor = (page, SlotRect(page, fraction));
+        if (_cards.TryGetValue(page, out var card)) DrawMarks(card);
+        HideDefinition();
+        _notes.Offer(() =>
+        {
+            _pendingArea = null;
+            AreaButton.IsChecked = false;
+            return new Annotation
+            {
+                Kind = AnnotationKind.Area,
+                Anchor = Annotation.MakeAnchor("pdfarea1", page, fraction.X, fraction.Y, fraction.Width, fraction.Height),
+                Page = page,
+                Position = PositionOf(page, fraction.Y),
+                Chapter = ChapterOf(page),
+            };
+        }, "", BarBox(), SurfaceSize);
+    }
+
+    /// <summary>The bar went away without a colour: the box drawn for it goes too.</summary>
+    private void OnBarClosed()
+    {
+        if (_pendingArea is not { } waiting) return;
+        _pendingArea = null;
+        if (_cards.TryGetValue(waiting.Page, out var card)) DrawMarks(card);
+    }
+
+    private void NewPageNote(int page, Point local)
+    {
+        if (_notes is null) return;
+        _barAnchor = (page, new Rect(local.X, local.Y, 1, 1));
+        HideDefinition();
+        _notes.NewPageNote(() => new Annotation
+        {
+            Kind = AnnotationKind.PageNote,
+            Anchor = Annotation.MakeAnchor("page1", page),
+            Page = page,
+            Position = PositionOf(page, local.Y / SlotHeight(page)),
+            Chapter = ChapterOf(page),
+        }, BarBox(), SurfaceSize);
+    }
+
+    /// <summary>A click on one: the bar for it, or straight to its note for a note on the page.</summary>
+    private void EditAt(int page, Annotation a)
+    {
+        if (_notes is null) return;
+        _barAnchor = (page, BoxOf(a, whole: false) ?? new Rect(0, 0, SlotWidth(page), 1));
+        HideDefinition();
+        if (a.Kind == AnnotationKind.PageNote) _notes.EditNote(a, BarBox(), SurfaceSize);
+        else _notes.Edit(a, BarBox(), SurfaceSize);
+    }
+
+    private void OnAreaClick(object sender, RoutedEventArgs e) => FocusPages();
+
+    // ---- going to one ----
+
+    /// <summary>Scrolls to it, as a jump Back returns from, and outlines it for a moment; waits for the book to open.</summary>
+    public void Reveal(Annotation a)
+    {
+        if (_book is null || _layoutPending)
+        {
+            _pendingReveal = a;
+            return;
+        }
+        var page = Math.Clamp(PageOf(a), 0, _book.PageCount - 1);
+        _jumps.Jumped(TopPosition());
+        if (BoxOf(a, whole: true) is { } box)
+        {
+            BringIntoView(page, box.X + box.Width / 2, box.Y);
+            Flash(page, box);
+        }
+        else GoToPage(page);
+        _barAnchor = (page, BoxOf(a, whole: false) ?? new Rect(0, 0, SlotWidth(page), 1));
+    }
+
+    private void Flash(int page, Rect box)
+    {
+        _flash = (page, box);
+        if (_cards.TryGetValue(page, out var card)) DrawMarks(card);
+        if (_flashTimer is null)
+        {
+            _flashTimer = DispatcherQueue.CreateTimer();
+            _flashTimer.Interval = TimeSpan.FromMilliseconds(1600);
+            _flashTimer.IsRepeating = false;
+            _flashTimer.Tick += (_, _) =>
+            {
+                if (_flash is not { } f) return;
+                _flash = null;
+                if (_cards.TryGetValue(f.Page, out var c)) DrawMarks(c);
+            };
+        }
+        _flashTimer.Stop();
+        _flashTimer.Start();
+    }
+
+    // ---- pictures ----
+
+    /// <summary>
+    /// Keeps a picture of a clipped area, or of a highlight's lines: the file's words for them may not be what the page
+    /// shows (Myanmar and Hindi PDFs), so the cards can show the page itself. Drawn in paper colours, whatever the theme.
+    /// </summary>
+    private async Task MakeClipAsync(Annotation a)
+    {
+        var book = _book;
+        if (book is null || _closed || !a.KeepsPicture) return;
+        int page;
+        Rect fraction;
+        if (AreaOf(a) is { } area) (page, fraction) = (area.Page, area.Box);
+        else if (TextRange(a) is { } r && BoxOf(a, whole: true) is { } box)
+            (page, fraction) = (r.StartPage, new Rect(box.X / SlotWidth(r.StartPage), box.Y / SlotHeight(r.StartPage),
+                box.Width / SlotWidth(r.StartPage), box.Height / SlotHeight(r.StartPage)));
+        else return;
+        if (page < 0 || page >= book.PageCount) return;
+        try
+        {
+            var render = await Task.Run(() => book.RenderPage(page, ClipPageWidth));
+            if (render is not { } image || _closed) return;
+            var png = await ClipMaker.CropAsync(image.Bgra, image.Width, image.Height, ClipMaker.Padded(fraction));
+            if (png is not null && !_closed) ClipStore.Save(a.Id, png);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"reader: a clip of page {page + 1} could not be made: {ex.Message}");
+        }
+    }
+
+    /// <summary>Pictures made on another computer, or never made here: made now the book is open, one at a time.</summary>
+    private async Task MakeMissingClipsAsync()
+    {
+        if (_notes is null) return;
+        foreach (var a in _notes.Items.Where(a => a.KeepsPicture && !ClipStore.Exists(a.Id)).ToList())
+        {
+            if (_closed) return;
+            await MakeClipAsync(a);
+        }
+    }
+
+    // ---- the side pane's tabs ----
+
+    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => ShowPaneTab();
+
+    private void ShowPaneTab()
+    {
+        var highlights = ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab);
+        HighlightsList.Visibility = highlights ? Visibility.Visible : Visibility.Collapsed;
+        OutlineList.Visibility = highlights ? Visibility.Collapsed : Visibility.Visible;
+        NoOutlineText.Visibility = !highlights && OutlineLoaded && _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private bool OutlineLoaded => OutlineList.ItemsSource is not null;
+
     // ================================================================ keys
 
     private void AddAccelerators()
@@ -1407,6 +1925,17 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             FocusPages();
             return true;
         }
+        if (_notes?.BarOpen == true)
+        {
+            _notes.HideBar();
+            FocusPages();
+            return true;
+        }
+        if (AreaButton.IsChecked == true)
+        {
+            AreaButton.IsChecked = false;
+            return true;
+        }
         if (Definition.IsOpen)
         {
             HideDefinition();
@@ -1439,6 +1968,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (_closed) return;
         _closed = true;
         _reveal.Close();
+        _flashTimer?.Stop();
         _searchCts?.Cancel();
         _queue?.Dispose();
         var book = _book;

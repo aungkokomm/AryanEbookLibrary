@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
+using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Reader.Comic;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Input;
@@ -93,7 +94,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         FitButton.Content = item.Text;
         ShowMode();
         Scroller.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnWheel), true);
-        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, null, FocusPages);
+        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, HighlightsPane, FocusPages);
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
     }
@@ -140,6 +141,13 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         PageCountText.Text = $"of {book.PageCount:N0}";
         _reveal.Show(ToolbarReveal.Glimpse);
         GoTo(position is { } p && p.Page >= 0 && p.Page < book.PageCount ? p.Page : 0);
+        if (_pendingReveal is { } reveal)
+        {
+            _pendingReveal = null;
+            Reveal(reveal);
+        }
+        _ = MakeMissingClipsAsync();
+        ProbeHighlights();
     }
 
     // ================================================================ pages
@@ -179,6 +187,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     /// <summary>The current page at the current fit, even while a sharper decode for it is on its way.</summary>
     private void ShowCurrent()
     {
+        DrawMarksSoon();
         if (Continuous)
         {
             ShowStrip();
@@ -409,6 +418,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     /// <summary>Zoomed in, the page is decoded again at the new size so it stays sharp.</summary>
     private void OnViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        PlaceBar();
         if (Continuous)
         {
             // A jump has arrived, or the reader has taken over the scrolling.
@@ -541,9 +551,14 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         }
     }
 
-    /// <summary>A click near the left edge goes back a page, near the right edge on.</summary>
+    /// <summary>A click on a clipped panel or a page's note opens it; near the left edge goes back a page, near the right edge on.</summary>
     private void OnPageTapped(object sender, TappedRoutedEventArgs e)
     {
+        if (AnnotationUnder(e.GetPosition(PageHost)) is { } hit)
+        {
+            EditAt(hit);
+            return;
+        }
         var x = e.GetPosition(Scroller).X;
         var w = Scroller.ActualWidth;
         if (x < w * 0.3) GoTo(_page - 1);
@@ -686,14 +701,409 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         MessageRing.IsActive = false;
     }
 
+    // ================================================================ highlights and notes
+
+    private ReaderAnnotations? _notes;
+    private Annotation? _pendingReveal;
+    /// <summary>A box being drawn: its page and corners, in the page host's DIPs.</summary>
+    private (int Page, Point Start, Point End)? _drag;
+    private Point _pressedAt;
+    /// <summary>A box drawn and waiting for a colour, in fractions of the page.</summary>
+    private (int Page, Rect Box)? _pendingArea;
+    /// <summary>What the bar is about, in fractions of the page.</summary>
+    private (int Page, Rect Box)? _barAnchor;
+    /// <summary>Outlined for a moment after a jump to it, in fractions of the page.</summary>
+    private (int Page, Rect Box)? _flash;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _flashTimer;
+
+    /// <summary>A clip's picture is no wider than this: enough to read a panel's words, small enough to keep.</summary>
+    private const int ClipMaxWidth = 1200;
+
+    public void UseAnnotations(ReaderAnnotations notes)
+    {
+        _notes = notes;
+        notes.Attach(Bar);
+        notes.Drawn += _ => DrawMarks();
+        notes.Removed += _ => DrawMarks();
+        notes.Reloaded += DrawMarks;
+        notes.Created += a => _ = MakeClipAsync(a);
+        Bar.Closed += () =>
+        {
+            if (_pendingArea is null) return;
+            _pendingArea = null;
+            DrawMarks();
+        };
+        HighlightsList.EmptyMessage =
+            "Drag a box round a panel to keep it. Right-click a page to highlight all of it or add a note to it. They all show here.";
+        HighlightsList.CountChanged += n => PaneTitle.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
+        HighlightsList.OpenRequested += a =>
+        {
+            Reveal(a);
+            FocusPages();
+        };
+        HighlightsList.NoteRequested += a =>
+        {
+            Reveal(a);
+            notes.EditNote(a, BarBox(), SurfaceSize);
+        };
+        HighlightsList.Bind(notes);
+    }
+
+    private static (int Page, Rect Box)? AreaOf(Annotation a) =>
+        Annotation.AnchorNumbers(a.Anchor, "comicarea1") is [var p, var x, var y, var w, var h] ? ((int)p, new Rect(x, y, w, h)) : null;
+
+    private static int PageOf(Annotation a) => AreaOf(a)?.Page ?? a.Page;
+
+    private Size SurfaceSize => new(Surface.ActualWidth, Surface.ActualHeight);
+
+    /// <summary>Where a page's picture is laid out, in the page host's DIPs; null when it is not (another page, in page view).</summary>
+    private Rect? PageBounds(int page)
+    {
+        FrameworkElement? image = Continuous ? (page >= 0 && page < _strip.Count ? _strip[page] : null) : page == _page ? PageImage : null;
+        if (image is null || image.ActualWidth < 1 || image.ActualHeight < 1) return null;
+        return image.TransformToVisual(PageHost).TransformBounds(new Rect(0, 0, image.ActualWidth, image.ActualHeight));
+    }
+
+    /// <summary>The page under a point of the page host, of those in and next to the view.</summary>
+    private int? PageUnder(Point host)
+    {
+        if (_book is null) return null;
+        var (first, last) = InView();
+        for (var p = Math.Max(0, first - 1); p <= Math.Min(_book.PageCount - 1, last + 1); p++)
+            if (PageBounds(p) is { } b && b.Contains(host)) return p;
+        return null;
+    }
+
+    private static Rect Within(Rect bounds, Rect fraction) =>
+        new(bounds.X + fraction.X * bounds.Width, bounds.Y + fraction.Y * bounds.Height, fraction.Width * bounds.Width, fraction.Height * bounds.Height);
+
+    /// <summary>Where the i-th note on a page shows: small notes along the page's top edge, from the right.</summary>
+    private static Rect BadgeIn(Rect bounds, int i) => new(bounds.Right - 36 - i * 34, bounds.Top + 8, 28, 28);
+
+    private List<Annotation> PageNotesOn(int page) =>
+        _notes?.Items.Where(a => a.Kind == AnnotationKind.PageNote && a.Page == page).ToList() ?? new();
+
+    private static Rect DragBox((int Page, Point Start, Point End) drag) =>
+        new(Math.Min(drag.Start.X, drag.End.X), Math.Min(drag.Start.Y, drag.End.Y),
+            Math.Abs(drag.End.X - drag.Start.X), Math.Abs(drag.End.Y - drag.Start.Y));
+
+    /// <summary>What is under a click: a note on the page first, then the clipped panels, the latest on top.</summary>
+    private Annotation? AnnotationUnder(Point host)
+    {
+        if (_notes is null || PageUnder(host) is not { } page || PageBounds(page) is not { } bounds) return null;
+        var notes = PageNotesOn(page);
+        for (var i = 0; i < notes.Count; i++)
+            if (BadgeIn(bounds, i).Contains(host)) return notes[i];
+        return _notes.Items.LastOrDefault(a => AreaOf(a) is { } area && area.Page == page && Within(bounds, area.Box).Contains(host));
+    }
+
+    // ---- drawing ----
+
+    private void DrawMarksSoon() => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, DrawMarks);
+
+    /// <summary>The clipped panels, the notes on pages, a box being drawn and the outline of one jumped to.</summary>
+    private void DrawMarks()
+    {
+        MarksLayer.Children.Clear();
+        if (_notes is null || _book is null || _closed) return;
+
+        void AddBox(Rect r, Windows.UI.Color? fill, Windows.UI.Color stroke, double thickness, bool dashed = false)
+        {
+            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = Math.Max(1, r.Width),
+                Height = Math.Max(1, r.Height),
+                Fill = fill is { } f ? new SolidColorBrush(f) : null,
+                Stroke = new SolidColorBrush(stroke),
+                StrokeThickness = thickness,
+                RadiusX = 3,
+                RadiusY = 3,
+            };
+            if (dashed) rect.StrokeDashArray = new DoubleCollection { 4, 3 };
+            Canvas.SetLeft(rect, r.X);
+            Canvas.SetTop(rect, r.Y);
+            MarksLayer.Children.Add(rect);
+        }
+
+        foreach (var a in _notes.Items)
+            if (AreaOf(a) is { } area && PageBounds(area.Page) is { } b)
+                AddBox(Within(b, area.Box), HighlightColors.Wash(a.Color, 0x2E), HighlightColors.Of(a.Color), 2.5);
+
+        foreach (var page in _notes.Items.Where(a => a.Kind == AnnotationKind.PageNote).Select(a => a.Page).Distinct())
+        {
+            if (PageBounds(page) is not { } b) continue;
+            var count = PageNotesOn(page).Count;
+            for (var i = 0; i < count; i++) DrawNoteBadge(BadgeIn(b, i));
+        }
+
+        var blue = Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x78, 0xE6);
+        var wash = Windows.UI.Color.FromArgb(0x22, 0x1E, 0x78, 0xE6);
+        if (_drag is { } drag && Math.Abs(drag.End.X - drag.Start.X) + Math.Abs(drag.End.Y - drag.Start.Y) >= 6)
+            AddBox(DragBox(drag), wash, blue, 1.5, dashed: true);
+        if (_pendingArea is { } waiting && PageBounds(waiting.Page) is { } wb)
+            AddBox(Within(wb, waiting.Box), wash, blue, 1.5, dashed: true);
+        if (_flash is { } flash && PageBounds(flash.Page) is { } fb)
+        {
+            var r = Within(fb, flash.Box);
+            AddBox(new Rect(r.X - 4, r.Y - 4, r.Width + 8, r.Height + 8), null, Windows.UI.Color.FromArgb(0xFF, 0xFF, 0x8C, 0x00), 3);
+        }
+        PlaceBar();
+    }
+
+    /// <summary>A note on a page: a small yellow note in its top corner, the look of Define's popup.</summary>
+    private void DrawNoteBadge(Rect at)
+    {
+        var badge = new Border
+        {
+            Width = at.Width,
+            Height = at.Height,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xF4, 0xCE)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xE6, 0xC8, 0x4F)),
+            BorderThickness = new Thickness(1),
+            Child = new FontIcon
+            {
+                Glyph = ((char)0xE70B).ToString(),
+                FontSize = 14,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x3D, 0x34, 0x13)),
+            },
+        };
+        Canvas.SetLeft(badge, at.X);
+        Canvas.SetTop(badge, at.Y);
+        MarksLayer.Children.Add(badge);
+    }
+
+    // ---- drawing a box ----
+
+    private void OnHostPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.Pointer.PointerDeviceType != PointerDeviceType.Mouse || _notes is null) return;
+        var point = e.GetCurrentPoint(PageHost);
+        if (!point.Properties.IsLeftButtonPressed) return;
+        _notes.HideBar();
+        if (PageUnder(point.Position) is not { } page) return;
+        _drag = (page, point.Position, point.Position);
+        _pressedAt = point.Position;
+        PageHost.CapturePointer(e.Pointer);
+    }
+
+    private void OnHostMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is not { } drag || PageBounds(drag.Page) is not { } b) return;
+        var at = e.GetCurrentPoint(PageHost).Position;
+        _drag = (drag.Page, drag.Start, new Point(Math.Clamp(at.X, b.Left, b.Right), Math.Clamp(at.Y, b.Top, b.Bottom)));
+        if (Math.Abs(at.X - _pressedAt.X) + Math.Abs(at.Y - _pressedAt.Y) >= 6) DrawMarks();
+    }
+
+    /// <summary>A box drawn round part of a page: the bar offers the colours for it. A click is left to Tapped.</summary>
+    private void OnHostReleased(object sender, PointerRoutedEventArgs e)
+    {
+        PageHost.ReleasePointerCapture(e.Pointer);
+        if (_drag is not { } drag) return;
+        _drag = null;
+        var box = DragBox(drag);
+        if (box.Width >= 12 && box.Height >= 12 && PageBounds(drag.Page) is { } b)
+            OfferArea(drag.Page, new Rect((box.X - b.X) / b.Width, (box.Y - b.Y) / b.Height, box.Width / b.Width, box.Height / b.Height));
+        else DrawMarks();
+    }
+
+    private void OnHostCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (_drag is null) return;
+        _drag = null;
+        DrawMarks();
+    }
+
+    // ---- the bar ----
+
+    /// <summary>What the bar is about, where it is over the view now.</summary>
+    private Rect? BarBox()
+    {
+        if (_barAnchor is not { } a) return null;
+        if (PageBounds(a.Page) is not { } b) return new Rect(-1000, -1000, 0, 0);
+        return PageHost.TransformToVisual(Surface).TransformBounds(Within(b, a.Box));
+    }
+
+    private void PlaceBar()
+    {
+        if (_notes?.BarOpen == true) _notes.Place(BarBox(), SurfaceSize);
+    }
+
+    private void OfferArea(int page, Rect fraction)
+    {
+        if (_notes is null || _book is null) return;
+        _pendingArea = (page, fraction);
+        _barAnchor = (page, fraction);
+        DrawMarks();
+        var count = _book.PageCount;
+        _notes.Offer(() =>
+        {
+            _pendingArea = null;
+            return new Annotation
+            {
+                Kind = AnnotationKind.Area,
+                Anchor = Annotation.MakeAnchor("comicarea1", page, fraction.X, fraction.Y, fraction.Width, fraction.Height),
+                Page = page,
+                Position = (page + Math.Clamp(fraction.Y, 0, 0.999)) / Math.Max(1, count),
+            };
+        }, "", BarBox(), SurfaceSize);
+    }
+
+    private void NewPageNote(int page)
+    {
+        if (_notes is null || _book is null) return;
+        _barAnchor = (page, new Rect(0.5, 0.05, 0, 0));
+        var count = _book.PageCount;
+        _notes.NewPageNote(() => new Annotation
+        {
+            Kind = AnnotationKind.PageNote,
+            Anchor = Annotation.MakeAnchor("page1", page),
+            Page = page,
+            Position = page / (double)Math.Max(1, count),
+        }, BarBox(), SurfaceSize);
+    }
+
+    private void EditAt(Annotation a)
+    {
+        if (_notes is null) return;
+        var page = PageOf(a);
+        if (a.Kind == AnnotationKind.PageNote)
+        {
+            var index = PageNotesOn(page).IndexOf(a);
+            _barAnchor = PageBounds(page) is { } b && index >= 0
+                ? (page, new Rect((BadgeIn(b, index).X - b.X) / b.Width, (BadgeIn(b, index).Y - b.Y) / b.Height, 28 / b.Width, 28 / b.Height))
+                : (page, new Rect(0.5, 0.05, 0, 0));
+            _notes.EditNote(a, BarBox(), SurfaceSize);
+            return;
+        }
+        _barAnchor = (page, AreaOf(a)?.Box ?? new Rect(0.5, 0.05, 0, 0));
+        _notes.Edit(a, BarBox(), SurfaceSize);
+    }
+
+    /// <summary>Right-click on a page: highlight all of it, or add a note to it.</summary>
+    private void OnPageRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (_notes is null || PageUnder(e.GetPosition(PageHost)) is not { } page) return;
+        var menu = new MenuFlyout();
+        var whole = new MenuFlyoutItem { Text = "Highlight this page...", Icon = new FontIcon { Glyph = ((char)0xE7E6).ToString() } };
+        whole.Click += (_, _) => OfferArea(page, new Rect(0, 0, 1, 1));
+        menu.Items.Add(whole);
+        WordMenu.AddNoteItems(menu, null, null, () => NewPageNote(page));
+        e.Handled = true;
+        menu.ShowAt(PageHost, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(PageHost) });
+    }
+
+    /// <summary>
+    /// For checking highlights without a mouse, each only when its variable is set: ARYAN_READER_AREA=x,y,w,h draws
+    /// a box (fractions of the page it opens at); ARYAN_READER_PAGENOTE=1 starts a note on it. The bar shows as it
+    /// would, for UI Automation to pick a colour or write the note.
+    /// </summary>
+    private async void ProbeHighlights()
+    {
+        var area = Environment.GetEnvironmentVariable("ARYAN_READER_AREA");
+        var note = Environment.GetEnvironmentVariable("ARYAN_READER_PAGENOTE");
+        if (_book is null || (string.IsNullOrWhiteSpace(area) && string.IsNullOrWhiteSpace(note))) return;
+        await Task.Delay(2500);
+        if (_closed) return;
+        if (!string.IsNullOrWhiteSpace(area))
+        {
+            var n = area.Split(',').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+            OfferArea(_page, new Rect(n[0], n[1], n[2], n[3]));
+        }
+        else NewPageNote(_page);
+    }
+
+    // ---- going to one, and the side pane ----
+
+    /// <summary>Turns to its page, as a jump Back returns from, and outlines a clipped panel for a moment.</summary>
+    public void Reveal(Annotation a)
+    {
+        if (_book is null)
+        {
+            _pendingReveal = a;
+            return;
+        }
+        var page = Math.Clamp(PageOf(a), 0, _book.PageCount - 1);
+        if (_page >= 0 && page != _page) _jumps.Jumped(_page);
+        GoTo(page);
+        _barAnchor = (page, AreaOf(a)?.Box ?? new Rect(0.5, 0.05, 0, 0));
+        if (AreaOf(a) is { } area)
+        {
+            _flash = (page, area.Box);
+            if (_flashTimer is null)
+            {
+                _flashTimer = DispatcherQueue.CreateTimer();
+                _flashTimer.Interval = TimeSpan.FromMilliseconds(1600);
+                _flashTimer.IsRepeating = false;
+                _flashTimer.Tick += (_, _) =>
+                {
+                    _flash = null;
+                    DrawMarks();
+                };
+            }
+            _flashTimer.Stop();
+            _flashTimer.Start();
+        }
+        DrawMarksSoon();
+    }
+
+    private void OnHighlightsClick(object sender, RoutedEventArgs e)
+    {
+        SetPaneOpen(HighlightsButton.IsChecked == true);
+        FocusPages();
+    }
+
+    private void SetPaneOpen(bool open)
+    {
+        HighlightsButton.IsChecked = open;
+        HighlightsPane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ---- pictures ----
+
+    /// <summary>Keeps a picture of a clipped panel, decoded from the page itself at up to <see cref="ClipMaxWidth"/>.</summary>
+    private async Task MakeClipAsync(Annotation a)
+    {
+        var book = _book;
+        if (book is null || _closed || AreaOf(a) is not { } area || area.Page < 0 || area.Page >= book.PageCount) return;
+        try
+        {
+            var bytes = await Task.Run(() => book.ReadPage(area.Page));
+            if (bytes is null || _closed) return;
+            var png = await ClipMaker.CropImageAsync(bytes, area.Box, ClipMaxWidth);
+            if (png is not null && !_closed) ClipStore.Save(a.Id, png);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"reader: a clip of page {area.Page + 1} could not be made: {ex.Message}");
+        }
+    }
+
+    /// <summary>Pictures made on another computer, or never made here: made now the comic is open, one at a time.</summary>
+    private async Task MakeMissingClipsAsync()
+    {
+        if (_notes is null) return;
+        foreach (var a in _notes.Items.Where(a => a.KeepsPicture && !ClipStore.Exists(a.Id)).ToList())
+        {
+            if (_closed) return;
+            await MakeClipAsync(a);
+        }
+    }
+
     // ================================================================ IReaderView
 
     public ReadingPosition? Position() =>
         _book is null || _page < 0 ? null : new ReadingPosition(_page, _book.PageCount, PositionTag);
 
-    /// <summary>Escape from the window: takes the keyboard from the toolbar back to the page.</summary>
+    /// <summary>Escape from the window: puts the highlight bar away, or takes the keyboard from the toolbar back to the page.</summary>
     public bool HandleEscape()
     {
+        if (_notes?.BarOpen == true)
+        {
+            _notes.HideBar();
+            FocusPages();
+            return true;
+        }
         if (!_reveal.HasFocus) return false;
         FocusPages();
         return true;
@@ -701,7 +1111,15 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     public void FocusPages() => Scroller.Focus(FocusState.Programmatic);
 
-    public void SetToolbar(bool hides, bool fullScreen) => _reveal.SetHides(hides);
+    public void SetToolbar(bool hides, bool fullScreen)
+    {
+        _reveal.SetHides(hides);
+        if (fullScreen == _fullScreen) return;
+        _fullScreen = fullScreen;
+        if (fullScreen) SetPaneOpen(false);   // going full screen puts the side pane away, as the other readers do
+    }
+
+    private bool _fullScreen;
 
     public void FocusToolbar() => _reveal.FocusFirst();
 
@@ -710,6 +1128,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         if (_closed) return;
         _closed = true;
         _reveal.Close();
+        _flashTimer?.Stop();
         PageImage.Source = null;
         foreach (var image in _strip) image.Source = null;
         foreach (var image in _images.Values) image.Dispose();

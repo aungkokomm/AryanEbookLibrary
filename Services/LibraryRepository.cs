@@ -227,6 +227,9 @@ public sealed class LibraryRepository
                 ("$newkey", newKey), ("$oldkey", oldKey));
             _db.Exec("UPDATE reading_positions SET book_key=$newkey WHERE book_key=$oldkey",
                 ("$newkey", newKey), ("$oldkey", oldKey));
+            // And its highlights and notes.
+            _db.Exec("UPDATE annotations SET book_key=$newkey, rel_path=$new WHERE book_key=$oldkey",
+                ("$newkey", newKey), ("$new", newRelPath), ("$oldkey", oldKey));
         });
     }
 

@@ -14,6 +14,8 @@ public static class AppServices
     public static StateSyncService Sync { get; private set; } = null!;
     public static OnlineLookupService Online { get; private set; } = null!;
     public static ReadingSessions Sessions { get; private set; } = null!;
+    public static AnnotationStore AnnotationStore { get; private set; } = null!;
+    public static AnnotationService Annotations { get; private set; } = null!;
     public static LibraryViewModel Library { get; set; } = null!;
 
     public static void Init()
@@ -22,7 +24,9 @@ public static class AppServices
         Settings = AppSettings.Load();
         Db = new Database(AppPaths.DbFile);
         Repo = new LibraryRepository(Db);
-        Sync = new StateSyncService(Repo);
+        AnnotationStore = new AnnotationStore(Db);
+        Sync = new StateSyncService(Repo, AnnotationStore);
+        Annotations = new AnnotationService(AnnotationStore);
         Scanner = new ScannerService(Repo);
         Online = new OnlineLookupService(Repo);
         Sessions = new ReadingSessions(Db);

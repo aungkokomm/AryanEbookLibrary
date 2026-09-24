@@ -32,6 +32,7 @@ public sealed partial class ReaderWindow : Window
 
     private readonly Book _book;
     private readonly IReaderView _view;
+    private readonly ReaderAnnotations _notes;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _clock;
     private DateTime _lastInput = DateTime.UtcNow;
     private bool _inFront = true;
@@ -48,12 +49,16 @@ public sealed partial class ReaderWindow : Window
     private int _firstPage = -1;
     private double? _secondsPerPage;
 
-    /// <summary>Opens the book in its own reader window, or brings its window forward. Returns an error, or null.</summary>
-    public static string? Open(Book book)
+    /// <summary>
+    /// Opens the book in its own reader window, or brings its window forward, at a highlight or note when one is given.
+    /// Returns an error, or null.
+    /// </summary>
+    public static string? Open(Book book, Annotation? at = null)
     {
         if (Open_.TryGetValue(book.StateKey, out var existing))
         {
             existing.Activate();
+            if (at is not null) existing._view.Reveal(at);
             return null;
         }
         var path = book.FullPath;
@@ -63,6 +68,7 @@ public sealed partial class ReaderWindow : Window
         var window = new ReaderWindow(book, path);
         Open_[book.StateKey] = window;
         window.Activate();
+        if (at is not null) window._view.Reveal(at);
         return null;
     }
 
@@ -140,6 +146,8 @@ public sealed partial class ReaderWindow : Window
             Close();
         };
         _view.ShortcutsRequested += ShowShortcuts;
+        _notes = new ReaderAnnotations(book);
+        _view.UseAnnotations(_notes);
         // From inside the web view's own message: the window closes once that is over.
         _view.CloseRequested += () => DispatcherQueue.TryEnqueue(Close);
         ApplyToolbar();
@@ -397,6 +405,7 @@ public sealed partial class ReaderWindow : Window
         }
 
         Log.Write($"reader: closed {Path.GetFileName(_book.RelPath)} at page {_page + 1}, {_seconds} s read, {_pagesRead.Count} pages");
+        _notes.Close();
         _view.Close();
     }
 }

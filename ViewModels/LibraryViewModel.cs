@@ -514,7 +514,11 @@ public sealed class LibraryViewModel : ObservableObject
             if (back.Count > 0 && !IsScanning)
             {
                 var folders = Repo.GetFolders().Where(f => back.Contains(f.DriveId)).ToList();
-                if (await Task.Run(() => SyncSidecars(folders)) > 0) await ReloadAsync();
+                if (await Task.Run(() => SyncSidecars(folders)) > 0)
+                {
+                    await ReloadAsync();
+                    AppServices.Annotations.RaiseChanged();
+                }
             }
             if (!IsScanning)
                 StatusText = arrived is not null ? $"Drive \"{arrived.Label}\" connected"
@@ -756,9 +760,10 @@ public sealed class LibraryViewModel : ObservableObject
             foreach (var folder in folders)
             {
                 // Pick up favorites/notes stored on the drive itself before indexing.
-                await Task.Run(() => AppServices.Sync.Import(folder), ct);
+                var imported = await Task.Run(() => AppServices.Sync.Import(folder), ct);
                 total.Add(await AppServices.Scanner.ScanAsync(new[] { folder }, progress, ct));
                 await ReloadAsync();
+                if (imported > 0) AppServices.Annotations.RaiseChanged();
             }
 
             StatusText = "Scan complete: " + total.Summary +
@@ -1199,8 +1204,9 @@ public sealed class LibraryViewModel : ObservableObject
 
     public async Task RestoreFromBackupAsync(string file)
     {
-        var applied = await Task.Run(() => BackupService.Import(file, Repo));
+        var applied = await Task.Run(() => BackupService.Import(file, Repo, AppServices.AnnotationStore));
         await ReloadAsync();
+        AppServices.Annotations.RaiseChanged();
         StatusText = $"Backup restored: {applied} entries applied";
         foreach (var f in Repo.GetFolders()) AppServices.Sync.Schedule(f.Id);
     }

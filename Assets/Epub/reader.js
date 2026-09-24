@@ -20,6 +20,10 @@ let searchHits = []
 let searchIndex = -1
 let searchRun = 0
 let lastActivity = 0
+// The book's highlights: where each one is (a CFI) and its colour. The app owns them; this only draws them.
+let marks = new Map()
+// One outlined for a moment after a jump to it.
+let flashing = null
 
 // ---- styles ----
 
@@ -57,6 +61,11 @@ const css = () => {
 const applyPrefs = () => {
     const t = THEMES[prefs.theme] ?? THEMES.paper
     document.documentElement.style.setProperty('--page-bg', t.bg)
+    // Highlights: on paper and sepia the colour darkens the page under the words and leaves them black; on the dark
+    // page that would hide it, so it is laid over a little stronger instead.
+    const night = prefs.theme === 'night'
+    document.documentElement.style.setProperty('--overlayer-highlight-opacity', night ? '.42' : '.45')
+    document.documentElement.style.setProperty('--overlayer-highlight-blend-mode', night ? 'normal' : 'multiply')
     if (!view?.renderer) return
     view.renderer.setAttribute('flow', prefs.flow === 'scrolled' ? 'scrolled' : 'paginated')
     view.renderer.setAttribute('max-column-count', '2')
@@ -77,13 +86,27 @@ const flatten = (items, depth = 0, out = []) => {
 
 const text = x => !x ? '' : typeof x === 'string' ? x : x[Object.keys(x)[0]] ?? ''
 
-const open = async (url, lastLocation, p) => {
+const open = async (url, lastLocation, p, list) => {
     prefs = { ...prefs, ...p }
     applyPrefs()
+    marks = new Map((list ?? []).map(m => [m.cfi, m.color]))
     view = document.createElement('foliate-view')
     document.body.append(view)
-    view.addEventListener('load', e => onSectionLoad(e.detail.doc))
+    view.addEventListener('load', e => onSectionLoad(e.detail.doc, e.detail.index))
     view.addEventListener('relocate', e => onRelocate(e.detail))
+    view.addEventListener('create-overlay', e => drawSection(e.detail.index))
+    view.addEventListener('draw-annotation', e => {
+        const { draw, annotation } = e.detail
+        const color = marks.get(annotation.value)
+        if (color) draw(flashing === annotation.value ? flashDraw : Overlayer.highlight, { color })
+    })
+    // A click on a highlight: the app shows its colours, note, copy and delete.
+    view.addEventListener('show-annotation', e => {
+        const { value, range } = e.detail
+        if (!marks.has(value)) return
+        const doc = range?.startContainer?.ownerDocument
+        post({ type: 'mark', cfi: value, rect: doc ? toTop(doc, range.getBoundingClientRect()) : null })
+    })
     view.addEventListener('external-link', e => {
         e.preventDefault()
         post({ type: 'external', href: e.detail.href_ })
@@ -299,7 +322,82 @@ const toTop = (doc, r) => {
     return { x: r.left + dx, y: r.top + dy, width: r.width, height: r.height }
 }
 
-const onSectionLoad = doc => {
+// ---- highlights ----
+
+// A section just laid out draws the highlights that fall in it.
+const drawSection = index => {
+    for (const cfi of marks.keys()) {
+        try {
+            if (view.resolveCFI(cfi).index === index) Promise.resolve(view.addAnnotation({ value: cfi })).catch(() => {})
+        } catch { }
+    }
+}
+
+// The app's list, after any change: gone ones are taken off, the rest drawn again in their colours.
+const setMarks = list => {
+    const next = new Map((list ?? []).map(m => [m.cfi, m.color]))
+    for (const cfi of marks.keys())
+        if (!next.has(cfi)) Promise.resolve(view?.deleteAnnotation({ value: cfi })).catch(() => {})
+    marks = next
+    if (!view?.renderer) return
+    for (const cfi of marks.keys()) Promise.resolve(view.addAnnotation({ value: cfi })).catch(() => {})
+}
+
+const flashDraw = (rects, options) => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    g.append(Overlayer.highlight(rects, options), Overlayer.outline(rects, { color: '#ff8c00', width: 3 }))
+    return g
+}
+
+// Goes to a highlight or a note's place; a highlight is outlined for a moment.
+const reveal = async cfi => {
+    try {
+        await view.goTo(cfi)
+    } catch {
+        return
+    }
+    if (!marks.has(cfi)) return
+    flashing = cfi
+    Promise.resolve(view.addAnnotation({ value: cfi })).catch(() => {})
+    setTimeout(() => {
+        flashing = null
+        if (marks.has(cfi)) Promise.resolve(view.addAnnotation({ value: cfi })).catch(() => {})
+    }, 1600)
+}
+
+// A little of the text either side of a range, for finding it again if its exact place stops fitting.
+const around = range => {
+    const doc = range.startContainer.ownerDocument
+    try {
+        const before = doc.createRange()
+        before.setStart(doc.body, 0)
+        before.setEnd(range.startContainer, range.startOffset)
+        const after = doc.createRange()
+        after.setStart(range.endContainer, range.endOffset)
+        after.setEnd(doc.body, doc.body.childNodes.length)
+        return { before: before.toString().slice(-40), after: after.toString().slice(0, 40) }
+    } catch {
+        return { before: '', after: '' }
+    }
+}
+
+// Words just selected with the mouse: the app offers the colours over them.
+const offerSelection = (doc, index) => {
+    const selection = doc.getSelection()
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return
+    const text = selection.toString().trim()
+    if (!text) return
+    const range = selection.getRangeAt(0)
+    let cfi
+    try {
+        cfi = view.getCFI(index, range)
+    } catch {
+        return
+    }
+    post({ type: 'selection', cfi, text, ...around(range), rect: toTop(doc, range.getBoundingClientRect()) })
+}
+
+const onSectionLoad = (doc, index) => {
     const frame = doc.defaultView?.frameElement
     doc.addEventListener('keydown', onKey)
     doc.addEventListener('keyup', onKeyUp)
@@ -309,6 +407,9 @@ const onSectionLoad = doc => {
     doc.addEventListener('mousedown', onMouseButton)
     doc.addEventListener('mouseup', onMouseButton)
     doc.addEventListener('wheel', onWheel, { passive: true })
+    doc.addEventListener('pointerup', e => {
+        if (e.pointerType === 'mouse' && e.button === 0) setTimeout(() => offerSelection(doc, index), 0)
+    })
     doc.addEventListener('contextmenu', e => {
         e.preventDefault()
         activity(true)
@@ -323,12 +424,20 @@ const onSectionLoad = doc => {
         const word = range ? null : wordRangeAt(doc, e.clientX, e.clientY)
         const anchor = range ?? word
         const frame = doc.defaultView?.frameElement?.getBoundingClientRect()
+        let cfi = ''
+        if (range) {
+            try {
+                cfi = view.getCFI(index, range)
+            } catch { }
+        }
         post({
             type: 'context',
             x: e.clientX + (frame?.left ?? 0),
             y: e.clientY + (frame?.top ?? 0),
             word: word ? word.toString() : '',
             selection: range ? selected : '',
+            cfi,
+            ...(range ? around(range) : {}),
             rect: anchor ? toTop(doc, anchor.getBoundingClientRect()) : null,
         })
     })
@@ -351,6 +460,31 @@ const probe = word => {
         }
     }
     post({ type: 'probe', word, rect: null })
+}
+
+// For checking highlights without a mouse: selects the first place the words are on the page, as a drag would,
+// turning a few pages first when they are not there (a book can open at its cover).
+const probeSelect = (probe, tries = 8) => {
+    // "words+40" goes on 40 characters past the words.
+    const [, word, more] = probe.match(/^(.*?)(?:\+(\d+))?$/)
+    for (const { doc, index } of view?.renderer?.getContents?.() ?? []) {
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const i = node.textContent.indexOf(word)
+            if (i < 0) continue
+            const range = doc.createRange()
+            range.setStart(node, i)
+            range.setEnd(node, Math.min(node.textContent.length, i + word.length + Number(more ?? 0)))
+            const r = toTop(doc, range.getBoundingClientRect())
+            if (r.x < 0 || r.y < 0 || r.x > innerWidth || r.y > innerHeight) continue
+            const selection = doc.getSelection()
+            selection.removeAllRanges()
+            selection.addRange(range)
+            offerSelection(doc, index)
+            return
+        }
+    }
+    if (tries > 0) Promise.resolve(view?.next()).then(() => setTimeout(() => probeSelect(probe, tries - 1), 700))
 }
 
 // ---- find in book ----
@@ -416,7 +550,9 @@ window.chrome.webview.addEventListener('message', async e => {
     const m = e.data
     try {
         switch (m.type) {
-            case 'open': await open(m.url, m.lastLocation, m.prefs); break
+            case 'open': await open(m.url, m.lastLocation, m.prefs, m.marks); break
+            case 'marks': setMarks(m.marks); break
+            case 'reveal': await reveal(m.cfi); break
             case 'prefs': prefs = { ...prefs, ...m.prefs }; applyPrefs(); break
             case 'next': await view?.next(); break
             case 'prev': await view?.prev(); break
@@ -429,6 +565,7 @@ window.chrome.webview.addEventListener('message', async e => {
             case 'clearSearch': searchRun++; view?.clearSearch(); searchHits = []; searchIndex = -1; view?.deselect(); break
             case 'deselect': view?.deselect(); break
             case 'probe': probe(m.word); break
+            case 'probeSelect': probeSelect(m.word); break
         }
     } catch (err) {
         console.error(err)

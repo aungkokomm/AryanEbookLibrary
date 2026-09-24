@@ -12,18 +12,36 @@ public sealed class StateSyncService
 {
     public const string SidecarName = ".aryan-library.json";
 
+    /// <summary>
+    /// Highlights and notes on pages, in a file of their own: an older copy of the app rewrites the first file
+    /// without them, and they can grow long.
+    /// </summary>
+    public const string HighlightsName = ".aryan-highlights.json";
+
     private readonly LibraryRepository _repo;
+    private readonly AnnotationStore _annotations;
     private readonly Dictionary<long, Timer> _pending = new();
     private readonly object _gate = new();
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    public StateSyncService(LibraryRepository repo) => _repo = repo;
+    public StateSyncService(LibraryRepository repo, AnnotationStore annotations)
+    {
+        _repo = repo;
+        _annotations = annotations;
+    }
 
     private sealed class SidecarFile
     {
         public int Version { get; set; } = 1;
         public Dictionary<string, BookState> Items { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Each book's annotations by its path under the folder, the deleted ones' markers too.</summary>
+    private sealed class HighlightsFile
+    {
+        public int Version { get; set; } = 1;
+        public Dictionary<string, List<Annotation>> Items { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Debounced write: many quick edits produce one file write.</summary>
@@ -63,13 +81,16 @@ public sealed class StateSyncService
                 if (row.State.IsDefault) continue;
                 file.Items[SubPath(folder, row.RelPath)] = row.State;
             }
+            Write(Path.Combine(root, SidecarName), file, file.Items.Count);
 
-            var target = Path.Combine(root, SidecarName);
-            if (file.Items.Count == 0 && !File.Exists(target)) return;
-
-            var tmp = target + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(file, Options));
-            File.Move(tmp, target, overwrite: true);
+            var marks = new HighlightsFile();
+            foreach (var row in _annotations.ForFolder(folderId))
+            {
+                var sub = SubPath(folder, row.RelPath);
+                if (!marks.Items.TryGetValue(sub, out var list)) marks.Items[sub] = list = new();
+                list.Add(row.Annotation);
+            }
+            Write(Path.Combine(root, HighlightsName), marks, marks.Items.Count);
         }
         catch (Exception ex)
         {
@@ -78,13 +99,27 @@ public sealed class StateSyncService
         }
     }
 
-    /// <summary>Merges a sidecar found on the drive into the local index (newest edit wins).</summary>
+    /// <summary>Writes the file whole, through a temporary one; not at all while there is nothing to write and no file yet.</summary>
+    private static void Write<T>(string target, T content, int count)
+    {
+        if (count == 0 && !File.Exists(target)) return;
+        var tmp = target + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(content, Options));
+        File.Move(tmp, target, overwrite: true);
+    }
+
+    /// <summary>Merges the sidecars found on the drive into the local index (newest edit wins).</summary>
     public int Import(LibraryFolder folder)
+    {
+        var root = DriveRegistry.Resolve(folder.DriveId, folder.RelPath);
+        if (root is null) return 0;
+        return ImportStates(folder, root) + ImportAnnotations(folder, root);
+    }
+
+    private int ImportStates(LibraryFolder folder, string root)
     {
         try
         {
-            var root = DriveRegistry.Resolve(folder.DriveId, folder.RelPath);
-            if (root is null) return 0;
             var path = Path.Combine(root, SidecarName);
             if (!File.Exists(path)) return 0;
 
@@ -96,7 +131,7 @@ public sealed class StateSyncService
 
             foreach (var (sub, state) in file.Items)
             {
-                var rel = string.IsNullOrEmpty(folder.RelPath) ? sub : Path.Combine(folder.RelPath, sub);
+                var rel = RelPath(folder, sub);
                 var key = Book.MakeKey(folder.DriveId, rel);
                 if (local.TryGetValue(key, out var localUpdated) && localUpdated >= state.UpdatedUtc) continue;
                 _repo.UpsertState(folder.DriveId, rel, key, state);
@@ -111,6 +146,36 @@ public sealed class StateSyncService
             return 0;
         }
     }
+
+    /// <summary>Highlights and notes from the drive: each one new here, or newer than the one here, comes in.</summary>
+    private int ImportAnnotations(LibraryFolder folder, string root)
+    {
+        try
+        {
+            var path = Path.Combine(root, HighlightsName);
+            if (!File.Exists(path)) return 0;
+            var file = JsonSerializer.Deserialize<HighlightsFile>(File.ReadAllText(path));
+            if (file is null) return 0;
+
+            var local = _annotations.UpdatedById();
+            var count = 0;
+            foreach (var (sub, list) in file.Items)
+            {
+                var rel = RelPath(folder, sub);
+                count += _annotations.Merge(Book.MakeKey(folder.DriveId, rel), folder.DriveId, rel, list, local);
+            }
+            if (count > 0) Log.Write($"Sidecar: {count} highlights and notes came in for folder {folder.Id}");
+            return count;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Highlights import failed for folder {folder.Id}: {ex.Message}");
+            return 0;
+        }
+    }
+
+    private static string RelPath(LibraryFolder folder, string sub) =>
+        string.IsNullOrEmpty(folder.RelPath) ? sub : Path.Combine(folder.RelPath, sub);
 
     /// <summary>
     /// Brings the folder's sidecar and the local index level, for a drive that has just been plugged in (or was
@@ -135,13 +200,25 @@ public sealed class StateSyncService
                 items.TryGetValue(SubPath(folder, row.RelPath), out var there)
                     ? row.State.UpdatedUtc > there.UpdatedUtc
                     : !row.State.IsDefault);
-            if (behind) Flush(folder.Id);
+            if (behind || AnnotationsBehind(folder, root)) Flush(folder.Id);
         }
         catch (Exception ex)
         {
             Log.Write($"Sidecar sync failed for folder {folder.Id}: {ex.Message}");
         }
         return imported;
+    }
+
+    /// <summary>Whether the drive's highlights file lacks an annotation made or changed on this computer.</summary>
+    private bool AnnotationsBehind(LibraryFolder folder, string root)
+    {
+        var local = _annotations.ForFolder(folder.Id);
+        if (local.Count == 0) return false;
+        var path = Path.Combine(root, HighlightsName);
+        var onDrive = File.Exists(path) ? JsonSerializer.Deserialize<HighlightsFile>(File.ReadAllText(path))?.Items : null;
+        var there = (onDrive ?? new()).Values.SelectMany(l => l)
+            .GroupBy(a => a.Id).ToDictionary(g => g.Key, g => g.Max(a => a.UpdatedUtc), StringComparer.Ordinal);
+        return local.Any(row => !there.TryGetValue(row.Annotation.Id, out var updated) || row.Annotation.UpdatedUtc > updated);
     }
 
     private static string SubPath(LibraryFolder folder, string bookRelPath)

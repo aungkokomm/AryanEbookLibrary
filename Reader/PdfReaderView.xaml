@@ -121,6 +121,13 @@
             </StackPanel>
 
             <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="6,0,0,0">
+                <!-- Drag a box to keep a picture of part of a page: a figure, or a page with no text to select. -->
+                <ToggleButton x:Name="AreaButton" Width="36" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
+                              AllowFocusOnInteraction="False" Click="OnAreaClick"
+                              AutomationProperties.Name="Highlight an area"
+                              ToolTipService.ToolTip="Highlight an area: drag a box round it on the page">
+                    <FontIcon Glyph="&#xE7A8;" FontSize="15" />
+                </ToggleButton>
                 <DropDownButton x:Name="PageThemeButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
                                 AutomationProperties.Name="Page colour" ToolTipService.ToolTip="Page colour">
                     <FontIcon Glyph="&#xE790;" FontSize="15" />
@@ -149,10 +156,13 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ═══ contents: the book's own outline ═══ -->
+            <!-- ═══ the side pane: the book's own outline, and its highlights and notes ═══ -->
             <Grid x:Name="ContentsPane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
                   BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
-                <TextBlock Text="Contents" Margin="16,12,16,8" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <SelectorBar x:Name="PaneTabs" Margin="4,4,4,0" SelectionChanged="OnPaneTabChanged">
+                    <SelectorBarItem x:Name="ContentsTab" Text="Contents" IsSelected="True" />
+                    <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" />
+                </SelectorBar>
                 <ListView x:Name="OutlineList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
                           ItemClick="OnOutlineClick" Padding="0,0,0,12">
                     <ListView.ItemContainerStyle>
@@ -176,6 +186,7 @@
                 <TextBlock x:Name="NoOutlineText" Grid.Row="1" Margin="16,4,16,0" TextWrapping="Wrap" Visibility="Collapsed"
                            Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="This book has no table of contents of its own." />
+                <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" Visibility="Collapsed" />
             </Grid>
 
             <!-- ═══ the pages ═══ -->
@@ -197,6 +208,9 @@
 
                 <!-- Define: beside the word, above it or below it, inside the view. -->
                 <reader:DefinePopup x:Name="Definition" />
+
+                <!-- Over what is selected or clicked: the colours, a note, copy and delete. -->
+                <reader:HighlightBar x:Name="Bar" />
 
                 <!-- Opening, a password, or why the book could not be opened. -->
                 <StackPanel x:Name="MessagePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12"

@@ -1,7 +1,8 @@
 <UserControl
     x:Class="AryanEbookLibrary.Reader.ComicReaderView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:reader="using:AryanEbookLibrary.Reader">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -46,6 +47,11 @@
                     BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
 
             <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <ToggleButton x:Name="HighlightsButton" Width="36" Height="32" Padding="0" Click="OnHighlightsClick"
+                              Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
+                              AutomationProperties.Name="Highlights and notes" ToolTipService.ToolTip="Highlights and notes">
+                    <FontIcon Glyph="&#xE7E6;" FontSize="16" />
+                </ToggleButton>
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"
                         AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left arrow)">
                     <FontIcon Glyph="&#xE70E;" FontSize="14" />
@@ -86,43 +92,64 @@
             </StackPanel>
         </Grid>
 
-        <!-- ═══ the page ═══ -->
-        <Grid x:Name="Surface" Grid.Row="1" Background="{ThemeResource ReaderSurfaceBrush}">
-            <!-- The page is laid out at its fitted size; the scroller only zooms past that (Ctrl+wheel). The anchor
-                 keeps the page being read still when a page above it learns its real size. -->
-            <ScrollViewer x:Name="Scroller" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="4"
-                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollMode="Enabled" VerticalScrollMode="Enabled" IsTabStop="True"
-                          VerticalAnchorRatio="0"
-                          UseSystemFocusVisuals="False" ViewChanged="OnViewChanged" SizeChanged="OnScrollerSizeChanged">
-                <Grid x:Name="PageHost" Background="Transparent" Tapped="OnPageTapped">
-                    <Image x:Name="PageImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           AutomationProperties.Name="Page" />
-                    <!-- Continuous: every page, one under the other, each as wide as the view. -->
-                    <StackPanel x:Name="Strip" Spacing="6" VerticalAlignment="Top" Visibility="Collapsed" />
-                </Grid>
-            </ScrollViewer>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Opening, or why the comic could not be opened. -->
-            <StackPanel x:Name="MessagePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12"
-                        MaxWidth="420" Padding="24" Visibility="Collapsed">
-                <ProgressRing x:Name="MessageRing" IsActive="False" Width="32" Height="32" />
-                <TextBlock x:Name="MessageTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                           TextWrapping="Wrap" />
-                <TextBlock x:Name="MessageText" TextAlignment="Center" TextWrapping="Wrap"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Button x:Name="ExternalButton" Content="Open with default app" Visibility="Collapsed"
-                        HorizontalAlignment="Center" Click="OnOpenExternally" />
-            </StackPanel>
+            <!-- ═══ the side pane: the comic's clipped panels and notes ═══ -->
+            <Grid x:Name="HighlightsPane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
+                  BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
+                <TextBlock x:Name="PaneTitle" Text="Highlights" Margin="16,12,16,8" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" />
+            </Grid>
 
-            <!-- The last page: offer to mark the comic finished, once. -->
-            <InfoBar x:Name="EndBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
-                     MaxWidth="560" IsOpen="False" Severity="Success" IsClosable="True"
-                     Title="The last page" Message="Mark it finished in your reading log?">
-                <InfoBar.ActionButton>
-                    <Button Content="Mark as finished" Click="OnMarkFinished" />
-                </InfoBar.ActionButton>
-            </InfoBar>
+            <!-- ═══ the page ═══ -->
+            <Grid x:Name="Surface" Grid.Column="1" Background="{ThemeResource ReaderSurfaceBrush}">
+                <!-- The page is laid out at its fitted size; the scroller only zooms past that (Ctrl+wheel). The anchor
+                     keeps the page being read still when a page above it learns its real size. -->
+                <ScrollViewer x:Name="Scroller" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="4"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Enabled" VerticalScrollMode="Enabled" IsTabStop="True"
+                              VerticalAnchorRatio="0"
+                              UseSystemFocusVisuals="False" ViewChanged="OnViewChanged" SizeChanged="OnScrollerSizeChanged">
+                    <Grid x:Name="PageHost" Background="Transparent" Tapped="OnPageTapped" RightTapped="OnPageRightTapped"
+                          PointerPressed="OnHostPressed" PointerMoved="OnHostMoved" PointerReleased="OnHostReleased"
+                          PointerCaptureLost="OnHostCaptureLost">
+                        <Image x:Name="PageImage" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               AutomationProperties.Name="Page" />
+                        <!-- Continuous: every page, one under the other, each as wide as the view. -->
+                        <StackPanel x:Name="Strip" Spacing="6" VerticalAlignment="Top" Visibility="Collapsed" />
+                        <!-- Clipped panels, the notes on pages, and a box being drawn: over the pictures, never in the way. -->
+                        <Canvas x:Name="MarksLayer" IsHitTestVisible="False" />
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- Over a box drawn or a clip clicked: the colours, a note and delete. -->
+                <reader:HighlightBar x:Name="Bar" />
+
+                <!-- Opening, or why the comic could not be opened. -->
+                <StackPanel x:Name="MessagePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12"
+                            MaxWidth="420" Padding="24" Visibility="Collapsed">
+                    <ProgressRing x:Name="MessageRing" IsActive="False" Width="32" Height="32" />
+                    <TextBlock x:Name="MessageTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="MessageText" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button x:Name="ExternalButton" Content="Open with default app" Visibility="Collapsed"
+                            HorizontalAlignment="Center" Click="OnOpenExternally" />
+                </StackPanel>
+
+                <!-- The last page: offer to mark the comic finished, once. -->
+                <InfoBar x:Name="EndBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
+                         MaxWidth="560" IsOpen="False" Severity="Success" IsClosable="True"
+                         Title="The last page" Message="Mark it finished in your reading log?">
+                    <InfoBar.ActionButton>
+                        <Button Content="Mark as finished" Click="OnMarkFinished" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

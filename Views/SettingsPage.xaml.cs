@@ -182,7 +182,7 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            var count = await Task.Run(() => BackupService.Export(file.Path, AppServices.Repo));
+            var count = await Task.Run(() => BackupService.Export(file.Path, AppServices.Repo, AppServices.AnnotationStore));
             BackupResult.Text = $"Exported {count} entries to {file.Name}.";
         }
         catch (Exception ex)
