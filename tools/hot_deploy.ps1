@@ -9,9 +9,13 @@
 #   3. copy additively, excluding AryanLibrary-Data by bare name (never a mirror, never a purge);
 #   4. prove the library database is byte-identical afterwards.
 # Ship real updates to other machines with build_installer.ps1; this is for testing on this machine.
+#
+# -Target: where the app lives when it was moved from the install folder (it is portable), for example
+#   pwsh -File tools\hot_deploy.ps1 -Target 'D:\My Ebooks Data'
+param([string]$Target = (Join-Path $env:LOCALAPPDATA 'Programs\Aryan eBook Library'))
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$target = Join-Path $env:LOCALAPPDATA 'Programs\Aryan eBook Library'
+$target = $Target
 $data = Join-Path $target 'AryanLibrary-Data'
 
 if (-not (Test-Path (Join-Path $target 'AryanEbookLibrary.exe'))) {
