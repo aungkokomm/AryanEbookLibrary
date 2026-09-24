@@ -68,6 +68,20 @@
                 <Setter Property="Padding" Value="8,3" />
             </Style>
 
+            <!-- A count beside an item in the navigation pane (Notes, My lists), as CineLibrary's sidebar badges -->
+            <Style x:Key="PaneBadgeStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="6,1" />
+                <Setter Property="MinWidth" Value="24" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="PaneBadgeTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+            </Style>
+
             <!-- Small dark badge on a cover (favorite star) -->
             <Style x:Key="PosterBadgeStyle" TargetType="Border">
                 <Setter Property="Background" Value="#CC000000" />

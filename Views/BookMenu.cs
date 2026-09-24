@@ -50,6 +50,9 @@ internal static class BookMenu
         flyout.Items.Add(finished);
 
         flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(ListsMenu(book, () => flyout.XamlRoot));
+
+        flyout.Items.Add(new MenuFlyoutSeparator());
 
         var folder = new MenuFlyoutItem
         {
@@ -59,5 +62,47 @@ internal static class BookMenu
         };
         folder.Click += (_, _) => BookLauncher.ShowInFolder(book);
         flyout.Items.Add(folder);
+    }
+
+    /// <summary>
+    /// "Add to list": every one of My lists with a tick where the book is on it, and "New list" to make one with
+    /// the book already on it. The details window's Add to list button opens the same items.
+    /// </summary>
+    public static MenuFlyoutSubItem ListsMenu(Book book, Func<Microsoft.UI.Xaml.XamlRoot?> root)
+    {
+        var menu = new MenuFlyoutSubItem { Text = "Add to list", Icon = new FontIcon { Glyph = ((char)0xE8FD).ToString() } };
+        FillLists(menu.Items, book, root);
+        return menu;
+    }
+
+    public static void FillLists(IList<MenuFlyoutItemBase> items, Book book, Func<Microsoft.UI.Xaml.XamlRoot?> root)
+    {
+        var vm = AppServices.Library;
+        items.Clear();
+        if (vm.UserLists.Count == 0)
+            items.Add(new MenuFlyoutItem { Text = "No lists yet", IsEnabled = false });
+        foreach (var name in vm.UserLists)
+        {
+            var item = new ToggleMenuFlyoutItem { Text = name, IsChecked = book.InList(name) };
+            item.Click += (_, _) => vm.SetInList(book, name, item.IsChecked);
+            items.Add(item);
+        }
+        items.Add(new MenuFlyoutSeparator());
+        var add = new MenuFlyoutItem { Text = "New list...", Icon = new SymbolIcon(Symbol.Add) };
+        add.Click += async (_, _) =>
+        {
+            if (root() is not { } xamlRoot) return;
+            try
+            {
+                var name = await ListDialogs.AskNameAsync(xamlRoot, "New list", "Create", "");
+                if (name is not null && vm.CreateList(name)) vm.SetInList(book, name, true);
+            }
+            catch (Exception ex)
+            {
+                // another dialog was already open in that window
+                Log.Write("New list from a menu: " + ex.Message);
+            }
+        };
+        items.Add(add);
     }
 }

@@ -43,6 +43,14 @@ public sealed partial class BookRowControl : UserControl
         flyout.Opening += (_, _) => BookMenu.Build(flyout, Book);
         ContextFlyout = flyout;
 
+        // Drag the book (or every selected book) onto one of My lists in the pane.
+        CanDrag = true;
+        DragStarting += (_, e) =>
+        {
+            if (Book is { } b) BookDrag.Start(e, b);
+            else e.Cancel = true;
+        };
+
         Loaded += (_, _) =>
         {
             Watch(Book);

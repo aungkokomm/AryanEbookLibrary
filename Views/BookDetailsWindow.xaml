@@ -1,0 +1,353 @@
+<Window
+    x:Class="AryanEbookLibrary.Views.BookDetailsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="using:AryanEbookLibrary.Helpers">
+
+    <!-- A book's details in a window of its own, as CineLibrary's movie details: a banner made from the cover, the
+         cover over it, what the user does with the book, then the facts, the description, their note and the
+         subjects. Every change is saved as it is made; there is no OK button. -->
+    <Grid x:Name="RootGrid">
+        <Grid.Resources>
+            <!-- The Read button in the brand blue, as the Select toggle on the library page -->
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#186BD5" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#2A7BE0" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#145CB8" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="White" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="White" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="Transparent" />
+
+            <Style x:Key="ActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12,8" />
+            </Style>
+            <Style x:Key="SectionLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="CharacterSpacing" Value="150" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="NoteButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar: the app's icon and the book's title; Windows draws its own buttons on the right. -->
+        <Grid x:Name="TitleBar" Height="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="CaptionColumn" Width="140" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" Spacing="10">
+                <Image Source="ms-appx:///Assets/AppIcon.png" Width="16" Height="16" />
+                <TextBlock x:Name="TitleText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8,8,0,0">
+            <ScrollViewer x:Name="ContentScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                          ViewChanged="OnContentScrolled" SizeChanged="OnScrollerSizeChanged">
+                <StackPanel MaxWidth="1100" Padding="24,20,24,40">
+
+                    <!-- ═══ BANNER: the cover blurred and darkened, the online records top right ═══ -->
+                    <Border x:Name="HeroBorder" Height="300" CornerRadius="12">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="{ThemeResource PlaceholderTopColor}" />
+                                <GradientStop Offset="1" Color="{ThemeResource PlaceholderBottomColor}" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid>
+                            <Image x:Name="HeroImage" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Border>
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Offset="0" Color="#33000000" />
+                                        <GradientStop Offset="0.55" Color="#22000000" />
+                                        <GradientStop Offset="1" Color="#E6000000" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border>
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                        <GradientStop Offset="0" Color="#55000000" />
+                                        <GradientStop Offset="0.5" Color="#00000000" />
+                                        <GradientStop Offset="1" Color="#55000000" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="14"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <Button x:Name="OpenLibraryLink" Visibility="Collapsed" Click="OnOpenLibraryLink"
+                                        Background="#E1DCC5" Foreground="#1B1B1B" BorderThickness="0" CornerRadius="4"
+                                        Padding="8,3" FontSize="11" FontWeight="Bold" Content="Open Library"
+                                        ToolTipService.ToolTip="This book's page on Open Library" />
+                                <Button x:Name="WikipediaLink" Visibility="Collapsed" Click="OnWikipediaLink"
+                                        Background="#F8F9FA" Foreground="#202122" BorderThickness="0" CornerRadius="4"
+                                        Padding="8,3" FontSize="11" FontWeight="Bold" Content="Wikipedia"
+                                        ToolTipService.ToolTip="This book's article on Wikipedia" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══ COVER over the banner, TITLE, people and chips beside it ═══ -->
+                    <Grid x:Name="CoverRow" Margin="0,-120,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border x:Name="CoverBorder" Width="200" Height="290" CornerRadius="12" Margin="16,0,24,0"
+                                VerticalAlignment="Top" BorderBrush="#33FFFFFF" BorderThickness="1" Translation="0,0,32">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Offset="0" Color="{ThemeResource PlaceholderTopColor}" />
+                                    <GradientStop Offset="1" Color="{ThemeResource PlaceholderBottomColor}" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Shadow>
+                                <ThemeShadow />
+                            </Border.Shadow>
+                            <Grid>
+                                <TextBlock x:Name="CoverTitle" Margin="16" TextWrapping="Wrap" TextAlignment="Center"
+                                           VerticalAlignment="Center" FontWeight="SemiBold" />
+                                <Image x:Name="CoverImage" Stretch="UniformToFill" />
+                            </Grid>
+                        </Border>
+
+                        <StackPanel x:Name="MetaPanel" Grid.Column="1" Spacing="10" VerticalAlignment="Top" Margin="0,140,0,0">
+                            <TextBlock x:Name="BookTitle" FontSize="34" FontWeight="Bold" LineHeight="40"
+                                       TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                            <!-- Author(s) and series, each a link to their books -->
+                            <helpers:WrapPanel x:Name="PeopleLinks" HorizontalSpacing="2" VerticalSpacing="0" />
+                            <helpers:WrapPanel x:Name="ChipsPanel" HorizontalSpacing="6" VerticalSpacing="6" Margin="0,4,0,0">
+                                <RatingControl x:Name="RatingBox" MaxRating="5" IsClearEnabled="True"
+                                               AutomationProperties.Name="Your rating" ToolTipService.ToolTip="Your rating" />
+                            </helpers:WrapPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ═══ WHERE IT IS ═══ -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                        <TextBlock Text="Located on:" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Ellipse x:Name="DriveDot" Width="8" Height="8" VerticalAlignment="Center" />
+                        <TextBlock x:Name="DriveText" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock x:Name="PathText" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
+                    <!-- ═══ ACTIONS ═══ -->
+                    <helpers:WrapPanel Margin="0,12,0,0" HorizontalSpacing="8" VerticalSpacing="8">
+                        <Button x:Name="ReadBtn" Style="{StaticResource AccentButtonStyle}" CornerRadius="8" Padding="16,8"
+                                Click="OnRead">
+                            <TextBlock x:Name="ReadText" Text="▶ Read" />
+                        </Button>
+                        <Button x:Name="FolderBtn" Style="{StaticResource ActionButtonStyle}" Content="📂 Show in folder"
+                                Click="OnShowInFolder" />
+                        <Button x:Name="FavBtn" Style="{StaticResource ActionButtonStyle}" Click="OnToggleFavorite" />
+                        <DropDownButton x:Name="StatusBtn" CornerRadius="8" Padding="12,8"
+                                        AutomationProperties.Name="Reading status">
+                            <TextBlock x:Name="StatusText" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Bottom">
+                                    <RadioMenuFlyoutItem x:Name="StatusUnread" Text="Unread" GroupName="Status" Tag="0" Click="OnStatusChoice" />
+                                    <RadioMenuFlyoutItem x:Name="StatusReading" Text="Reading" GroupName="Status" Tag="1" Click="OnStatusChoice" />
+                                    <RadioMenuFlyoutItem x:Name="StatusFinished" Text="Finished today" GroupName="Status" Tag="2" Click="OnStatusChoice" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Finished some time ago, date not known" Click="OnFinishedUndated" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <DropDownButton x:Name="ListsBtn" CornerRadius="8" Padding="12,8" Content="📑 Add to list"
+                                        AutomationProperties.Name="Add to list">
+                            <DropDownButton.Flyout>
+                                <MenuFlyout x:Name="ListsFlyout" Placement="Bottom" Opening="OnListsOpening" />
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </helpers:WrapPanel>
+
+                    <!-- How far in (Reading), or the day it was finished (Finished) -->
+                    <StackPanel x:Name="ProgressRow" Orientation="Horizontal" Spacing="12" Margin="0,12,0,0" Visibility="Collapsed">
+                        <TextBlock Text="Progress" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Slider x:Name="ProgressSlider" Width="260" Minimum="0" Maximum="100" StepFrequency="1"
+                                AutomationProperties.Name="Progress" ValueChanged="OnProgressChanged" />
+                        <TextBlock x:Name="ProgressText" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel x:Name="FinishedRow" Orientation="Horizontal" Spacing="12" Margin="0,12,0,0" Visibility="Collapsed">
+                        <TextBlock Text="Finished on" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <CalendarDatePicker x:Name="FinishedPicker" PlaceholderText="Date not known"
+                                            AutomationProperties.Name="Finished on" DateChanged="OnFinishedDateChanged"
+                                            ToolTipService.ToolTip="When you finished it. Leave it empty if you do not know." />
+                    </StackPanel>
+
+                    <!-- ═══ DETAILS FROM ONLINE, and the user's own title/author/series ═══ -->
+                    <InfoBar x:Name="SuggestionBar" IsOpen="False" IsClosable="False" Severity="Informational" Margin="0,14,0,0"
+                             Title="Open Library may have this book">
+                        <InfoBar.Content>
+                            <StackPanel Spacing="8" Margin="0,0,0,12">
+                                <TextBlock x:Name="SuggestionText" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Use it" Click="OnUseSuggestion" Style="{StaticResource AccentButtonStyle}" />
+                                    <Button Content="Not this book" Click="OnRejectSuggestion" />
+                                </StackPanel>
+                            </StackPanel>
+                        </InfoBar.Content>
+                    </InfoBar>
+
+                    <StackPanel x:Name="OnlineNote" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="OnlineNoteText" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <HyperlinkButton Content="Remove" FontSize="12" Padding="0" Click="OnRemoveOnline" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,10,0,0">
+                        <HyperlinkButton x:Name="EditDetailsLink" Content="Edit title, author and series" Padding="0"
+                                         Click="OnEditDetails" />
+                        <HyperlinkButton Content="Find details online" Padding="0" Click="OnFindOnline" />
+                    </StackPanel>
+
+                    <Border x:Name="EditPanel" Style="{StaticResource CardPanelStyle}" Visibility="Collapsed"
+                            Margin="0,10,0,0" MaxWidth="640" HorizontalAlignment="Left">
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Title" VerticalAlignment="Center" />
+                            <TextBox x:Name="TitleBox" Grid.Row="0" Grid.Column="1" />
+                            <TextBlock Grid.Row="1" Text="Author" VerticalAlignment="Center" />
+                            <TextBox x:Name="AuthorBox" Grid.Row="1" Grid.Column="1" PlaceholderText="No author" />
+                            <TextBlock Grid.Row="2" Text="Series" VerticalAlignment="Center" />
+                            <TextBox x:Name="SeriesBox" Grid.Row="2" Grid.Column="1" PlaceholderText="No series" />
+                            <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <HyperlinkButton Content="Use the file's details" Padding="0" Click="OnUseFileDetails" />
+                                <Button Grid.Column="1" Content="Save" Style="{StaticResource AccentButtonStyle}" Click="OnSaveDetails" />
+                                <Button Grid.Column="2" Content="Cancel" Click="OnCancelDetails" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══ LISTS it is on, and its TAGS ═══ -->
+                    <helpers:WrapPanel x:Name="ListChips" Margin="0,14,0,0" HorizontalSpacing="6" VerticalSpacing="6"
+                                       Visibility="Collapsed" />
+                    <helpers:WrapPanel x:Name="TagsRow" Margin="0,10,0,0" HorizontalSpacing="6" VerticalSpacing="6">
+                        <TextBlock Text="🏷" FontSize="14" VerticalAlignment="Center" Opacity="0.7" />
+                        <Button x:Name="AddTagBtn" Click="OnAddTagClick" CornerRadius="12" Padding="10,3" MinHeight="0"
+                                Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <TextBlock Text="+ Add tag" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Button>
+                        <AutoSuggestBox x:Name="AddTagBox" Visibility="Collapsed" Width="200" AutomationProperties.Name="New tag"
+                                        PlaceholderText="Tag name (Enter to add)"
+                                        TextChanged="OnAddTagTextChanged" QuerySubmitted="OnAddTagSubmitted"
+                                        LostFocus="OnAddTagBlur" />
+                    </helpers:WrapPanel>
+
+                    <!-- ═══ FACTS ═══ -->
+                    <Border x:Name="FactsPanel" Margin="0,14,0,0" Padding="16,10" CornerRadius="8" BorderThickness="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                        <helpers:WrapPanel x:Name="FactsWrap" HorizontalSpacing="28" VerticalSpacing="10" />
+                    </Border>
+
+                    <!-- ═══ DESCRIPTION ═══ -->
+                    <Border x:Name="DescriptionDivider" Height="1" Margin="0,24,0,0" Opacity="0.5"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                    <StackPanel x:Name="DescriptionSection" Margin="0,20,0,0" Spacing="8">
+                        <TextBlock Text="DESCRIPTION" Style="{StaticResource SectionLabelStyle}" />
+                        <TextBlock x:Name="DescriptionText" FontSize="14" LineHeight="22" MaxWidth="780"
+                                   HorizontalAlignment="Left" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    </StackPanel>
+
+                    <!-- ═══ NOTES ═══ -->
+                    <Border Margin="0,20,0,0" Padding="14,12" CornerRadius="8" BorderThickness="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="📝 Notes" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="NoteAddBtn" Content="+ Add note" Style="{StaticResource NoteButtonStyle}"
+                                            Click="OnNoteEditStart" Visibility="Collapsed" />
+                                    <Button x:Name="NoteEditBtn" Content="Edit" Style="{StaticResource NoteButtonStyle}"
+                                            Click="OnNoteEditStart" Visibility="Collapsed" />
+                                    <Button x:Name="NoteSaveBtn" Content="Save" Click="OnNoteSave" Visibility="Collapsed"
+                                            Style="{StaticResource AccentButtonStyle}" CornerRadius="6" Padding="10,4" FontSize="12" />
+                                    <Button x:Name="NoteCancelBtn" Content="Cancel" Style="{StaticResource NoteButtonStyle}"
+                                            Click="OnNoteCancel" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="NoteText" FontSize="13" LineHeight="20" TextWrapping="Wrap"
+                                       IsTextSelectionEnabled="True" Visibility="Collapsed" />
+                            <TextBox x:Name="NoteEditor" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="240"
+                                     FontSize="13" PlaceholderText="What did you think of this book?" Visibility="Collapsed"
+                                     AutomationProperties.Name="Note" />
+                            <TextBlock x:Name="NoteOfflineHint" Visibility="Collapsed" FontSize="11" FontStyle="Italic" TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Text="Drive not plugged in: the note is kept on this computer and written to the drive when it is plugged in again." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══ SUBJECTS, each a search of the library ═══ -->
+                    <Border x:Name="SubjectsDivider" Height="1" Margin="0,24,0,0" Opacity="0.5"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                    <StackPanel x:Name="SubjectsSection" Margin="0,20,0,0" Spacing="8">
+                        <TextBlock Text="SUBJECTS" Style="{StaticResource SectionLabelStyle}" />
+                        <helpers:WrapPanel x:Name="SubjectChips" HorizontalSpacing="6" VerticalSpacing="6" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Sticky bar: once the banner has scrolled away, the title and Read stay at hand -->
+            <Border x:Name="StickyBar" Visibility="Collapsed" VerticalAlignment="Top" Height="52" BorderThickness="0,0,0,1"
+                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <Grid Padding="20,0" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="StickyTitle" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="StickyReadBtn" Style="{StaticResource AccentButtonStyle}" CornerRadius="6" Padding="14,5"
+                                Click="OnRead">
+                            <TextBlock x:Name="StickyReadText" Text="▶ Read" />
+                        </Button>
+                        <Button Content="✕" Background="Transparent" BorderThickness="0" CornerRadius="6" Padding="10,5"
+                                AutomationProperties.Name="Close" ToolTipService.ToolTip="Close (Esc)" Click="OnStickyClose" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

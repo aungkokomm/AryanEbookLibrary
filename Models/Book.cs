@@ -307,10 +307,22 @@ public sealed class Book : ObservableObject
     }
 
     private string _notes = "";
-    public string Notes { get => _notes; set => SetProperty(ref _notes, value ?? ""); }
+    public string Notes
+    {
+        get => _notes;
+        set { if (SetProperty(ref _notes, value ?? "")) OnPropertyChanged(nameof(HasNote)); }
+    }
 
     private string _userTags = "";
     public string UserTags { get => _userTags; set => SetProperty(ref _userTags, value ?? ""); }
+
+    private IReadOnlyList<string> _lists = Array.Empty<string>();
+    /// <summary>The user's own lists this book is on, by name, in the order it was put on them.</summary>
+    public IReadOnlyList<string> Lists { get => _lists; set => SetProperty(ref _lists, value ?? Array.Empty<string>()); }
+
+    public bool InList(string name) => _lists.Contains(name, StringComparer.CurrentCultureIgnoreCase);
+
+    public bool HasNote => _notes.Trim().Length > 0;
 
     private DateTime? _lastOpenedUtc;
     public DateTime? LastOpenedUtc { get => _lastOpenedUtc; set => SetProperty(ref _lastOpenedUtc, value); }
@@ -376,6 +388,7 @@ public sealed class Book : ObservableObject
         Progress = s.Progress;
         Notes = s.Notes;
         UserTags = s.UserTags;
+        Lists = s.Lists.ToList();
         LastOpenedUtc = s.LastOpenedUtc;
         FinishedUtc = s.FinishedUtc;
         StateUpdatedUtc = s.UpdatedUtc;
@@ -391,6 +404,7 @@ public sealed class Book : ObservableObject
         Progress = Progress,
         Notes = Notes,
         UserTags = UserTags,
+        Lists = Lists.ToList(),
         LastOpenedUtc = LastOpenedUtc,
         FinishedUtc = FinishedUtc,
         UpdatedUtc = StateUpdatedUtc,

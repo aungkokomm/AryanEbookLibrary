@@ -123,7 +123,7 @@ public sealed class LibraryRepository
         b.publisher, b.year, b.language, b.description, b.isbn, b.subjects, b.cover_file, b.file_size,
         b.modified_ticks, b.added_utc,
         s.is_favorite, s.status, s.rating, s.progress, s.notes, s.user_tags, s.last_opened_utc, s.finished_utc, s.updated_utc,
-        s.custom_title, s.custom_author, s.custom_series
+        s.custom_title, s.custom_author, s.custom_series, s.lists
         """;
 
     public List<Book> LoadAll()
@@ -156,8 +156,8 @@ public sealed class LibraryRepository
                     FileSize = r.IsDBNull(16) ? 0 : r.GetInt64(16),
                     ModifiedTicks = r.IsDBNull(17) ? 0 : r.GetInt64(17),
                     AddedUtc = Dt(r, 18) ?? DateTime.UtcNow,
-                    NameFields = r.GetInt32(31),
-                    CoverWeak = r.GetInt32(32) != 0
+                    NameFields = r.GetInt32(32),
+                    CoverWeak = r.GetInt32(33) != 0
                 };
                 b.DriveLabel = labels.TryGetValue(b.DriveId, out var l) ? l : b.DriveId;
                 b.KeepFileDetails();
@@ -178,7 +178,8 @@ public sealed class LibraryRepository
                         UpdatedUtc = Dt(r, 27) ?? DateTime.MinValue,
                         CustomTitle = NullableStr(r, 28),
                         CustomAuthor = NullableStr(r, 29),
-                        CustomSeries = NullableStr(r, 30)
+                        CustomSeries = NullableStr(r, 30),
+                        Lists = ReadLists(r, 31)
                     });
                 }
                 return b;
@@ -390,9 +391,9 @@ public sealed class LibraryRepository
     {
         _db.Exec("""
             INSERT INTO book_state (key, drive_id, rel_path, is_favorite, status, rating, progress, notes, user_tags,
-                                    last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series)
+                                    last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series, lists)
             VALUES ($key, $drive, $rel, $fav, $status, $rating, $progress, $notes, $tags, $opened, $finished, $updated,
-                    $ctitle, $cauthor, $cseries)
+                    $ctitle, $cauthor, $cseries, $lists)
             ON CONFLICT(key) DO UPDATE SET
                 is_favorite = excluded.is_favorite,
                 status = excluded.status,
@@ -405,7 +406,8 @@ public sealed class LibraryRepository
                 updated_utc = excluded.updated_utc,
                 custom_title = excluded.custom_title,
                 custom_author = excluded.custom_author,
-                custom_series = excluded.custom_series;
+                custom_series = excluded.custom_series,
+                lists = excluded.lists;
             """,
             ("$key", key), ("$drive", driveId), ("$rel", relPath),
             ("$fav", s.IsFavorite ? 1 : 0), ("$status", (int)s.Status), ("$rating", s.Rating),
@@ -413,19 +415,20 @@ public sealed class LibraryRepository
             ("$opened", s.LastOpenedUtc is { } o ? Iso(o) : null),
             ("$finished", s.FinishedUtc is { } f ? Iso(f) : null),
             ("$updated", Iso(s.UpdatedUtc)),
-            ("$ctitle", s.CustomTitle), ("$cauthor", s.CustomAuthor), ("$cseries", s.CustomSeries));
+            ("$ctitle", s.CustomTitle), ("$cauthor", s.CustomAuthor), ("$cseries", s.CustomSeries),
+            ("$lists", WriteLists(s.Lists)));
     }
 
     public sealed record StateRow(string DriveId, string RelPath, string Key, BookState State);
 
     public List<StateRow> GetAllStates() => _db.Query(
-        "SELECT drive_id, rel_path, key, is_favorite, status, rating, progress, notes, user_tags, last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series FROM book_state",
+        "SELECT drive_id, rel_path, key, is_favorite, status, rating, progress, notes, user_tags, last_opened_utc, finished_utc, updated_utc, custom_title, custom_author, custom_series, lists FROM book_state",
         ReadStateRow);
 
     public List<StateRow> GetStatesForFolder(long folderId) => _db.Query(
         """
         SELECT s.drive_id, s.rel_path, s.key, s.is_favorite, s.status, s.rating, s.progress, s.notes, s.user_tags,
-               s.last_opened_utc, s.finished_utc, s.updated_utc, s.custom_title, s.custom_author, s.custom_series
+               s.last_opened_utc, s.finished_utc, s.updated_utc, s.custom_title, s.custom_author, s.custom_series, s.lists
         FROM book_state s JOIN books b ON b.state_key = s.key
         WHERE b.folder_id = $f
         """,
@@ -450,10 +453,76 @@ public sealed class LibraryRepository
             UpdatedUtc = Dt(r, 11) ?? DateTime.MinValue,
             CustomTitle = NullableStr(r, 12),
             CustomAuthor = NullableStr(r, 13),
-            CustomSeries = NullableStr(r, 14)
+            CustomSeries = NullableStr(r, 14),
+            Lists = ReadLists(r, 15)
         });
 
+    // ------------------------------------------------------------ my lists
+
+    /// <summary>The user's lists, in the order they were made.</summary>
+    public List<string> GetLists() =>
+        _db.Query("SELECT name FROM user_lists ORDER BY sort, created_utc, name COLLATE NOCASE", r => r.GetString(0));
+
+    /// <summary>Adds a list. False when there is one of that name already (in any case).</summary>
+    public bool AddList(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) return false;
+        return _db.Exec("INSERT OR IGNORE INTO user_lists (name, created_utc, sort) VALUES ($n, $t, 0)",
+            ("$n", name), ("$t", Iso(DateTime.UtcNow))) > 0;
+    }
+
+    /// <summary>Makes sure every one of these lists exists (lists named in a sidecar or a backup).</summary>
+    public void EnsureLists(IEnumerable<string> names)
+    {
+        foreach (var name in names) AddList(name);
+    }
+
+    /// <summary>
+    /// Renames a list, or (with <paramref name="to"/> null) deletes it, and takes every book off it or onto the
+    /// new name. Every book is changed, found or not (a book on an unplugged drive, a file the last scan missed),
+    /// and stamped with the time, so an older copy of its state in a sidecar does not bring the old name back.
+    /// Returns the changed state rows.
+    /// </summary>
+    public List<StateRow> RenameList(string from, string? to)
+    {
+        var changed = new List<StateRow>();
+        _db.Transaction(() =>
+        {
+            if (to is null)
+                _db.Exec("DELETE FROM user_lists WHERE name=$n", ("$n", from));
+            else
+                _db.Exec("UPDATE user_lists SET name=$to WHERE name=$from", ("$to", to.Trim()), ("$from", from));
+
+            var now = DateTime.UtcNow;
+            foreach (var row in GetAllStates())
+            {
+                var at = row.State.Lists.FindIndex(n => string.Equals(n, from, StringComparison.CurrentCultureIgnoreCase));
+                if (at < 0) continue;
+                if (to is null) row.State.Lists.RemoveAt(at);
+                else row.State.Lists[at] = to.Trim();
+                row.State.Lists = row.State.Lists.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+                row.State.UpdatedUtc = now;
+                UpsertState(row.DriveId, row.RelPath, row.Key, row.State);
+                changed.Add(row);
+            }
+        });
+        return changed;
+    }
+
     // ------------------------------------------------------------ helpers
+
+    /// <summary>A book's lists are kept one name per line.</summary>
+    private const char ListBreak = (char)10;
+
+    private static List<string> ReadLists(SqliteDataReader r, int i) =>
+        r.IsDBNull(i)
+            ? new List<string>()
+            : r.GetString(i).Split(ListBreak, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+
+    private static string? WriteLists(List<string> lists) =>
+        lists.Count == 0 ? null : string.Join(ListBreak, lists.Select(n => n.Trim()).Where(n => n.Length > 0));
 
     private static string Str(SqliteDataReader r, int i) => r.IsDBNull(i) ? "" : r.GetString(i);
 

@@ -23,9 +23,13 @@ public sealed class BookState
     public string? CustomAuthor { get; set; }
     public string? CustomSeries { get; set; }
 
+    // The user's own lists (My lists) this book is on, by name. Kept here, not in a table of their own, so a
+    // book's lists travel with it like its tags: in the sidecar on the drive, the backup, and a moved file.
+    public List<string> Lists { get; set; } = new();
+
     public bool IsDefault =>
         !IsFavorite && Status == ReadStatus.Unread && Rating == 0 && Progress == 0 &&
         string.IsNullOrEmpty(Notes) && string.IsNullOrEmpty(UserTags) &&
         LastOpenedUtc is null && FinishedUtc is null &&
-        CustomTitle is null && CustomAuthor is null && CustomSeries is null;
+        CustomTitle is null && CustomAuthor is null && CustomSeries is null && Lists.Count == 0;
 }

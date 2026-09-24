@@ -37,8 +37,31 @@ public sealed partial class MainWindow : Window
         Library.ShelvesChanged += (_, _) => BuildShelves();
         BuildShelves();
         ShelvesItem.IsExpanded = AppServices.Settings.ShelvesExpanded;
-        NavView.Expanding += (_, e) => { if (e.ExpandingItemContainer == ShelvesItem) RememberShelvesOpen(true); };
-        NavView.Collapsed += (_, e) => { if (e.CollapsedItemContainer == ShelvesItem) RememberShelvesOpen(false); };
+        // Only the user's own folding is remembered. A window narrow enough for the pane to shrink to icons folds
+        // every group by itself, and that used to be saved as if the user had folded them.
+        NavView.Expanding += (_, e) =>
+        {
+            if (NavView.DisplayMode != NavigationViewDisplayMode.Expanded) return;
+            if (e.ExpandingItemContainer == ShelvesItem) RememberShelvesOpen(true);
+            else if (e.ExpandingItemContainer == ListsItem) RememberListsOpen(true);
+        };
+        NavView.Collapsed += (_, e) =>
+        {
+            if (NavView.DisplayMode != NavigationViewDisplayMode.Expanded) return;
+            if (e.CollapsedItemContainer == ShelvesItem) RememberShelvesOpen(false);
+            else if (e.CollapsedItemContainer == ListsItem) RememberListsOpen(false);
+        };
+        // Back to the full pane: the groups open again as the user left them.
+        NavView.DisplayModeChanged += (_, e) =>
+        {
+            if (e.DisplayMode != NavigationViewDisplayMode.Expanded) return;
+            ShelvesItem.IsExpanded = AppServices.Settings.ShelvesExpanded;
+            ListsItem.IsExpanded = AppServices.Settings.ListsExpanded;
+        };
+        Library.ListsChanged += (_, _) => BuildLists();
+        Library.StateChanged += (_, _) => CountsSoon();
+        BuildLists();
+        ListsItem.IsExpanded = AppServices.Settings.ListsExpanded;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
 
@@ -55,6 +78,7 @@ public sealed partial class MainWindow : Window
             Library.CancelScan();
             // The readers first: each saves its place and reading time, and the database closes after.
             Reader.ReaderWindow.CloseAll();
+            BookDetailsWindow.CloseAll();   // a note being typed is saved
             AppServices.Shutdown();
         };
 
@@ -159,6 +183,13 @@ public sealed partial class MainWindow : Window
             ShowStatus();
             return;
         }
+        if (e.PropertyName == nameof(LibraryViewModel.ListFilter))
+        {
+            if (Library.ListFilter.Length > 0) SelectList(Library.ListFilter);
+            else if (NavView.SelectedItem is NavigationViewItem { Tag: string listTag } && listTag.StartsWith(UserListTag))
+                SelectNav(ListTag(Library.Filter));   // the list was deleted, or a shelf was shown
+            return;
+        }
         if (e.PropertyName == nameof(LibraryViewModel.ActiveShelf))
         {
             if (Library.ActiveShelf.Length > 0) SelectShelf(Library.ActiveShelf);
@@ -188,6 +219,16 @@ public sealed partial class MainWindow : Window
         }
 
         var invoked = args.InvokedItemContainer?.Tag as string ?? "";
+        if (invoked.StartsWith(UserListTag))
+        {
+            ShowList(invoked[UserListTag.Length..]);
+            return;
+        }
+        if (invoked == NewListTag)
+        {
+            _ = NewListAsync();
+            return;
+        }
         if (invoked.StartsWith(ShelfTag))
         {
             if (Library.FindShelf(invoked[ShelfTag.Length..]) is { } shelf)
@@ -206,6 +247,7 @@ public sealed partial class MainWindow : Window
             case "favorites": ShowLibrary(LibraryFilter.Favorites); break;
             case "unread": ShowLibrary(LibraryFilter.Unread); break;
             case "finished": ShowLibrary(LibraryFilter.Finished); break;
+            case "notes": ShowLibrary(LibraryFilter.Notes); break;
             case "needs": ShowLibrary(LibraryFilter.NeedsDetails); break;
             case "authors": Navigate(typeof(AuthorsPage)); break;
             case "series": Navigate(typeof(SeriesPage)); break;
@@ -222,7 +264,34 @@ public sealed partial class MainWindow : Window
         LeaveShelfView();
         Library.SeriesFilter = "";
         Library.TagFilter = "";
+        Library.ListFilter = "";
         Library.Filter = filter;
+        Navigate(typeof(LibraryPage));
+    }
+
+    /// <summary>Shows the books on one of My lists (from the pane, or a list chip in a book's details).</summary>
+    public void ShowList(string name)
+    {
+        LeaveShelfView();
+        Library.SeriesFilter = "";
+        Library.TagFilter = "";
+        Library.SearchText = "";
+        Library.Filter = LibraryFilter.All;
+        Library.ListFilter = Library.FindList(name) ?? name;
+        SelectList(Library.ListFilter);
+        Navigate(typeof(LibraryPage));
+    }
+
+    /// <summary>Every book the words find, in All Books (a subject in a book's details).</summary>
+    public void ShowSearch(string text)
+    {
+        LeaveShelfView();
+        Library.SeriesFilter = "";
+        Library.TagFilter = "";
+        Library.ListFilter = "";
+        Library.Filter = LibraryFilter.All;
+        Library.SearchText = text;
+        SelectNav("all");
         Navigate(typeof(LibraryPage));
     }
 
@@ -233,13 +302,18 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Shows every book naming this person (from the Authors page).</summary>
-    public void ShowBooksBy(string author)
+    public void ShowBooksBy(string author) => ShowSearch(author);
+
+    /// <summary>Every book from one publisher (a publisher in a book's details), with the Filters menu's publisher on.</summary>
+    public void ShowPublisher(string publisher)
     {
         LeaveShelfView();
         Library.SeriesFilter = "";
         Library.TagFilter = "";
+        Library.ListFilter = "";
+        Library.SearchText = "";
         Library.Filter = LibraryFilter.All;
-        Library.SearchText = author;
+        Library.PublisherFilter = publisher;
         SelectNav("all");
         Navigate(typeof(LibraryPage));
     }
@@ -250,6 +324,7 @@ public sealed partial class MainWindow : Window
         LeaveShelfView();
         Library.Filter = LibraryFilter.All;
         Library.SearchText = "";
+        Library.ListFilter = "";
         Library.SeriesFilter = series;
         SelectNav("all");
         Navigate(typeof(LibraryPage));
@@ -261,6 +336,7 @@ public sealed partial class MainWindow : Window
         LeaveShelfView();
         Library.Filter = LibraryFilter.All;
         Library.SearchText = "";
+        Library.ListFilter = "";
         Library.TagFilter = tag;
         SelectNav("all");
         Navigate(typeof(LibraryPage));
@@ -279,6 +355,7 @@ public sealed partial class MainWindow : Window
         LibraryFilter.Unread => "unread",
         LibraryFilter.Finished => "finished",
         LibraryFilter.NeedsDetails => "needs",
+        LibraryFilter.Notes => "notes",
         _ => "all"
     };
 
@@ -365,6 +442,148 @@ public sealed partial class MainWindow : Window
         {
             _shelfDialogOpen = false;
         }
+    }
+
+    // ---- notes and my lists ----
+
+    private const string UserListTag = "userlist:";
+    private const string NewListTag = "newlist";
+    private readonly Dictionary<string, TextBlock> _listCounts = new(StringComparer.CurrentCultureIgnoreCase);
+    private NavigationViewItem? _newListItem;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _countsTimer;
+
+    private void SelectList(string name) =>
+        NavView.SelectedItem = ListsItem.MenuItems.OfType<NavigationViewItem>()
+            .FirstOrDefault(i => string.Equals((string?)i.Tag, UserListTag + name, StringComparison.CurrentCultureIgnoreCase));
+
+    /// <summary>
+    /// One pane item per list under "My lists", with its count, a right-click menu and room to drop books on,
+    /// then "New list" (CineLibrary's MY LISTS with its +).
+    /// </summary>
+    private void BuildLists()
+    {
+        // Only the lists are replaced and "New list" stays: a group left with no items is folded away by the pane,
+        // and the Collapsed event would then remember it folded as if the user had done it.
+        if (_newListItem is null)
+        {
+            _newListItem = new NavigationViewItem { Content = "New list...", Tag = NewListTag, SelectsOnInvoked = false, Icon = new SymbolIcon(Symbol.Add) };
+            ToolTipService.SetToolTip(_newListItem, "Make a list, then put books on it from their details or menu, or by dragging them here");
+            ListsItem.MenuItems.Add(_newListItem);
+        }
+        while (ListsItem.MenuItems.Count > 0 && !ReferenceEquals(ListsItem.MenuItems[0], _newListItem)) ListsItem.MenuItems.RemoveAt(0);
+        _listCounts.Clear();
+        var at = 0;
+        foreach (var name in Library.UserLists) ListsItem.MenuItems.Insert(at++, MakeListItem(name));
+
+        RefreshCounts();
+        if (Library.ListFilter.Length > 0) SelectList(Library.ListFilter);
+    }
+
+    private NavigationViewItem MakeListItem(string name)
+    {
+        var count = new TextBlock { Style = (Style)Application.Current.Resources["PaneBadgeTextStyle"] };
+        _listCounts[name] = count;
+        var badge = new Border { Style = (Style)Application.Current.Resources["PaneBadgeStyle"], Child = count };
+        Grid.SetColumn(badge, 1);
+        var label = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var content = new Grid { ColumnSpacing = 8, Children = { label, badge } };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var item = new NavigationViewItem
+        {
+            Content = content,
+            Tag = UserListTag + name,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Icon = new FontIcon { Glyph = ((char)0xE8FD).ToString() }
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, name);
+        ToolTipService.SetToolTip(item, name);
+
+        var copy = new MenuFlyoutItem { Text = "Copy books to folder...", Icon = new SymbolIcon(Symbol.Copy) };
+        copy.Click += async (_, _) => await ListActionAsync(root => ListActions.CopyToFolderAsync(this, root, name));
+        var picture = new MenuFlyoutItem { Text = "Export as image...", Icon = new FontIcon { Glyph = ((char)0xE91B).ToString() } };
+        picture.Click += async (_, _) => await ListActionAsync(root => ListActions.ExportImageAsync(this, root, name));
+        var rename = new MenuFlyoutItem { Text = "Rename...", Icon = new SymbolIcon(Symbol.Rename) };
+        rename.Click += async (_, _) => await ListActionAsync(async root =>
+        {
+            var to = await ListDialogs.AskNameAsync(root, "Rename list", "Rename", name, renaming: name);
+            if (to is not null && to != name) Library.RenameList(name, to);
+        });
+        var delete = new MenuFlyoutItem { Text = "Delete list", Icon = new SymbolIcon(Symbol.Delete) };
+        delete.Click += async (_, _) => await ListActionAsync(async root =>
+        {
+            if (await ListDialogs.ConfirmDeleteAsync(root, name, Library.ListCount(name))) Library.DeleteList(name);
+        });
+        item.ContextFlyout = new MenuFlyout { Items = { copy, picture, new MenuFlyoutSeparator(), rename, delete } };
+
+        // Books dragged from the grid or the list land on the list.
+        item.AllowDrop = true;
+        item.DragOver += (_, e) =>
+        {
+            if (!BookDrag.HasBooks(e.DataView)) return;
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Link;
+            e.DragUIOverride.Caption = $"Add to “{name}”";
+        };
+        item.Drop += (_, e) =>
+        {
+            var books = BookDrag.Read(e.DataView);
+            if (books.Count == 0) return;
+            var added = Library.AddToList(books, name);
+            Library.Tell(added > 0 ? $"Added {(added == 1 ? "1 book" : $"{added:N0} books")} to “{name}”"
+                : books.Count == 1 ? $"“{books[0].Title}” is already on “{name}”"
+                : $"Those books are already on “{name}”");
+        };
+        return item;
+    }
+
+    /// <summary>One list dialog at a time, like the shelves' (a ContentDialog cannot open over another).</summary>
+    private async Task ListActionAsync(Func<XamlRoot, Task> action)
+    {
+        if (_shelfDialogOpen || Content.XamlRoot is null) return;
+        _shelfDialogOpen = true;
+        try
+        {
+            await action(Content.XamlRoot);
+        }
+        finally
+        {
+            _shelfDialogOpen = false;
+        }
+    }
+
+    private Task NewListAsync() => ListActionAsync(async root =>
+    {
+        var name = await ListDialogs.AskNameAsync(root, "New list", "Create", "");
+        if (name is not null && Library.CreateList(name)) ListsItem.IsExpanded = true;
+    });
+
+    private static void RememberListsOpen(bool open)
+    {
+        if (AppServices.Settings.ListsExpanded == open) return;
+        AppServices.Settings.ListsExpanded = open;
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>Many saves come at once (a list renamed on 200 books): the counts are worked out once after them.</summary>
+    private void CountsSoon() => DispatcherQueue.TryEnqueue(() =>
+    {
+        if (_countsTimer is null)
+        {
+            _countsTimer = DispatcherQueue.CreateTimer();
+            _countsTimer.Interval = TimeSpan.FromMilliseconds(150);
+            _countsTimer.IsRepeating = false;
+            _countsTimer.Tick += (_, _) => RefreshCounts();
+        }
+        _countsTimer.Stop();
+        _countsTimer.Start();
+    });
+
+    private void RefreshCounts()
+    {
+        NotesCount.Text = Library.NotesCount.ToString("N0");
+        var counts = Library.ListCounts();
+        foreach (var (name, text) in _listCounts) text.Text = counts.GetValueOrDefault(name).ToString("N0");
     }
 
     private void Navigate(Type page)

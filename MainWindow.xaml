@@ -46,7 +46,7 @@
             PaneDisplayMode="Auto"
             CompactModeThresholdWidth="0"
             ExpandedModeThresholdWidth="860"
-            OpenPaneLength="230"
+            OpenPaneLength="260"
             IsBackButtonVisible="Collapsed"
             IsSettingsVisible="True"
             ItemInvoked="NavView_ItemInvoked">
@@ -70,11 +70,33 @@
                 <NavigationViewItem Content="Finished" Tag="finished">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <!-- Every book with a note, and how many (CineLibrary's Notes view) -->
+                <NavigationViewItem x:Name="NotesItem" Tag="notes" HorizontalContentAlignment="Stretch"
+                                    AutomationProperties.Name="Notes"
+                                    ToolTipService.ToolTip="Every book you wrote a note on">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" /></NavigationViewItem.Icon>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Notes" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Border Grid.Column="1" Style="{StaticResource PaneBadgeStyle}">
+                            <TextBlock x:Name="NotesCount" Text="0" Style="{StaticResource PaneBadgeTextStyle}" />
+                        </Border>
+                    </Grid>
+                </NavigationViewItem>
                 <!-- The user's saved views ("Save as shelf" on the library page); filled in code, hidden while there are none -->
                 <NavigationViewItem x:Name="ShelvesItem" Content="Shelves" Tag="shelves" Visibility="Collapsed"
                                     SelectsOnInvoked="False" IsExpanded="True"
                                     ToolTipService.ToolTip="Your saved views of the library">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BC;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <!-- The user's hand-picked lists (CineLibrary's MY LISTS); filled in code, with "New list" last -->
+                <NavigationViewItem x:Name="ListsItem" Content="My lists" Tag="lists"
+                                    SelectsOnInvoked="False" IsExpanded="True"
+                                    ToolTipService.ToolTip="Lists you make and put books on yourself">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE728;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItemHeader Content="Browse" />
                 <NavigationViewItem Content="Authors" Tag="authors">

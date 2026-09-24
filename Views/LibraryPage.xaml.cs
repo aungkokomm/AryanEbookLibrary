@@ -54,7 +54,7 @@ public sealed partial class LibraryPage : Page
         SyncContinueRow();
 
         // One cached page instance lives for the whole session, so these are subscribed once.
-        BookCardControl.DetailsRequested += b => _ = ShowDetailsAsync(b);
+        BookCardControl.DetailsRequested += b => BookDetailsWindow.Show(b);
         BookCardControl.OpenRequested += (b, defaultApp) => _ = OpenAsync(b, defaultApp);
         BookCardControl.FindOnlineRequested += b => _ = FindOnlineAsync(b);
         ViewModel.PropertyChanged += OnViewModelChanged;
@@ -70,6 +70,7 @@ public sealed partial class LibraryPage : Page
             case nameof(LibraryViewModel.SearchText):
             case nameof(LibraryViewModel.SeriesFilter):
             case nameof(LibraryViewModel.TagFilter):
+            case nameof(LibraryViewModel.ListFilter):
             case nameof(LibraryViewModel.LanguageFilter):
             case nameof(LibraryViewModel.DecadeFilter):
             case nameof(LibraryViewModel.PublisherFilter):
@@ -86,7 +87,10 @@ public sealed partial class LibraryPage : Page
                     _scrollToTopOnNextResult = false;
                     MainScroller.ChangeView(null, 0, null, disableAnimation: true);
                 }
-                EmptyTitle.Text = ViewModel.TotalCount == 0 ? "Your library is empty" : "No books match";
+                EmptyTitle.Text = ViewModel.TotalCount == 0 ? "Your library is empty"
+                    : ViewModel.ListFilter.Length > 0 && !ViewModel.IsFiltered ? "Nothing on this list yet"
+                    : ViewModel.Filter == LibraryFilter.Notes && !ViewModel.IsFiltered ? "No notes yet"
+                    : "No books match";
                 break;
             case nameof(LibraryViewModel.ActiveShelf):
                 SyncFilterBar();
@@ -139,37 +143,6 @@ public sealed partial class LibraryPage : Page
     }
 
     // ---- open / details ----
-
-    private async Task ShowDetailsAsync(Book book)
-    {
-        if (_dialogOpen || XamlRoot is null) return;   // only one ContentDialog can be open at a time
-        _dialogOpen = true;
-        ContentDialogResult result;
-        BookDetailsDialog dialog;
-        try
-        {
-            dialog = new BookDetailsDialog(book, ViewModel) { XamlRoot = XamlRoot };
-            result = await dialog.ShowThemedAsync();
-        }
-        finally
-        {
-            _dialogOpen = false;
-        }
-
-        switch (dialog.Next)
-        {
-            case DetailsNext.FindOnline:   // one ContentDialog at a time: details close, the finder opens, details return
-                await FindOnlineAsync(book);
-                await ShowDetailsAsync(book);
-                return;
-            case DetailsNext.Reopen:
-                await ShowDetailsAsync(book);
-                return;
-        }
-
-        if (result == ContentDialogResult.Primary) await OpenAsync(book);
-        else if (result == ContentDialogResult.Secondary) BookLauncher.ShowInFolder(book);
-    }
 
     private async Task FindOnlineAsync(Book book)
     {
@@ -341,7 +314,9 @@ public sealed partial class LibraryPage : Page
 
         var filtered = ViewModel.IsFiltered;
         ClearFiltersBtn.Visibility = filtered ? Visibility.Visible : Visibility.Collapsed;
-        SaveShelfBtn.Visibility = filtered && ViewModel.ActiveShelf.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        // A shelf is a view of the whole library, so one of My lists cannot be saved as one.
+        SaveShelfBtn.Visibility = filtered && ViewModel.ActiveShelf.Length == 0 && ViewModel.ListFilter.Length == 0
+            ? Visibility.Visible : Visibility.Collapsed;
 
         static Style Pill(bool on) => (Style)Application.Current.Resources[on ? "PillButtonActiveStyle" : "PillButtonStyle"];
     }
@@ -538,7 +513,7 @@ public sealed partial class LibraryPage : Page
         var pick = ViewModel.PickRandom();
         if (pick is not null)
         {
-            await ShowDetailsAsync(pick);
+            BookDetailsWindow.Show(pick);
             return;
         }
         if (_dialogOpen) return;

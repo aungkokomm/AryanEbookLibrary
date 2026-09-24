@@ -298,6 +298,20 @@ public sealed class Database : IDisposable
                 """);
             Exec("PRAGMA user_version = 6;");
         }
+        if (version < 7)
+        {
+            // My lists: which lists a book is on lives with its personal state (names, one per line), so it goes
+            // wherever the state goes. The lists themselves are named here, so an empty list still exists.
+            Exec("ALTER TABLE book_state ADD COLUMN lists TEXT;");
+            Exec("""
+                CREATE TABLE user_lists (
+                    name         TEXT PRIMARY KEY COLLATE NOCASE,
+                    created_utc  TEXT NOT NULL,
+                    sort         INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+            Exec("PRAGMA user_version = 7;");
+        }
     }
 
     public void Dispose()

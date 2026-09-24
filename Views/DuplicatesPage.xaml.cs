@@ -68,35 +68,8 @@ public sealed partial class DuplicatesPage : Page
         if ((sender as Button)?.Tag is Book b) BookLauncher.ShowInFolder(b);
     }
 
-    private bool _dialogOpen;
-
-    private async void OnDetails(object sender, RoutedEventArgs e)
+    private void OnDetails(object sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not Book b || _dialogOpen || XamlRoot is null) return;
-        _dialogOpen = true;
-        BookDetailsDialog dialog;
-        try
-        {
-            dialog = new BookDetailsDialog(b, AppServices.Library) { XamlRoot = XamlRoot };
-            await dialog.ShowThemedAsync();
-        }
-        finally
-        {
-            _dialogOpen = false;
-        }
-
-        if (dialog.Next == DetailsNext.FindOnline)
-        {
-            _dialogOpen = true;
-            try
-            {
-                await new FindOnlineDialog(b) { XamlRoot = XamlRoot }.ShowThemedAsync();
-            }
-            finally
-            {
-                _dialogOpen = false;
-            }
-        }
-        Refresh();
+        if ((sender as Button)?.Tag is Book b) BookDetailsWindow.Show(b, Refresh);
     }
 }

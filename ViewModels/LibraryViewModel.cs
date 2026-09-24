@@ -88,7 +88,21 @@ public sealed class LibraryViewModel : ObservableObject
         }
     }
 
+    private string _listFilter = "";
+    /// <summary>One of the user's own lists (My lists in the pane). Empty means no list.</summary>
+    public string ListFilter
+    {
+        get => _listFilter;
+        set
+        {
+            if (!SetProperty(ref _listFilter, value ?? "")) return;
+            OnPropertyChanged(nameof(HeaderText));
+            ViewChanged();
+        }
+    }
+
     public string HeaderText => ActiveShelf.Length > 0 ? ActiveShelf
+        : ListFilter.Length > 0 ? ListFilter
         : SeriesFilter.Length > 0 ? "Series: " + SeriesFilter
         : TagFilter.Length > 0 ? "Tag: " + TagFilter
         : ShelfFilter.ListName(Filter);
@@ -242,7 +256,12 @@ public sealed class LibraryViewModel : ObservableObject
         ApplyFilter();
     }
 
-    public void ShowShelf(Shelf shelf) => SetView(shelf, shelf.Name);
+    public void ShowShelf(Shelf shelf)
+    {
+        _listFilter = "";   // a shelf is a view of the whole library, never of one list
+        OnPropertyChanged(nameof(ListFilter));
+        SetView(shelf, shelf.Name);
+    }
 
     /// <summary>Back to the plain list: every filter off, the list itself (Unread, Favorites...) kept.</summary>
     public void ClearFilters() => SetView(new Shelf { List = Filter }, "");
@@ -363,6 +382,13 @@ public sealed class LibraryViewModel : ObservableObject
     private string _statusText = "Ready";
     public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
 
+    /// <summary>A line in the status bar, which shows for a few seconds (books added to a list, a copy finished).</summary>
+    public void Tell(string text)
+    {
+        _statusText = text;
+        OnPropertyChanged(nameof(StatusText));   // even when it says the same again, so the bar shows again
+    }
+
     private int _totalCount;
     public int TotalCount { get => _totalCount; private set => SetProperty(ref _totalCount, value); }
 
@@ -388,7 +414,7 @@ public sealed class LibraryViewModel : ObservableObject
 
     private void RefreshContinueBooks()
     {
-        var show = Filter == LibraryFilter.All && ActiveShelf.Length == 0 && !IsFiltered;
+        var show = Filter == LibraryFilter.All && ActiveShelf.Length == 0 && ListFilter.Length == 0 && !IsFiltered;
         var books = show
             ? _all.Where(b => b.Status == ReadStatus.Reading && b.IsAvailable)
                 .OrderByDescending(b => b.LastOpenedUtc ?? DateTime.MinValue).Take(12).ToList()
@@ -411,6 +437,8 @@ public sealed class LibraryViewModel : ObservableObject
         try
         {
             await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
+            // Edits made while a drive was away reach its sidecars now that it is here.
+            await Task.Run(() => SyncSidecars(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId))));
             await ReloadAsync();
             // Drive changes arrive from DeviceChangeWatcher (WM_DEVICECHANGE); nothing polls.
         }
@@ -441,9 +469,20 @@ public sealed class LibraryViewModel : ObservableObject
         var list = await Task.Run(() => Repo.LoadAll());
         foreach (var b in list) b.IsAvailable = DriveRegistry.IsOnline(b.DriveId);
         _all = list;
+        var lists = Repo.GetLists();   // a sidecar or a backup may have brought new ones
+        var listsChanged = !lists.SequenceEqual(_lists);
+        _lists = lists;
         TotalCount = list.Count;
         ApplyFilter();
+        if (listsChanged) ListsChanged?.Invoke(this, EventArgs.Empty);
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// Brings each folder's sidecar and the index level: newer edits from the drive come in, and edits made here
+    /// while the drive was away are written to it. Touches the drives, so call it off the UI thread.
+    /// </summary>
+    private static int SyncSidecars(IEnumerable<LibraryFolder> folders) => folders.Sum(f => AppServices.Sync.SyncFolder(f));
 
     /// <summary>
     /// Called by DeviceChangeWatcher on the UI thread when Windows reports a volume arriving or leaving.
@@ -468,6 +507,15 @@ public sealed class LibraryViewModel : ObservableObject
 
             var arrived = drives.FirstOrDefault(d => !before[d.Id] && DriveRegistry.IsOnline(d.Id));
             var left = drives.FirstOrDefault(d => before[d.Id] && !DriveRegistry.IsOnline(d.Id));
+
+            // A drive plugged in again gets the edits made while it was away (notes, lists, favorites...), and
+            // brings in the ones made on another computer since.
+            var back = drives.Where(d => !before[d.Id] && DriveRegistry.IsOnline(d.Id)).Select(d => d.Id).ToHashSet();
+            if (back.Count > 0 && !IsScanning)
+            {
+                var folders = Repo.GetFolders().Where(f => back.Contains(f.DriveId)).ToList();
+                if (await Task.Run(() => SyncSidecars(folders)) > 0) await ReloadAsync();
+            }
             if (!IsScanning)
                 StatusText = arrived is not null ? $"Drive \"{arrived.Label}\" connected"
                     : left is not null ? $"Drive \"{left.Label}\" disconnected, its books stay in the catalog as OFFLINE"
@@ -487,6 +535,7 @@ public sealed class LibraryViewModel : ObservableObject
     {
         var view = CurrentView();
         var q = ShelfFilter.Apply(_all, view);
+        if (ListFilter.Length > 0) q = q.Where(b => b.InList(ListFilter));
 
         IEnumerable<Book> sorted;
         if (SeriesFilter.Length > 0)
@@ -504,7 +553,11 @@ public sealed class LibraryViewModel : ObservableObject
         IsEmpty = result.Count == 0;
         EmptyMessage = _all.Count == 0
             ? "Your library is empty. Open Drives & Folders and add a folder with books."
-            : "No books match the current filter.";
+            : ListFilter.Length > 0 && !IsFiltered
+                ? "Add books with “Add to list” in a book's details or its right-click menu, or drag books onto the list in the pane."
+                : Filter == LibraryFilter.Notes && !IsFiltered
+                    ? "Open a book's details and use “Add note” to write what you thought of it."
+                    : "No books match the current filter.";
         var count = result.Count == _all.Count || Filter == LibraryFilter.RecentlyAdded
             ? $"{result.Count:N0} books"
             : $"{result.Count:N0} of {_all.Count:N0} books";
@@ -976,6 +1029,131 @@ public sealed class LibraryViewModel : ObservableObject
         book.ResetSearchBlob();
         Repo.UpsertState(book.DriveId, book.RelPath, book.StateKey, book.ToState());
         AppServices.Sync.Schedule(book.FolderId);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>A book's personal state was saved: the pane's counts (Notes, My lists) may have changed.</summary>
+    public event EventHandler? StateChanged;
+
+    // ------------------------------------------------------------ my lists
+
+    private List<string> _lists = new();
+
+    /// <summary>The user's own lists, in the order they were made.</summary>
+    public IReadOnlyList<string> UserLists => _lists;
+
+    /// <summary>A list was made, renamed or deleted: the navigation pane rebuilds My lists.</summary>
+    public event EventHandler? ListsChanged;
+
+    public string? FindList(string name) =>
+        _lists.FirstOrDefault(n => string.Equals(n, name.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+    public int ListCount(string name) => _all.Count(b => b.InList(name));
+
+    /// <summary>How many books are on each list, in one pass over the library.</summary>
+    public Dictionary<string, int> ListCounts()
+    {
+        var counts = new Dictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
+        foreach (var book in _all)
+            foreach (var name in book.Lists)
+                counts[name] = counts.GetValueOrDefault(name) + 1;
+        return counts;
+    }
+
+    public List<Book> BooksInList(string name) =>
+        _all.Where(b => b.InList(name)).OrderBy(b => b.SortTitle, StringComparer.CurrentCultureIgnoreCase).ToList();
+
+    public int NotesCount => _all.Count(b => b.HasNote);
+
+    /// <summary>Makes a new, empty list. False when the name is empty or taken.</summary>
+    public bool CreateList(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0 || FindList(name) is not null || !Repo.AddList(name)) return false;
+        _lists = Repo.GetLists();
+        ListsChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>Renames a list on every book on it. False when the new name is empty or another list has it.</summary>
+    public bool RenameList(string from, string to)
+    {
+        to = to.Trim();
+        if (to.Length == 0 || FindList(from) is null) return false;
+        if (FindList(to) is { } other && !string.Equals(other, from, StringComparison.CurrentCultureIgnoreCase)) return false;
+        var shown = string.Equals(_listFilter, from, StringComparison.CurrentCultureIgnoreCase);
+        ApplyListChange(Repo.RenameList(from, to));
+        if (shown)
+        {
+            _listFilter = to;
+            OnPropertyChanged(nameof(ListFilter));
+            OnPropertyChanged(nameof(HeaderText));
+        }
+        return true;
+    }
+
+    /// <summary>Deletes a list. Its books stay in the library: only the list and who was on it go.</summary>
+    public void DeleteList(string name)
+    {
+        if (FindList(name) is null) return;
+        var shown = string.Equals(_listFilter, name, StringComparison.CurrentCultureIgnoreCase);
+        ApplyListChange(Repo.RenameList(name, null));
+        if (shown) ListFilter = "";
+    }
+
+    /// <summary>The books the repository changed get the new names, and their folders' sidecars are written.</summary>
+    private void ApplyListChange(List<LibraryRepository.StateRow> rows)
+    {
+        var byKey = rows.ToDictionary(r => r.Key, r => r.State);
+        foreach (var b in _all)
+        {
+            if (!byKey.TryGetValue(b.StateKey, out var s)) continue;
+            b.Lists = s.Lists.ToList();
+            b.StateUpdatedUtc = s.UpdatedUtc;
+        }
+        // Every folder holding a changed book, loaded or not (one on an unplugged drive is written when it is back).
+        var folders = Repo.GetFolders();
+        foreach (var row in rows)
+            if (folders.Where(f => f.DriveId == row.DriveId && IsIn(row.RelPath, f.RelPath))
+                    .OrderByDescending(f => f.RelPath.Length).FirstOrDefault() is { } folder)
+                AppServices.Sync.Schedule(folder.Id);
+
+        _lists = Repo.GetLists();
+        ListsChanged?.Invoke(this, EventArgs.Empty);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        ApplyFilter();
+
+        static bool IsIn(string relPath, string folder) =>
+            folder.Length == 0 || relPath.StartsWith(folder.TrimEnd(Slash) + Slash, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const char Slash = (char)92;
+
+    /// <summary>Puts the book on the list or takes it off (the details window, the book's menu).</summary>
+    public void SetInList(Book book, string list, bool wanted)
+    {
+        list = FindList(list) ?? list.Trim();
+        if (book.InList(list) == wanted) return;
+        book.Lists = wanted
+            ? book.Lists.Append(list).ToList()
+            : book.Lists.Where(n => !string.Equals(n, list, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        SaveState(book);
+        if (ListFilter.Length > 0) ApplyFilter();
+    }
+
+    /// <summary>Puts several books on a list at once (books dropped on it). Returns how many were not on it yet.</summary>
+    public int AddToList(IEnumerable<Book> books, string list)
+    {
+        list = FindList(list) ?? list.Trim();
+        var added = 0;
+        foreach (var book in books.Where(b => !b.InList(list)).ToList())
+        {
+            book.Lists = book.Lists.Append(list).ToList();
+            SaveState(book);
+            added++;
+        }
+        if (added > 0 && ListFilter.Length > 0) ApplyFilter();
+        return added;
     }
 
     public void ToggleFavorite(Book book)

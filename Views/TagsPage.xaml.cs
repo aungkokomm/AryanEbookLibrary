@@ -125,11 +125,10 @@ public sealed partial class TagsPage : Page
         if (_selected.Length > 0) App.MainWindow?.ShowTag(_selected);
     }
 
-    private async void OnBookClick(object sender, RoutedEventArgs e)
+    private void OnBookClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not Book book || XamlRoot is null) return;
-        await BookDialogs.ShowDetailsAsync(XamlRoot, book);
-        Refresh();   // its tags may have changed in its details
+        if ((sender as Button)?.Tag is not Book book) return;
+        BookDetailsWindow.Show(book, Refresh);   // its tags may have changed in its details
     }
 
     private async void OnRenameTag(object sender, RoutedEventArgs e)

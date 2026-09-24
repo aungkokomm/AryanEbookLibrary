@@ -74,6 +74,14 @@ public sealed partial class BookCardControl : UserControl
         flyout.Opening += (_, _) => BookMenu.Build(flyout, Book);
         ContextFlyout = flyout;
 
+        // Drag the book (or every selected book) onto one of My lists in the pane.
+        CanDrag = true;
+        DragStarting += (_, e) =>
+        {
+            if (Book is { } b) BookDrag.Start(e, b);
+            else e.Cancel = true;
+        };
+
         PointerEntered += (_, _) =>
         {
             HoverOverlay.Visibility = Visibility.Visible;

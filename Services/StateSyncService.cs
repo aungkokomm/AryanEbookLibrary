@@ -100,6 +100,7 @@ public sealed class StateSyncService
                 var key = Book.MakeKey(folder.DriveId, rel);
                 if (local.TryGetValue(key, out var localUpdated) && localUpdated >= state.UpdatedUtc) continue;
                 _repo.UpsertState(folder.DriveId, rel, key, state);
+                _repo.EnsureLists(state.Lists);   // a list made on another computer appears here too
                 count++;
             }
             return count;
@@ -109,6 +110,38 @@ public sealed class StateSyncService
             Log.Write($"Sidecar import failed for folder {folder.Id}: {ex.Message}");
             return 0;
         }
+    }
+
+    /// <summary>
+    /// Brings the folder's sidecar and the local index level, for a drive that has just been plugged in (or was
+    /// already in at start-up): newer edits on the drive come in, then the file is written again when this computer
+    /// has edits it lacks. An edit made while the drive was away could not be written then, and before this it
+    /// waited on the drive until the next edit in the same folder. Returns how many edits came in.
+    /// </summary>
+    public int SyncFolder(LibraryFolder folder)
+    {
+        var imported = Import(folder);
+        try
+        {
+            var root = DriveRegistry.Resolve(folder.DriveId, folder.RelPath);
+            if (root is null || !Directory.Exists(root)) return imported;
+            var path = Path.Combine(root, SidecarName);
+            var onDrive = File.Exists(path)
+                ? JsonSerializer.Deserialize<SidecarFile>(File.ReadAllText(path))?.Items ?? new()
+                : new Dictionary<string, BookState>();
+            var items = new Dictionary<string, BookState>(onDrive, StringComparer.OrdinalIgnoreCase);
+
+            var behind = _repo.GetStatesForFolder(folder.Id).Any(row =>
+                items.TryGetValue(SubPath(folder, row.RelPath), out var there)
+                    ? row.State.UpdatedUtc > there.UpdatedUtc
+                    : !row.State.IsDefault);
+            if (behind) Flush(folder.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Sidecar sync failed for folder {folder.Id}: {ex.Message}");
+        }
+        return imported;
     }
 
     private static string SubPath(LibraryFolder folder, string bookRelPath)

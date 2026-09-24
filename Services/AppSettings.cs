@@ -23,6 +23,7 @@ public sealed class AppSettings
     // Saved library views, shown in the navigation pane in this order.
     public List<Shelf> Shelves { get; set; } = new();
     public bool ShelvesExpanded { get; set; } = true;   // folded away, they leave room for the rest of the pane
+    public bool ListsExpanded { get; set; } = true;     // the same for My lists
     // How many books the user means to finish in a year, by year. Missing or 0 means no goal.
     public Dictionary<int, int> ReadingGoals { get; set; } = new();
     // The app's own reader. Off, PDFs open in the default app as before.
@@ -39,6 +40,9 @@ public sealed class AppSettings
     public string ReaderToolbar { get; set; } = "Always";     // Always | Hide (until the pointer goes to the top)
     public int ReaderWidth { get; set; } = 1100;
     public int ReaderHeight { get; set; } = 900;
+    // A book's details window: it opens maximized, and comes back to this size when restored.
+    public int DetailsWidth { get; set; } = 1100;
+    public int DetailsHeight { get; set; } = 800;
     // What Define shows under the English definition.
     public bool DefineShowsMyanmar { get; set; } = true;
     public bool DefineShowsHindi { get; set; } = true;

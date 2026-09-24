@@ -230,10 +230,9 @@ public sealed partial class ReadingPage : Page
 
     // ---- a book ----
 
-    private async void OnBookClick(object sender, RoutedEventArgs e)
+    private void OnBookClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not Book book || XamlRoot is null) return;
-        await BookDialogs.ShowDetailsAsync(XamlRoot, book);
-        Refresh();   // its status or finish date may have changed
+        if ((sender as Button)?.Tag is not Book book) return;
+        BookDetailsWindow.Show(book, Refresh);   // its status or finish date may have changed
     }
 }

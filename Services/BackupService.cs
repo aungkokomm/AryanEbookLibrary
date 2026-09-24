@@ -11,6 +11,7 @@ public static class BackupService
         public string App { get; set; } = "AryanEbookLibrary";
         public int Version { get; set; } = 1;
         public DateTime ExportedUtc { get; set; } = DateTime.UtcNow;
+        public List<string> Lists { get; set; } = new();   // My lists, so an empty one comes back too
         public List<BackupItem> Items { get; set; } = new();
     }
 
@@ -27,7 +28,7 @@ public static class BackupService
     public static int Export(string file, LibraryRepository repo)
     {
         var titles = repo.GetTitlesByKey();
-        var backup = new BackupFile();
+        var backup = new BackupFile { Lists = repo.GetLists() };
 
         foreach (var row in repo.GetAllStates())
         {
@@ -53,6 +54,7 @@ public static class BackupService
         if (!string.Equals(backup.App, "AryanEbookLibrary", StringComparison.Ordinal))
             throw new InvalidDataException("This file was not created by Aryan eBook Library.");
 
+        repo.EnsureLists(backup.Lists);
         var local = repo.GetAllStates().ToDictionary(s => s.Key, s => s.State.UpdatedUtc);
         var applied = 0;
 
@@ -61,6 +63,7 @@ public static class BackupService
             var key = Book.MakeKey(item.DriveId, item.RelPath);
             if (local.TryGetValue(key, out var updated) && updated >= item.State.UpdatedUtc) continue;
             repo.UpsertState(item.DriveId, item.RelPath, key, item.State);
+            repo.EnsureLists(item.State.Lists);
             applied++;
         }
         return applied;

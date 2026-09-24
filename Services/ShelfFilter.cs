@@ -48,6 +48,7 @@ public static class ShelfFilter
             LibraryFilter.Unread => q.Where(b => b.Status == ReadStatus.Unread),
             LibraryFilter.Finished => q.Where(b => b.Status == ReadStatus.Finished),
             LibraryFilter.NeedsDetails => q.Where(b => b.NeedsDetails),
+            LibraryFilter.Notes => q.Where(b => b.HasNote),
             _ => q
         };
 
@@ -175,6 +176,7 @@ public static class ShelfFilter
         LibraryFilter.Unread => "Unread",
         LibraryFilter.Finished => "Finished",
         LibraryFilter.NeedsDetails => "Needs Details",
+        LibraryFilter.Notes => "Notes",
         _ => "All Books"
     };
 
