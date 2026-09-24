@@ -27,12 +27,12 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <!-- The switch alone, flush with the buttons: no On/Off words beside it. It asks for 154 wide whatever its
-             MinWidth, so it is given the width of its track. -->
+             MinWidth, so it is given the width of its track, which draws 44 wide (40 cut off its right end). -->
         <Style TargetType="ToggleSwitch">
             <Setter Property="OnContent" Value="" />
             <Setter Property="OffContent" Value="" />
             <Setter Property="MinWidth" Value="0" />
-            <Setter Property="Width" Value="40" />
+            <Setter Property="Width" Value="44" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </Page.Resources>

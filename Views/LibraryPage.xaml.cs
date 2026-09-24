@@ -313,10 +313,13 @@ public sealed partial class LibraryPage : Page
         FiltersText.Text = menu > 0 ? $"Filters · {menu}" : "Filters";
 
         var filtered = ViewModel.IsFiltered;
+        FilterActions.Visibility = filtered ? Visibility.Visible : Visibility.Collapsed;
         ClearFiltersBtn.Visibility = filtered ? Visibility.Visible : Visibility.Collapsed;
         // A shelf is a view of the whole library, so one of My lists cannot be saved as one.
         SaveShelfBtn.Visibility = filtered && ViewModel.ActiveShelf.Length == 0 && ViewModel.ListFilter.Length == 0
             ? Visibility.Visible : Visibility.Collapsed;
+        // "Filters · 2" is wider than "Filters", so the pills may no longer fit beside the title; asked once measured.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, LayoutTopBar);
 
         static Style Pill(bool on) => (Style)Application.Current.Resources[on ? "PillButtonActiveStyle" : "PillButtonStyle"];
     }
@@ -474,36 +477,74 @@ public sealed partial class LibraryPage : Page
 
     private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e) => LayoutTopBar();
 
-    /// <summary>Narrow page: the tools get their own row under the title instead of squeezing it away.</summary>
+    private const double PillsGap = 24, ToolsGap = 16;
+
+    /// <summary>
+    /// The title, the pills and the tools on one line when they fit. Otherwise the pills get a line of their own
+    /// under the title, and on a narrow page the tools do too, instead of squeezing the title away. Decided from
+    /// natural widths only, never from what the last layout left over, so it cannot flip back and forth.
+    /// </summary>
     private void LayoutTopBar()
     {
-        var wanted = ToolsPanel.DesiredSize.Width;
-        if (wanted <= 0 || TopBar.ActualWidth <= 0) return;
+        var tools = ToolsPanel.DesiredSize.Width;
+        var pills = FilterPanel.DesiredSize.Width - FilterPanel.Padding.Left - FilterPanel.Padding.Right;
+        if (tools <= 0 || pills <= 0 || TopBar.ActualWidth <= 0) return;
         var room = TopBar.ActualWidth - TopBar.Padding.Left - TopBar.Padding.Right;
 
-        var stacked = room - wanted - 16 < TitleWidth();    // the title would be cut beside them
-        if (stacked == _toolsStacked) return;
-        _toolsStacked = stacked;
-        Grid.SetRow(ToolsPanel, stacked ? 1 : 0);
-        Grid.SetColumn(ToolsPanel, stacked ? 0 : 1);
-        Grid.SetColumnSpan(ToolsPanel, stacked ? 2 : 1);
-        ToolsPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-        ToolsPanel.Margin = stacked ? new Thickness(-8, 8, 0, 0) : new Thickness(0);
+        var besidePills = room - PillsGap - pills - ToolsGap - tools;
+        var besideTools = room - ToolsGap - tools;
+        var title = TitleWidth(withCount: true);
+        // 0: one line; 1: the pills under the title and tools; 2: the tools and then the pills under the title
+        var mode = besidePills >= title ? 0 : besideTools >= TitleWidth(withCount: false) ? 1 : 2;
+        // The title's column is as wide as the title, so it is held to the room left, where its count is trimmed.
+        // On one line it is also kept as wide as its longest count, so a filter's "1 of 7 books" moves no pill.
+        HeaderTitle.MaxWidth = Math.Max(0, mode == 0 ? besidePills : mode == 1 ? besideTools : room);
+        HeaderTitle.MinWidth = mode == 0 ? title : 0;
+        if (mode == _topBarMode) return;
+        _topBarMode = mode;
+
+        Grid.SetRow(FilterBar, mode == 0 ? 0 : mode);
+        Grid.SetColumn(FilterBar, mode == 0 ? 1 : 0);
+        Grid.SetColumnSpan(FilterBar, mode == 0 ? 1 : 3);
+        // On its own line it reaches the page's edges, so the pills scroll under them rather than inside the margin.
+        FilterBar.Margin = mode == 0 ? new Thickness(PillsGap, 0, ToolsGap, 0) : new Thickness(-28, 8, -28, 0);
+        FilterPanel.Padding = mode == 0 ? new Thickness(0) : new Thickness(28, 0, 28, 0);
+        Grid.SetRow(FilterActions, mode + 1);
+        Grid.SetColumn(FilterActions, mode == 0 ? 1 : 0);
+        Grid.SetColumnSpan(FilterActions, mode == 0 ? 1 : 3);
+        FilterActions.Margin = new Thickness(mode == 0 ? PillsGap : 0, 8, 0, 0);
+
+        Grid.SetRow(ToolsPanel, mode == 2 ? 1 : 0);
+        Grid.SetColumn(ToolsPanel, mode == 2 ? 0 : 2);
+        Grid.SetColumnSpan(ToolsPanel, mode == 2 ? 3 : 1);
+        ToolsPanel.HorizontalAlignment = mode == 2 ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        ToolsPanel.Margin = mode == 2 ? new Thickness(-8, 8, 0, 0) : new Thickness(0);
     }
 
-    private bool _toolsStacked;
+    private int _topBarMode = -1;
     private readonly TextBlock _titleProbe = new() { TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _countProbe = new() { TextWrapping = TextWrapping.NoWrap };
 
     /// <summary>
     /// How wide the title is when nothing cuts it, at least 160: measured on a copy outside the page, since
-    /// the one on the page only ever gets the width left over.
+    /// the one on the page only ever gets the width left over. With its count, room is kept for the longest
+    /// count ("2,812 of 2,812 books") rather than the one shown, so choosing a filter does not rearrange the bar;
+    /// the filters named after it are what gets trimmed.
     /// </summary>
-    private double TitleWidth()
+    private double TitleWidth(bool withCount)
     {
         _titleProbe.Style = HeaderTitle.Style;
         _titleProbe.Text = ViewModel.HeaderText;   // not HeaderTitle.Text, which the binding may not have updated yet
         _titleProbe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-        return Math.Max(160, Math.Ceiling(_titleProbe.DesiredSize.Width));
+        var width = Math.Max(160, Math.Ceiling(_titleProbe.DesiredSize.Width));
+        if (!withCount) return width;
+
+        _countProbe.Style = HeaderTitle.Style;
+        _countProbe.FontSize = 14;
+        _countProbe.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
+        _countProbe.Text = $"{ViewModel.TotalCount:N0} of {ViewModel.TotalCount:N0} books";
+        _countProbe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        return Math.Ceiling(_titleProbe.DesiredSize.Width + 8 + _countProbe.DesiredSize.Width);
     }
 
     // ---- surprise ----
