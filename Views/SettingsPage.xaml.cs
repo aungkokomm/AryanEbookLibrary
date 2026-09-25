@@ -236,4 +236,22 @@ public sealed partial class SettingsPage : Page
             Log.Write("Open data folder failed: " + ex.Message);
         }
     }
+
+    /// <summary>
+    /// THIRD-PARTY-NOTICES.txt in the classic Notepad, by its full path and without the shell: the Store Notepad, which
+    /// the shell would pick, fails to start from beside a self-contained Windows App SDK app.
+    /// </summary>
+    private void OnOpenLicences(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var notices = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt");
+            var notepad = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "notepad.exe");
+            Process.Start(new ProcessStartInfo { FileName = notepad, Arguments = $"\"{notices}\"", UseShellExecute = false });
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Open licences failed: " + ex.Message);
+        }
+    }
 }

@@ -1,43 +1,42 @@
 # Aryan eBook Library
 
-Portable, offline-aware eBook catalog for Windows (C# + WinUI 3), built on the same architecture as CineLibrary.
-Formats: EPUB, PDF, MOBI/AZW/AZW3, CBZ, CBR. No AI, no cloud, no telemetry. It only reads your files, it never modifies them.
+A portable eBook library and reader for Windows 10 and 11 (C#, WinUI 3, Windows App SDK 2.5.1, .NET 10).
+
+It catalogues EPUB, PDF, MOBI, AZW3, CBZ and CBR books across every drive you keep them on, reads them in its own readers, and keeps your highlights, notes and reading history. It only ever **reads** your book files: nothing in them is changed, renamed or moved.
+
+## What it does
+
+- **Library:** grid and list views, search, filters (format, language, decade, publisher, rating, tags), saved shelves, My lists, series, authors, tags, duplicates, missing books, and books that need details.
+- **Readers:** PDF (PDFium), EPUB, MOBI and AZW3 (foliate-js in WebView2), and comics (CBZ, CBR), with highlights in five colours, clipped areas, page notes and a reading log. Right-click a word for its meaning in English, Myanmar or Hindi, offline.
+- **Details:** read from the book itself, Calibre's `metadata.opf`, the copyright page and the file name. Online lookups on Open Library, Wikidata, Wikipedia and (with your own free key) Google Books only fill what is missing, are off until you turn them on, and send only a title, author or ISBN.
+- **Drives:** each drive is known by its hardware ID, so a changed drive letter breaks nothing, and books on an unplugged drive stay in the library marked offline. Your favourites, ratings, lists, notes and highlights also travel with the drive, in small files beside the books.
+- **Your data:** one portable folder, `AryanLibrary-Data`, beside the app. Backup and restore to one file, catalogue export to CSV. Before a new version upgrades the database, the old one is copied to `AryanLibrary-Data\Backups`.
+
+No accounts, no telemetry. The log (`aryan.log`) stays on your computer.
+
+## Install
+
+Run `AryanEbookLibrary-Setup-<version>.exe`. It installs for your user only (no administrator rights) and never touches `AryanLibrary-Data`, so updating keeps your library. The app is portable too: the whole folder, with its `AryanLibrary-Data`, can live on any drive.
 
 ## Build
 
-Requirements: Visual Studio 2026 with the ".NET desktop development" and "Windows App SDK C# templates" workloads, .NET 10 SDK. Uses Windows App SDK 2.5.1.
+Visual Studio 2026 with the .NET desktop and Windows App SDK workloads, the .NET 10 SDK, and Rust (the reading core in `native\reader_core` builds with `cargo` as part of the app build). For the installer, Inno Setup 6.
 
-1. Open `AryanEbookLibrary.sln`, set platform to **x64**, press F5.
-2. Portable release: run `.\publish.ps1` in PowerShell. Output: `publish\AryanEbookLibrary-portable.zip` (self-contained, no install).
+```
+MSBuild AryanEbookLibrary.csproj -t:Build -p:Configuration=Release -p:Platform=x64
+pwsh -File tools\build_installer.ps1
+```
 
-Data lives in `AryanLibrary-Data\` next to the exe (SQLite index, covers, settings, log).
+`tools\build_installer.ps1` writes `dist\AryanEbookLibrary-Setup-<version>.exe` and never overwrites an existing one: raise `<Version>` in the project first.
 
-## Architecture (CineLibrary to Aryan mapping)
+## Tests
 
-| CineLibrary idea | Here |
-|---|---|
-| Reader, not scraper (`.nfo` + poster) | `Services/Metadata`: embedded EPUB/PDF/MOBI/comic metadata + Calibre `metadata.opf` / `cover.jpg` |
-| Local SQLite index, portable data folder | `Services/Database.cs`, `LibraryRepository.cs`, `AppPaths.cs` (`AryanLibrary-Data`) |
-| Multi-drive, offline-aware, volume serial IDs | `Services/DriveRegistry.cs` (paths stored relative to the drive root, drive letters can change) |
-| Unplugged drives stay visible, marked OFFLINE | `Book.IsAvailable`, 3-second drive watcher in `LibraryViewModel` |
-| Play button only when drive is connected | Open button disabled when offline (`BookLauncher`) |
-| Personal state travels with the drive | `StateSyncService`: `.aryan-library.json` sidecar at each library folder root, merged newest-wins |
-| Backup/restore to one JSON | `BackupService` |
-| Continue Watching / Recently Added / Surprise Me | Continue Reading / Recently Added / Surprise me (filter-aware) |
-| Grid + list views, sort/filter/search | `Views/LibraryPage` |
-| Per-item watched / favorite / notes / tags | Status, progress, rating, favorite, tags, notes in `BookDetailsDialog` |
-| MVVM layering (Models, Services, ViewModels, Views) | Same folders |
+```
+dotnet test tests\AryanEbookLibrary.Tests -p:Platform=x64
+```
 
-## Metadata order
+See `tests\README.md` for the checks that run against a real library and the off-screen checks of the running app.
 
-1. Embedded (EPUB OPF, PDF Info dictionary + page-1 render as cover, MOBI/EXTH incl. cover record, CBZ/CBR `ComicInfo.xml` + first page).
-2. Calibre `metadata.opf` and `cover.jpg` in the same folder override embedded values, but only when the folder holds a single book (several formats of one book is fine).
-3. Filename as title fallback.
+## Licence
 
-## Known limits / next steps
-
-- Opening a book uses the default app for the file type (built-in reader is not included).
-- Reading progress is manual (the external reader owns the real position).
-- Calibre-style folders with the same book in several formats show one entry per file.
-- PDF title/author come from a fast scan of the Info dictionary; PDFs with compressed object streams fall back to the filename.
-- Ideas: series grouping view, duplicate detection by ISBN, Burmese user guide, installer.
+MIT, see `LICENSE`. Aryan includes other people's software and data under their own licences: see `THIRD-PARTY-NOTICES.txt` and the `Licenses` folder beside the app, or Settings > About.

@@ -278,7 +278,9 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock x:Name="VersionText" />
                             <TextBlock Style="{StaticResource SettingDescriptionStyle}"
-                                       Text="Free, no telemetry, no accounts. Reads the details already inside your books or in Calibre's metadata.opf, never changes your files, and goes online only to look up details on Open Library, Wikidata and Wikipedia, when you ask or switch it on above." />
+                                       Text="Free and open source (MIT), no telemetry, no accounts. Reads the details already inside your books or in Calibre's metadata.opf, never changes your files, and goes online only to look up details on Open Library, Wikidata, Wikipedia and Google Books, when you ask or switch it on above." />
+                            <HyperlinkButton Content="Licences of the software Aryan uses" Padding="0" Margin="0,6,0,0"
+                                             Click="OnOpenLicences" />
                         </StackPanel>
                     </Grid>
                 </Border>
