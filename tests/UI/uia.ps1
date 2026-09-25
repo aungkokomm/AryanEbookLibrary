@@ -13,6 +13,7 @@ public static class W7 {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint tid, ref GUITHREADINFO info);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr h, IntPtr r, IntPtr g, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, string l);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
@@ -47,6 +48,9 @@ function Park([IntPtr]$h, [int]$w, [int]$ht) {
 }
 
 function Capture([IntPtr]$h, [string]$path) {
+    # An off-screen Win32 window (Setup) never repaints its child controls, so a capture showed an earlier page's
+    # controls under the current page's title. Repaint everything first: invalidate, erase, all children, now.
+    [void][W7]::RedrawWindow($h, [IntPtr]::Zero, [IntPtr]::Zero, 0x0185)
     $r = New-Object W7+RECT
     [void][W7]::GetWindowRect($h, [ref]$r)
     $bmp = New-Object System.Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T)
