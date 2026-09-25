@@ -7,7 +7,6 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.UI;
 
 namespace AryanEbookLibrary.Views;
@@ -156,14 +155,7 @@ public sealed partial class BookRowControl : UserControl
         ThumbImage.Source = null;
         var path = b.CoverPath;
         if (path is null || !File.Exists(path)) return;
-        try
-        {
-            ThumbImage.Source = new BitmapImage { DecodePixelWidth = 96, UriSource = new Uri(path) };
-        }
-        catch
-        {
-            // keep the placeholder
-        }
+        _ = CoverLoader.ShowAsync(ThumbImage, path, 96);
     }
 
     private void OnThumbOpened(object sender, RoutedEventArgs e) => ThumbPlaceholder.Visibility = Visibility.Collapsed;

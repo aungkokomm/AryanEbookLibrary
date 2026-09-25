@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Xaml;
@@ -7,7 +8,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace AryanEbookLibrary.Views;
 
@@ -249,14 +249,7 @@ public sealed partial class BookCardControl : UserControl
         var path = b.CoverPath;
         if (path is null || !File.Exists(path)) return;
 
-        try
-        {
-            CoverImage.Source = new BitmapImage { DecodePixelWidth = DecodeWidth, UriSource = new Uri(path) };
-        }
-        catch
-        {
-            // unreadable cover: keep the placeholder
-        }
+        _ = CoverLoader.ShowAsync(CoverImage, path, DecodeWidth);
     }
 
     private void OnCoverOpened(object sender, RoutedEventArgs e) => CoverPlaceholder.Visibility = Visibility.Collapsed;
