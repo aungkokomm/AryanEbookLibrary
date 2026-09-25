@@ -137,9 +137,36 @@ begin
     WizardForm.DirEdit.Text := PortableDir;
 end;
 
+function HoldsAryan(Dir: String): Boolean;
+begin
+  Result := FileExists(AddBackslash(Dir) + '{#ExeName}') or DirExists(AddBackslash(Dir) + 'AryanLibrary-Data');
+end;
+
+// Browse adds "Aryan eBook Library" to the folder picked, so picking the folder that already holds Aryan and its
+// library (D:\My Ebooks Data) would put a second copy, with a new empty library, inside it. Ask instead.
+function CheckFolderAboveHoldsAryan: Boolean;
+var
+  Dir, Parent: String;
+begin
+  Result := True;
+  Dir := RemoveBackslashUnlessRoot(WizardForm.DirEdit.Text);
+  Parent := ExtractFileDir(Dir);
+  if HoldsAryan(Dir) or (Parent = '') or (CompareText(Parent, Dir) = 0) or not HoldsAryan(Parent) then
+    exit;
+  case MsgBox(Parent + ' already holds Aryan and its library.' + #13#10#13#10 +
+      'Yes: update Aryan there and keep the library.' + #13#10 +
+      'No: put a new copy, with a new empty library, in ' + Dir + '.',
+      mbConfirmation, MB_YESNOCANCEL) of
+    IDYES: WizardForm.DirEdit.Text := Parent;
+    IDCANCEL: Result := False;
+  end;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if (CurPageID = wpSelectDir) and not WizardSilent then
+    Result := CheckFolderAboveHoldsAryan;
   if (CurPageID = ModePage.ID) and not DirOnCommandLine then
   begin
     // The folder follows the choice until the user types one of their own.
@@ -182,6 +209,8 @@ begin
       MemoDirInfo
   else
     Result := 'Installed for this user.' + NewLine + NewLine + MemoDirInfo;
+  if HoldsAryan(WizardDirValue) then
+    Result := 'Aryan is already in this folder: the app is updated and its library is kept.' + NewLine + NewLine + Result;
   if (not IsPortable) and (MemoTasksInfo <> '') then
     Result := Result + NewLine + NewLine + MemoTasksInfo;
 end;
