@@ -6,6 +6,57 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!--
+                  The brand blue (#186BD5, from the icon) is the accent everywhere, whatever accent Windows has: switches,
+                  check boxes, the pane's selection bar, accent buttons, links, progress. Fluent fills with Dark1 in the light
+                  theme and Light2 in the dark one, so both are the brand blue, with white text on it in both themes
+                  (5.1:1); text in the accent colour uses Dark2 on light and Light3 on dark. High Contrast keeps Windows' own.
+                  ⚠️ This must be a dictionary merged AFTER XamlControlsResources. A key XamlControlsResources defines itself
+                  (AccentButtonForeground, ToggleSwitchKnobFillOn) beats the app's own ThemeDictionaries, so the dark
+                  theme's black text on accent stayed; a later merged dictionary is searched first.
+                -->
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Dark">
+                            <Color x:Key="SystemAccentColorLight1">#3D86E3</Color>
+                            <Color x:Key="SystemAccentColorLight2">#186BD5</Color>
+                            <Color x:Key="SystemAccentColorLight3">#6AA8FF</Color>
+                            <Color x:Key="SystemAccentColorDark1">#1257B2</Color>
+                            <Color x:Key="SystemAccentColorDark2">#0C4490</Color>
+                            <Color x:Key="SystemAccentColorDark3">#06306C</Color>
+                            <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="TextOnAccentFillColorSecondaryBrush" Color="#E6FFFFFF" />
+                            <!-- The controls' own copies of "text on accent", which would stay black on the brand blue (4.1:1) -->
+                            <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundIndeterminate" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundIndeterminatePointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundIndeterminatePressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="RadioButtonCheckGlyphFill" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="CalendarViewTodayForeground" Color="#FFFFFF" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Light">
+                            <Color x:Key="SystemAccentColorLight1">#3D86E3</Color>
+                            <Color x:Key="SystemAccentColorLight2">#6EA6EC</Color>
+                            <Color x:Key="SystemAccentColorLight3">#9EC4F3</Color>
+                            <Color x:Key="SystemAccentColorDark1">#186BD5</Color>
+                            <Color x:Key="SystemAccentColorDark2">#1257B2</Color>
+                            <Color x:Key="SystemAccentColorDark3">#0C4490</Color>
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
             </ResourceDictionary.MergedDictionaries>
 
             <ResourceDictionary.ThemeDictionaries>
@@ -94,6 +145,7 @@
             <SolidColorBrush x:Key="OfflineBrush" Color="#E0B45309" />
 
             <!-- Brand colours, taken from the app icon (fixed in every theme) -->
+            <Color x:Key="SystemAccentColor">#186BD5</Color>
             <SolidColorBrush x:Key="BrandBlueBrush" Color="#186BD5" />
             <SolidColorBrush x:Key="BrandGoldWashBrush" Color="#33FAAC17" />
             <SolidColorBrush x:Key="AccentRedBrush" Color="#E5484D" />
