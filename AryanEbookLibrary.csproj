@@ -16,6 +16,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- Program.cs is the entry point: one running copy per library -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Portable, no-install build (same approach as CineLibrary) -->
     <EnableMsixTooling>true</EnableMsixTooling>
