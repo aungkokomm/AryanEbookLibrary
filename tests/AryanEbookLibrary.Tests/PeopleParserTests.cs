@@ -15,6 +15,9 @@ public class PeopleParserTests
     [InlineData("by Matthew G. Naugle, PDFed by UncleVan", "Matthew G. Naugle")]
     [InlineData("KAMALA CHANDRAKANT", "Kamala Chandrakant")]
     [InlineData("Ikenna Nwaiwu<br><i>Foreword by Melissa van der Hecht</i>", "Ikenna Nwaiwu")]
+    // "and" joins two people like "&" does, never a surname to a given name ("Pride and Prejudice" was "Prejudice Pride")
+    [InlineData("Laurel and Hardy", "Laurel, Hardy")]
+    [InlineData("Harari, Yuval Noah and Baker, Chris", "Yuval Noah Harari, Chris Baker")]
     public void Tidies_author_fields_into_display_names(string raw, string expected) =>
         Assert.Equal(expected, PeopleParser.Tidy(raw));
 

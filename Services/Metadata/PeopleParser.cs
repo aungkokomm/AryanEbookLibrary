@@ -67,10 +67,12 @@ public static class PeopleParser
         s = Roles.Replace(s, " ");
         s = EtAl.Replace(s, " ");
 
-        foreach (var chunk in s.Split(new[] { ';', '&' }, StringSplitOptions.RemoveEmptyEntries))
+        // "and" separates people as ";" and "&" do. Only commas make "Last, First" pairs: splitting "Pride and Prejudice"
+        // there made it the pair "Pride", "Prejudice", read back as one person, "Prejudice Pride".
+        foreach (var chunk in Regex.Split(s, @"[;&]|\s+and\s+"))
         {
             var pieces = new List<string>();
-            foreach (var raw0 in Regex.Split(chunk, @",|\s+and\s+"))
+            foreach (var raw0 in chunk.Split(','))
             {
                 var p = LeadingBy.Replace(Squash(raw0), "");
                 if (p.Length == 0 || Degree.IsMatch(p) || ScanCredit.IsMatch(p)) continue;

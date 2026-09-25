@@ -19,6 +19,16 @@ public class FileNameParserTests
     }
 
     [Fact]
+    public void Author_then_title_with_and_in_it()
+    {
+        // Was author "Prejudice Pride", title "Jane Austen": the "and" made the title look like "Surname, Given".
+        FileNameParser.Context = NameContext.Build(["Jane Goodall"], []);
+        var md = FileNameParser.Parse(@"E:\Books\Jane Austen - Pride and Prejudice.pdf");
+        Assert.Equal("Pride and Prejudice", md.Title);
+        Assert.Equal("Jane Austen", md.Author);
+    }
+
+    [Fact]
     public void Annas_archive_names()
     {
         var md = FileNameParser.Parse(
