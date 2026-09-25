@@ -448,10 +448,17 @@ public sealed class LibraryViewModel : ObservableObject
     {
         try
         {
+            // Where a slow start goes, in the log: the app and its window, then each step before the books show.
+            var before = (long)(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
+            var drives = clock.ElapsedMilliseconds;
             // Edits made while a drive was away reach its sidecars now that it is here.
             await Task.Run(() => SyncSidecars(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId))));
+            var sidecars = clock.ElapsedMilliseconds;
             await ReloadAsync();
+            Log.Write($"app: {TotalCount:N0} books shown {before + clock.ElapsedMilliseconds:N0} ms after start (app and window " +
+                      $"{before:N0}, drives {drives:N0}, sidecars {sidecars - drives:N0}, index {clock.ElapsedMilliseconds - sidecars:N0} ms)");
             // Drive changes arrive from DeviceChangeWatcher (WM_DEVICECHANGE); nothing polls.
         }
         catch (Exception ex)

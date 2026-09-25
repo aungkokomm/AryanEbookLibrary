@@ -27,10 +27,12 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
-    <PublishReadyToRun>false</PublishReadyToRun>
+    <!-- Compiled ahead: the books show in 1.4-1.7 s instead of 2.2-3.1 s (copy of the real library, 5 starts each),
+         for 50 MB more on disk. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
     <PublishTrimmed>false</PublishTrimmed>
 
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <!-- Keeps ProductVersion a plain "0.2.0" (no +commit suffix): the installer reads its version from it -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Aryan eBook Library</Product>
