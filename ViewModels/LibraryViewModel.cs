@@ -556,7 +556,7 @@ public sealed class LibraryViewModel : ObservableObject
 
         IsEmpty = result.Count == 0;
         EmptyMessage = _all.Count == 0
-            ? "Your library is empty. Open Drives & Folders and add a folder with books."
+            ? "Pick the folder where your eBooks are: EPUB, PDF, MOBI, AZW3, CBZ or CBR. Aryan only reads it, and never changes your files."
             : ListFilter.Length > 0 && !IsFiltered
                 ? "Add books with “Add to list” in a book's details or its right-click menu, or drag books onto the list in the pane."
                 : Filter == LibraryFilter.Notes && !IsFiltered

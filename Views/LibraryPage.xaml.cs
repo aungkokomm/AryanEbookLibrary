@@ -91,6 +91,7 @@ public sealed partial class LibraryPage : Page
                     : ViewModel.ListFilter.Length > 0 && !ViewModel.IsFiltered ? "Nothing on this list yet"
                     : ViewModel.Filter == LibraryFilter.Notes && !ViewModel.IsFiltered ? "No notes yet"
                     : "No books match";
+                AddFolderButton.Visibility = ViewModel.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
                 break;
             case nameof(LibraryViewModel.ActiveShelf):
                 SyncFilterBar();
@@ -190,6 +191,8 @@ public sealed partial class LibraryPage : Page
     }
 
     private void OnSelectAll(object sender, RoutedEventArgs e) => ViewModel.SelectAllShown();
+
+    private void OnAddFolderWithBooks(object sender, RoutedEventArgs e) => App.MainWindow?.AddFolderWithBooks();
 
     private void OnClearSelection(object sender, RoutedEventArgs e) => ViewModel.ClearSelection();
 

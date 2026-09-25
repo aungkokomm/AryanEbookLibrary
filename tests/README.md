@@ -26,3 +26,4 @@ PowerShell scripts that start a copy of the app off-screen and drive it with UI 
 - `startups.ps1 -App <temp copy> [-Rewrite]`: starts it 20 times and counts the starts where it dies by itself. `-Rewrite` rewrites covers during start-up, as a scan does (the 0xC000027B crash fixed in 1.0).
 - `single_instance.ps1 -App <copy> -OtherApp <another copy>`: one running copy per library.
 - `session_test.ps1 -App <copy> -Out <folder>`: a normal close, a kill, and Windows ending the session.
+- `first_run.ps1 -App <new copy> -Books <folder of books> -Out <folder>`: a brand-new library, from the empty page's button through the real folder picker to the books.

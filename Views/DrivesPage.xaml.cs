@@ -17,8 +17,12 @@ namespace AryanEbookLibrary.Views;
 /// </summary>
 public sealed partial class DrivesPage : Page
 {
+    /// <summary>Navigation parameter: open the folder picker as soon as the page shows (the empty library's button).</summary>
+    public const string PickFolderFirst = "pick-folder";
+
     private LibraryViewModel Library => AppServices.Library;
     private List<DriveItem> _drives = new();
+    private bool _pickOnLoad;
 
     public DrivesPage()
     {
@@ -27,9 +31,17 @@ public sealed partial class DrivesPage : Page
         {
             Library.DriveStatusChanged += OnDriveStatusChanged;
             Refresh();
+            if (_pickOnLoad)
+            {
+                _pickOnLoad = false;
+                OnAddAnyFolder(this, new RoutedEventArgs());
+            }
         };
         Unloaded += (_, _) => Library.DriveStatusChanged -= OnDriveStatusChanged;
     }
+
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e) =>
+        _pickOnLoad = e.Parameter as string == PickFolderFirst;
 
     private void OnDriveStatusChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(Refresh);
 
@@ -118,11 +130,7 @@ public sealed partial class DrivesPage : Page
                 return;
             }
 
-            var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
-            picker.FileTypeFilter.Add("*");
-            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-
-            var folder = await picker.PickSingleFolderAsync();
+            var folder = await PickFolderAsync();
             if (folder is null) return;
 
             // Picked a folder on another drive (easy to do from the picker): say where it really is and offer
@@ -142,6 +150,51 @@ public sealed partial class DrivesPage : Page
 
             var scope = relPath.Length == 0 ? DriveLabel(driveId) : "…\\" + Path.GetFileName(relPath);
             await RunScanAsync(scope, p => Library.AddFolderAsync(driveId, relPath, p));
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    private static async Task<Windows.Storage.StorageFolder?> PickFolderAsync()
+    {
+        var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
+        picker.FileTypeFilter.Add("*");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
+        return await picker.PickSingleFolderAsync();
+    }
+
+    // ── Add a folder anywhere: its drive comes in with it when it is new (the way a new library starts) ──
+
+    private async void OnAddAnyFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (await BlockedByScan()) return;
+            var folder = await PickFolderAsync();
+            if (folder is null) return;
+            if (DriveRegistry.Identify(folder.Path) is not { } owner)
+            {
+                await ShowInfoDialog("Cannot add this folder", $"Aryan could not tell which drive '{folder.Path}' is on.");
+                return;
+            }
+
+            var firstBooks = Library.TotalCount == 0;
+            if (!_drives.Any(d => string.Equals(d.Id, owner.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                await Library.AddDriveAsync(owner.Id, owner.Label, owner.Root);
+                Refresh();
+            }
+
+            var problem = Library.CheckNewFolder(owner.Id, folder.Path, out var relPath);
+            if (problem is not null)
+            {
+                await ShowInfoDialog("Cannot add this folder", problem);
+                return;
+            }
+
+            var scope = relPath.Length == 0 ? DriveLabel(owner.Id) : "…\\" + Path.GetFileName(relPath);
+            await RunScanAsync(scope, p => Library.AddFolderAsync(owner.Id, relPath, p));
+            // A library's first books: show them, which is what the button was pressed for.
+            if (firstBooks && Library.TotalCount > 0) App.MainWindow?.ShowAllBooks();
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }

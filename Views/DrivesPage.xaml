@@ -53,8 +53,16 @@
                     <StackPanel HorizontalAlignment="Center" Spacing="6">
                         <FontIcon Glyph="&#xEDA2;" FontSize="28" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock Text="No drives yet" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="Click + Add Drive to get started." FontSize="13" HorizontalAlignment="Center"
+                        <TextBlock Text="Add the folder where your eBooks are, and its drive comes with it." FontSize="13"
+                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Margin="0,10,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}"
+                                Click="OnAddAnyFolder" AutomationProperties.Name="Add a folder with books">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE8F4;" FontSize="16" />
+                                <TextBlock Text="Add a folder with books" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
 

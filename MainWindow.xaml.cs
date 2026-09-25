@@ -292,6 +292,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>The empty library's button: Drives &amp; Folders, opening at the folder picker.</summary>
+    public void AddFolderWithBooks()
+    {
+        NavView.SelectedItem = NavView.FooterMenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string?)i.Tag == "drives");
+        ContentFrame.Navigate(typeof(DrivesPage), DrivesPage.PickFolderFirst);
+    }
+
+    /// <summary>All Books, unfiltered: where a new library's first books are shown.</summary>
+    public void ShowAllBooks()
+    {
+        SelectNav("all");
+        ShowLibrary(LibraryFilter.All);
+    }
+
     private void ShowLibrary(LibraryFilter filter)
     {
         LeaveShelfView();
