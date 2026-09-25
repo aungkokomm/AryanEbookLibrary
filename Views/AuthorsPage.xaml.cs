@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
 using Microsoft.UI.Xaml;
@@ -25,7 +26,7 @@ public sealed partial class AuthorsPage : Page
     {
         _authors = Library.GetAuthors();
         var withBooks = _authors.Sum(a => a.BookCount);
-        SummaryText.Text = $"{_authors.Count:N0} people named on {withBooks:N0} books";
+        SummaryText.Text = $"{Fn.Count(_authors.Count, "person", "people")} named on {Fn.Count(withBooks, "book")}";
 
         var dismissed = AppServices.Settings.NotSamePeople;
         var groups = AuthorIndex.Similar(_authors).Where(g => !dismissed.Contains(g.Key)).ToList();

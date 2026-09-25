@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -574,7 +575,7 @@ public sealed class LibraryViewModel : ObservableObject
                     ? "Open a book's details and use “Add note” to write what you thought of it."
                     : "No books match the current filter.";
         var count = result.Count == _all.Count || Filter == LibraryFilter.RecentlyAdded
-            ? $"{result.Count:N0} books"
+            ? Fn.Count(result.Count, "book")
             : $"{result.Count:N0} of {_all.Count:N0} books";
         // The Filters menu hides its choices, so the line under the title says which are on.
         var menu = ShelfFilter.MenuFilters(view);

@@ -1,4 +1,5 @@
 using System.Globalization;
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Text;
@@ -137,7 +138,7 @@ public sealed partial class ReadingPage : Page
         {
             GoalText.Text = _year < today.Year
                 ? $"{done:N0} of {goal:N0} books."
-                : $"{goal:N0} books to finish in {_year}.";
+                : $"{Fn.Count(goal, "book")} to finish in {_year}.";
             return;
         }
 

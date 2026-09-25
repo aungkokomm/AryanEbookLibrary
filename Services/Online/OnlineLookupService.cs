@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services.Metadata;
 using Microsoft.UI.Dispatching;
@@ -235,7 +236,7 @@ public sealed class OnlineLookupService
         int done = 0, filled = 0, suggested = 0, failuresInARow = 0;
         void Report(string text) => ui.TryEnqueue(() => StatusChanged?.Invoke(text));
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        Report($"Open Library: looking up {queue.Count:N0} books");
+        Report($"Open Library: looking up {Fn.Count(queue.Count, "book")}");
         try
         {
             // Three at a time: each answer takes seconds, while the client keeps to one request a second.
@@ -266,7 +267,7 @@ public sealed class OnlineLookupService
                 var n = Interlocked.Increment(ref done);
                 Report($"Open Library: {n:N0} of {queue.Count:N0} looked up, {Volatile.Read(ref filled):N0} filled in");
             });
-            Report($"Open Library filled in {filled:N0} of {queue.Count:N0} books" +
+            Report($"Open Library filled in {filled:N0} of {Fn.Count(queue.Count, "book")}" +
                    (suggested > 0 ? $", {suggested:N0} suggestions wait in their details" : ""));
         }
         catch (OperationCanceledException)
@@ -293,7 +294,7 @@ public sealed class OnlineLookupService
     {
         int done = 0, filled = 0, failuresInARow = 0;
         void Report(string text) => ui.TryEnqueue(() => StatusChanged?.Invoke(text));
-        Report($"Google Books: looking up {queue.Count:N0} books");
+        Report($"Google Books: looking up {Fn.Count(queue.Count, "book")}");
         try
         {
             foreach (var item in queue)
@@ -326,7 +327,7 @@ public sealed class OnlineLookupService
                 done++;
                 Report($"Google Books: {done:N0} of {queue.Count:N0} looked up, {filled:N0} filled in");
             }
-            Report($"Google Books filled in {filled:N0} of {queue.Count:N0} books");
+            Report($"Google Books filled in {filled:N0} of {Fn.Count(queue.Count, "book")}");
         }
         catch (GoogleQuotaException ex)
         {
@@ -356,7 +357,7 @@ public sealed class OnlineLookupService
     {
         int done = 0, matched = 0, described = 0, failuresInARow = 0;
         void Report(string text) => ui.TryEnqueue(() => StatusChanged?.Invoke(text));
-        Report($"Wikidata: looking up {jobs.Count:N0} authors");
+        Report($"Wikidata: looking up {Fn.Count(jobs.Count, "author")}");
         try
         {
             foreach (var job in jobs)
@@ -364,7 +365,7 @@ public sealed class OnlineLookupService
                 while (Volatile.Read(ref _held) > 0) await Task.Delay(500, ct);
                 ct.ThrowIfCancellationRequested();
                 done++;
-                Report($"Wikidata: {done:N0} of {jobs.Count:N0} authors, {matched:N0} books matched, {described:N0} described");
+                Report($"Wikidata: {done:N0} of {Fn.Count(jobs.Count, "author")}, {Fn.Count(matched, "book")} matched, {described:N0} described");
 
                 List<WikidataWork> works;
                 try
@@ -431,7 +432,7 @@ public sealed class OnlineLookupService
                     ui.TryEnqueue(() => AppServices.Library.FindByKey(key)?.SetOnline(article));
                 }
             }
-            Report($"Wikidata and Wikipedia: {matched:N0} books matched, {described:N0} with a description");
+            Report($"Wikidata and Wikipedia: {Fn.Count(matched, "book")} matched, {described:N0} with a description");
         }
         catch (OperationCanceledException)
         {

@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Xaml.Controls;
 
@@ -22,7 +23,7 @@ public sealed partial class SeriesPage : Page
         _series = AppServices.Library.GetSeries();
         var books = _series.Sum(s => s.Count);
         var gaps = _series.Count(s => s.HasGaps);
-        SummaryText.Text = $"{_series.Count:N0} series, {books:N0} books" +
+        SummaryText.Text = $"{_series.Count:N0} series, {Fn.Count(books, "book")}" +
                            (gaps > 0 ? $", {gaps:N0} with a volume missing" : "");
         Show(SearchBox.Text ?? "");
     }

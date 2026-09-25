@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -177,7 +178,7 @@ public sealed partial class SettingsPage : Page
         {
             var books = AppServices.Library.AllBooks;
             var count = await Task.Run(() => CatalogExport.Csv(file.Path, books));
-            CatalogResult.Text = $"{count:N0} books written to {file.Name}.";
+            CatalogResult.Text = $"{Fn.Count(count, "book")} written to {file.Name}.";
         }
         catch (Exception ex)
         {

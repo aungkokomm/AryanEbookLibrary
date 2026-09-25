@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using Microsoft.UI.Xaml;
@@ -32,8 +33,7 @@ public sealed partial class TagsPage : Page
 
         var tagged = AppServices.Library.AllBooks.Count(b => b.UserTags.Length > 0);
         SummaryText.Text = _tags.Count == 0 ? "No tags yet."
-            : _tags.Count == 1 ? $"1 tag on {tagged:N0} books"
-            : $"{_tags.Count:N0} tags on {tagged:N0} books";
+            : $"{Fn.Count(_tags.Count, "tag")} on {Fn.Count(tagged, "book")}";
         MineTab.Text = $"Your tags ({_tags.Count:N0})";
         SuggestTab.Text = $"Suggested ({_suggestions.Count:N0})";
 
@@ -248,7 +248,7 @@ public sealed partial class TagsPage : Page
             confirm = await new ContentDialog
             {
                 Title = "Add every suggested tag",
-                Content = $"{_suggestions.Count:N0} tags will be written onto {books:N0} books. They are your own tags, " +
+                Content = $"{Fn.Count(_suggestions.Count, "tag")} will be written onto {Fn.Count(books, "book")}. They are your own tags, " +
                           "so any of them can be taken off again with Remove on the Your tags tab.",
                 PrimaryButtonText = "Add them all",
                 CloseButtonText = "Cancel",

@@ -35,6 +35,9 @@ public static class Fn
         }
     }
 
+    /// <summary>"1 book", "2,812 books"; <paramref name="many"/> for the odd plural ("person", "people").</summary>
+    public static string Count(int n, string one, string? many = null) => n == 1 ? $"1 {one}" : $"{n:N0} {many ?? one + "s"}";
+
     public static string Stars(int rating) =>
         rating <= 0 ? "" : new string('★', Math.Min(rating, 5)) + new string('☆', 5 - Math.Min(rating, 5));
 }
