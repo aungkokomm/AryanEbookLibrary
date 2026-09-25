@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <NoWarn>CS8632</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="SharpCompress" Version="1.0.0" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <Compile Include="..\..\..\Models\*.cs" LinkBase="Aryan\Models" />
+    <Compile Include="..\..\..\Services\Metadata\*.cs" LinkBase="Aryan\Metadata" />
+    <Compile Include="..\..\..\Services\Database.cs;..\..\..\Services\LibraryRepository.cs;..\..\..\Services\DriveRegistry.cs;..\..\..\Services\AppPaths.cs;..\..\..\Services\Log.cs;..\..\..\Services\CoverStore.cs;..\..\..\Services\AuthorIndex.cs;..\..\..\Services\DuplicateFinder.cs;..\..\..\Services\MissingBooks.cs;..\..\..\Services\SeriesIndex.cs;..\..\..\Services\Tags.cs;..\..\..\Services\TagSuggester.cs;..\..\..\Services\CatalogExport.cs;..\..\..\Services\ScannerService.cs;..\..\..\Services\ShelfFilter.cs;..\..\..\Services\ReadingLog.cs;..\..\..\Services\AuthorSuggester.cs" LinkBase="Aryan\Services" />
+    <Compile Include="..\..\..\Services\Online\OnlineMatcher.cs;..\..\..\Services\Online\OpenLibraryClient.cs;..\..\..\Services\Online\WikidataClient.cs;..\..\..\Services\Online\WikipediaClient.cs;..\..\..\Services\Online\GoogleBooksClient.cs" LinkBase="Aryan\Online" />
+    <Compile Include="..\..\..\Reader\Pdf\PdfBook.cs;..\..\..\Reader\Pdf\PdfNative.cs;..\..\..\Reader\Pdf\PageTextLayer.cs;..\..\..\Reader\Pdf\TileGrid.cs;..\..\..\Reader\Pdf\PageStackGeometry.cs;..\..\..\Reader\Pdf\SearchOptions.cs;..\..\..\Reader\Pdf\NightMode.cs;..\..\..\Reader\Pdf\PageColors.cs" LinkBase="Aryan\Reader" />
+    <Compile Include="..\..\..\Reader\Define\EnglishWord.cs;..\..\..\Reader\Define\WordDefinitions.cs;..\..\..\Reader\Define\MyanmarGlosses.cs;..\..\..\Reader\Define\HindiGlosses.cs;..\..\..\Services\ReadingSessions.cs" LinkBase="Aryan\Define" />
+    <Compile Include="..\..\..\Reader\Comic\ComicBook.cs" LinkBase="Aryan\Comic" />
+    <Content Include="..\..\..\native\reader_core\target\release\reader_core.dll;..\..\..\native\reader_core\vendor\pdfium\pdfium.dll" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
