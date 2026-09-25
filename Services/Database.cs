@@ -8,11 +8,16 @@ namespace AryanEbookLibrary.Services;
 /// </summary>
 public sealed class Database : IDisposable
 {
+    /// <summary>The newest layout, which <see cref="Migrate"/> brings an older library up to. Raise it with each new step.</summary>
+    public const int LatestVersion = 8;
+
     private readonly SqliteConnection _conn;
     private readonly object _gate = new();
+    private readonly string _path;
 
     public Database(string path)
     {
+        _path = path;
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = path,
@@ -102,6 +107,7 @@ public sealed class Database : IDisposable
     private void Migrate()
     {
         var version = Scalar<long>("PRAGMA user_version;");
+        if (version is > 0 and < LatestVersion) BackUpBeforeUpgrade(version);
         if (version < 1)
         {
             Exec("""
@@ -340,6 +346,27 @@ public sealed class Database : IDisposable
                 """);
             Exec("CREATE INDEX idx_annotations_book ON annotations(book_key);");
             Exec("PRAGMA user_version = 8;");
+        }
+    }
+
+    /// <summary>
+    /// A library about to be upgraded is first copied whole into Backups beside it (library-v7-20260925-101500.db), so an
+    /// upgrade that goes wrong, or going back to an older Aryan, still has the library as it was. Nothing is deleted.
+    /// </summary>
+    private void BackUpBeforeUpgrade(long version)
+    {
+        try
+        {
+            var dir = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_path)) ?? ".", "Backups");
+            Directory.CreateDirectory(dir);
+            var target = Path.Combine(dir, $"library-v{version}-{DateTime.Now:yyyyMMdd-HHmmss}.db");
+            // VACUUM INTO writes one consistent file, whatever the write-ahead log still holds.
+            Exec("VACUUM INTO $target;", ("$target", target));
+            Log.Write($"Database: layout {version} backed up to {target} before upgrading to {LatestVersion}");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Database: backup before upgrading from layout {version} failed: {ex.Message}");
         }
     }
 
