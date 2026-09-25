@@ -69,19 +69,9 @@ public sealed partial class MainWindow : Window
         // Event-driven drive detection (WM_DEVICECHANGE) instead of a poll timer, as in CineLibrary.
         // Don't await inside the WndProc: it must return promptly.
         _deviceWatcher = new DeviceChangeWatcher(WinRT.Interop.WindowNative.GetWindowHandle(this),
-            () => _ = Library.OnDeviceChangeAsync());
+            () => _ = Library.OnDeviceChangeAsync(), () => CloseDown("Windows is ending the session"));
 
-        Closed += (_, _) =>
-        {
-            Log.Write("app: closing");
-            _deviceWatcher.Dispose();
-            // A scan still running would go on writing to the database after it closes.
-            Library.CancelScan();
-            // The readers first: each saves its place and reading time, and the database closes after.
-            Reader.ReaderWindow.CloseAll();
-            BookDetailsWindow.CloseAll();   // a note being typed is saved
-            AppServices.Shutdown();
-        };
+        Closed += (_, _) => CloseDown("closing");
 
         NavView.SelectedItem = NavView.MenuItems[0];
         ContentFrame.Navigate(typeof(LibraryPage));
@@ -89,7 +79,48 @@ public sealed partial class MainWindow : Window
         // Pointer focus, not Programmatic: it keeps the search box from taking focus at startup without
         // painting a focus rectangle on the pane button.
         RootGrid.Loaded += (_, _) => NavView.Focus(FocusState.Pointer);
+        if (Session.LastEndedBadly) RootGrid.Loaded += async (_, _) => await TellLastSessionEndedBadlyAsync();
         Library.Initialize();
+    }
+
+    private bool _closedDown;
+
+    /// <summary>Saves and closes everything, once: when the window closes, or when Windows ends the session first.</summary>
+    private void CloseDown(string why)
+    {
+        if (_closedDown) return;
+        _closedDown = true;
+        Log.Write("app: " + why);
+        _deviceWatcher.Dispose();
+        // A scan still running would go on writing to the database after it closes.
+        Library.CancelScan();
+        // The readers first: each saves its place and reading time, and the database closes after.
+        Reader.ReaderWindow.CloseAll();
+        BookDetailsWindow.CloseAll();   // a note being typed is saved
+        AppServices.Shutdown();
+    }
+
+    private async Task TellLastSessionEndedBadlyAsync()
+    {
+        if (Content.XamlRoot is null) return;
+        var answer = await new ContentDialog
+        {
+            Title = "Aryan did not close normally last time",
+            Content = "Your library is safe. If this keeps happening, the file aryan.log in the data folder says what went wrong.",
+            PrimaryButtonText = "Open data folder",
+            CloseButtonText = "OK",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot
+        }.ShowThemedAsync();
+        if (answer != ContentDialogResult.Primary) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppPaths.DataDir) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Open data folder failed: " + ex.Message);
+        }
     }
 
     // ---- title bar ----

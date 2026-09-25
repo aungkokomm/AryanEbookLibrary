@@ -58,6 +58,7 @@ public static class AppServices
             Settings.Save();
             Db.Dispose();
             Log.Write("app: closed");
+            Session.End();
         }
         catch (Exception ex)
         {
