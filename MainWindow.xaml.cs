@@ -210,9 +210,10 @@ public sealed partial class MainWindow : Window
     private void OnLibraryChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(LibraryViewModel.StatusText) or nameof(LibraryViewModel.OnlineStatusText)
-            or nameof(LibraryViewModel.IsScanning))
+            or nameof(LibraryViewModel.IsScanning) or nameof(LibraryViewModel.IsLookingUp))
         {
-            ShowStatus();
+            if (e.PropertyName != nameof(LibraryViewModel.OnlineStatusText) || Library.OnlineStatusText.Length > 0)
+                ShowStatus();   // a message cleared is no news
             return;
         }
         if (e.PropertyName == nameof(LibraryViewModel.ListFilter))
@@ -662,7 +663,8 @@ public sealed partial class MainWindow : Window
     private static readonly TimeSpan StatusLinger = TimeSpan.FromSeconds(8);
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _statusTimer;
 
-    private bool Working => Library.IsScanning || Library.OnlineStatusText.Length > 0;
+    // Not "there is an online message": the lookups end with one (Google's day used up), which kept the bar up all day.
+    private bool Working => Library.IsScanning || Library.IsLookingUp;
 
     /// <summary>The status bar shows while a scan or an online lookup runs, and for a few seconds after any news.</summary>
     private void ShowStatus()
@@ -673,7 +675,12 @@ public sealed partial class MainWindow : Window
             _statusTimer = DispatcherQueue.CreateTimer();
             _statusTimer.Interval = StatusLinger;
             _statusTimer.IsRepeating = false;
-            _statusTimer.Tick += (_, _) => { if (!Working) StatusBar.Visibility = Visibility.Collapsed; };
+            _statusTimer.Tick += (_, _) =>
+            {
+                if (Working) return;
+                StatusBar.Visibility = Visibility.Collapsed;
+                Library.ForgetOnlineStatus();
+            };
         }
         _statusTimer.Stop();
         if (!Working) _statusTimer.Start();

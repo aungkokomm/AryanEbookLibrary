@@ -31,7 +31,8 @@ public sealed class LibraryViewModel : ObservableObject
         _sortIndex = (int)Settings.SortMode;
         _sortDescending = Settings.SortDescending;
         _viewMode = Settings.ViewMode;
-        AppServices.Online.StatusChanged += text => OnlineStatusText = text;
+        AppServices.Online.StatusChanged += text => { OnlineStatusText = text; IsLookingUp = true; };
+        AppServices.Online.Finished += () => IsLookingUp = false;
     }
 
     /// <summary>Raised when a drive is connected or disconnected (Drives page refreshes itself).</summary>
@@ -404,6 +405,16 @@ public sealed class LibraryViewModel : ObservableObject
     private string _onlineStatusText = "";
     /// <summary>Open Library's background progress, shown at the right of the status bar.</summary>
     public string OnlineStatusText { get => _onlineStatusText; private set => SetProperty(ref _onlineStatusText, value); }
+
+    private bool _isLookingUp;
+    /// <summary>True while the online lookups run. Their last message stays in OnlineStatusText after they end.</summary>
+    public bool IsLookingUp { get => _isLookingUp; private set => SetProperty(ref _isLookingUp, value); }
+
+    /// <summary>Drops a finished run's last message, so it does not come back the next time the status bar shows.</summary>
+    public void ForgetOnlineStatus()
+    {
+        if (!IsLookingUp) OnlineStatusText = "";
+    }
 
     private List<Book> _continueBooks = new();
     /// <summary>

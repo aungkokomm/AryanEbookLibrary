@@ -29,6 +29,9 @@ public sealed class OnlineLookupService
     /// <summary>Background progress for the status bar, "" when there is nothing to say. Raised on the UI thread.</summary>
     public event Action<string>? StatusChanged;
 
+    /// <summary>Raised on the UI thread when a run of lookups is over; its last message is the latest StatusChanged.</summary>
+    public event Action? Finished;
+
     public OnlineLookupService(LibraryRepository repo) => _repo = repo;
 
     /// <summary>Looks up the books that miss details and were not looked up yet. Call on the UI thread.</summary>
@@ -68,6 +71,7 @@ public sealed class OnlineLookupService
             finally
             {
                 _running = false;
+                ui.TryEnqueue(() => Finished?.Invoke());
             }
         });
     }
