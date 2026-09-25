@@ -77,6 +77,8 @@ public sealed partial class MissingPage : Page
     {
         if ((sender as Button)?.Tag is not MovedBook moved) return;
         MissingBooks.Relink(AppServices.Repo, moved);
+        AppServices.Sync.Schedule(moved.Book.FolderId);
+        AppServices.Sync.Schedule(moved.FolderId);
         _moved.Remove(moved);
         await AppServices.Library.ReloadAsync();
         ResultText.Text = $"\"{moved.Book.Title}\" now points at {moved.NewRelPath}.";
@@ -86,7 +88,12 @@ public sealed partial class MissingPage : Page
     private async void OnRelinkAll(object sender, RoutedEventArgs e)
     {
         var count = _moved.Count;
-        foreach (var moved in _moved) MissingBooks.Relink(AppServices.Repo, moved);
+        foreach (var moved in _moved)
+        {
+            MissingBooks.Relink(AppServices.Repo, moved);
+            AppServices.Sync.Schedule(moved.Book.FolderId);
+            AppServices.Sync.Schedule(moved.FolderId);
+        }
         _moved.Clear();
         await AppServices.Library.ReloadAsync();
         ResultText.Text = $"{count:N0} book(s) relinked.";

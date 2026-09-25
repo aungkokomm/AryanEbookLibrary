@@ -188,9 +188,34 @@ public sealed class LibraryRepository
 
     /// <summary>Every book the last scan could not find, on any drive.</summary>
     public List<MissingEntry> GetMissing() => _db.Query(
-        "SELECT id, drive_id, rel_path, title, author, file_size, format FROM books WHERE is_missing = 1",
+        "SELECT id, drive_id, rel_path, title, author, file_size, format, folder_id FROM books WHERE is_missing = 1",
         r => new MissingEntry(r.GetInt64(0), r.GetString(1), "", r.GetString(2), Str(r, 3), Str(r, 4),
-            r.IsDBNull(5) ? 0 : r.GetInt64(5), (BookFormat)r.GetInt32(6)));
+            r.IsDBNull(5) ? 0 : r.GetInt64(5), (BookFormat)r.GetInt32(6), r.GetInt64(7)));
+
+    public sealed record FreshBook(long Id, string DriveId, string RelPath, long FileSize, long FolderId);
+
+    /// <summary>The newest catalogue row's id: a scan's new books all get higher ones.</summary>
+    public long LastBookId() => _db.Scalar<long>("SELECT COALESCE(MAX(id), 0) FROM books");
+
+    /// <summary>
+    /// Books on hand that carry nothing of the user's yet: no favorite, status, notes, tags, lists or own title, no
+    /// highlight, no reading history. Only such a book may give way to a missing book that moved there, so nothing the
+    /// user did is ever replaced.
+    /// </summary>
+    public List<FreshBook> GetFreshBooks()
+    {
+        var personal = GetAllStates().Where(s => !s.State.IsDefault).Select(s => s.Key).ToHashSet(StringComparer.Ordinal);
+        personal.UnionWith(_db.Query("""
+            SELECT book_key FROM annotations UNION SELECT book_key FROM reading_positions
+            UNION SELECT book_key FROM reading_sessions
+            """, r => r.GetString(0)));
+        return _db.Query("SELECT id, drive_id, rel_path, file_size, folder_id, state_key FROM books WHERE is_missing = 0",
+                r => (Key: r.GetString(5), Book: new FreshBook(r.GetInt64(0), r.GetString(1), r.GetString(2),
+                    r.IsDBNull(3) ? 0 : r.GetInt64(3), r.GetInt64(4))))
+            .Where(x => !personal.Contains(x.Key))
+            .Select(x => x.Book)
+            .ToList();
+    }
 
     public sealed record PlacedFile(string RelPath, long FileSize, long FolderId);
 
@@ -201,25 +226,31 @@ public sealed class LibraryRepository
         ("$d", driveId));
 
     /// <summary>
-    /// The same book at a new path: the catalogue row moves and so does the personal state row, so a file
-    /// that was only moved keeps its favorite, notes, tags and the user's own title.
+    /// The same book at a new path, on the same drive or another (<paramref name="newDriveId"/>): the catalogue row
+    /// moves and so does the personal state row, so a file that was only moved keeps its favorite, notes, tags and the
+    /// user's own title, its reading history, highlights and online details.
     /// </summary>
-    public void MoveBook(long id, string driveId, string oldRelPath, string newRelPath, long folderId)
+    public void MoveBook(long id, string driveId, string oldRelPath, string newRelPath, long folderId, string? newDriveId = null)
     {
+        newDriveId ??= driveId;
         var oldKey = Book.MakeKey(driveId, oldRelPath);
-        var newKey = Book.MakeKey(driveId, newRelPath);
+        var newKey = Book.MakeKey(newDriveId, newRelPath);
         _db.Transaction(() =>
         {
             // A row may already sit at the new path (it was scanned there before): the moved book wins.
             _db.Exec("DELETE FROM books WHERE drive_id=$d AND rel_path=$new AND id<>$id",
-                ("$d", driveId), ("$new", newRelPath), ("$id", id));
-            _db.Exec("UPDATE books SET rel_path=$new, folder_id=$folder, state_key=$newkey, is_missing=0 WHERE id=$id",
-                ("$new", newRelPath), ("$folder", folderId), ("$newkey", newKey), ("$id", id));
+                ("$d", newDriveId), ("$new", newRelPath), ("$id", id));
+            _db.Exec("UPDATE books SET drive_id=$d, rel_path=$new, folder_id=$folder, state_key=$newkey, is_missing=0 WHERE id=$id",
+                ("$d", newDriveId), ("$new", newRelPath), ("$folder", folderId), ("$newkey", newKey), ("$id", id));
             // The old state row is the one the user built up, so it takes the new key.
             _db.Exec("DELETE FROM book_state WHERE key=$newkey AND EXISTS (SELECT 1 FROM book_state WHERE key=$oldkey)",
                 ("$newkey", newKey), ("$oldkey", oldKey));
-            _db.Exec("UPDATE book_state SET key=$newkey, rel_path=$new WHERE key=$oldkey",
-                ("$newkey", newKey), ("$new", newRelPath), ("$oldkey", oldKey));
+            _db.Exec("UPDATE book_state SET key=$newkey, drive_id=$d, rel_path=$new WHERE key=$oldkey",
+                ("$newkey", newKey), ("$d", newDriveId), ("$new", newRelPath), ("$oldkey", oldKey));
+            // What was found online for it, source by source; the new path's own findings stay for the other sources.
+            _db.Exec("DELETE FROM book_online WHERE key=$newkey AND source IN (SELECT source FROM book_online WHERE key=$oldkey)",
+                ("$newkey", newKey), ("$oldkey", oldKey));
+            _db.Exec("UPDATE book_online SET key=$newkey WHERE key=$oldkey", ("$newkey", newKey), ("$oldkey", oldKey));
             // Its reading history and place in it go with it.
             _db.Exec("UPDATE reading_sessions SET book_key=$newkey WHERE book_key=$oldkey",
                 ("$newkey", newKey), ("$oldkey", oldKey));
@@ -228,8 +259,8 @@ public sealed class LibraryRepository
             _db.Exec("UPDATE reading_positions SET book_key=$newkey WHERE book_key=$oldkey",
                 ("$newkey", newKey), ("$oldkey", oldKey));
             // And its highlights and notes.
-            _db.Exec("UPDATE annotations SET book_key=$newkey, rel_path=$new WHERE book_key=$oldkey",
-                ("$newkey", newKey), ("$new", newRelPath), ("$oldkey", oldKey));
+            _db.Exec("UPDATE annotations SET book_key=$newkey, drive_id=$d, rel_path=$new WHERE book_key=$oldkey",
+                ("$newkey", newKey), ("$d", newDriveId), ("$new", newRelPath), ("$oldkey", oldKey));
         });
     }
 

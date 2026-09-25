@@ -15,6 +15,7 @@ public sealed class ScanResult
     public int Skipped;
     public int Failed;
     public int Missing;
+    public int Moved;
     public int OfflineFolders;
 
     public void Add(ScanResult o)
@@ -25,11 +26,13 @@ public sealed class ScanResult
         Skipped += o.Skipped;
         Failed += o.Failed;
         Missing += o.Missing;
+        Moved += o.Moved;
         OfflineFolders += o.OfflineFolders;
     }
 
     public string Summary =>
         $"{Inserted:N0} new, {Updated:N0} updated, {Skipped:N0} unchanged" +
+        (Moved > 0 ? $", {Moved:N0} moved (they kept their notes and progress)" : "") +
         (Failed > 0 ? $", {Failed:N0} failed" : "") +
         (Missing > 0 ? $", {Missing:N0} missing" : "");
 }
@@ -89,7 +92,7 @@ public sealed class ScannerService
     /// names that recur), for books whose title, author or other details came from their file name, and for
     /// books with no author at all. Only file names are read, so this takes a moment even for thousands.
     /// </summary>
-    private void RefreshNamesFromFiles()
+    public void RefreshNamesFromFiles()
     {
         var ctx = NameContext.Build(_repo.GetDeclaredAuthors(), _repo.GetAllRelPaths());
         FileNameParser.Context = ctx;

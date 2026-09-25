@@ -4,7 +4,7 @@ namespace AryanEbookLibrary.Services;
 
 /// <summary>A book the last scan could not find where it used to be.</summary>
 public sealed record MissingEntry(long Id, string DriveId, string DriveLabel, string RelPath, string Title,
-    string Author, long FileSize, BookFormat Format)
+    string Author, long FileSize, BookFormat Format, long FolderId = 0)
 {
     public string FormatLabel => FormatHelper.Label(Format);
     public string SizeText => FileSize <= 0 ? "" : $"{FileSize / 1048576.0:0.0} MB";
@@ -19,6 +19,10 @@ public sealed class MovedBook
     public string NewRelPath { get; init; } = "";
     public long FolderId { get; init; }
     public string Why { get; init; } = "";
+    /// <summary>The drive it is on now, when it moved to another one.</summary>
+    public string? NewDriveId { get; init; }
+    /// <summary>The catalogue row a scan made for the file at its new place, which gives way to the book.</summary>
+    public long NewRowId { get; init; }
     public string Line => $"{Book.Title}  ->  {NewRelPath}";
 }
 
@@ -101,7 +105,59 @@ public static class MissingBooks
 
     /// <summary>Points the catalogue row and everything the user gave the book at its new path.</summary>
     public static void Relink(LibraryRepository repo, MovedBook moved) =>
-        repo.MoveBook(moved.Book.Id, moved.Book.DriveId, moved.Book.RelPath, moved.NewRelPath, moved.FolderId);
+        repo.MoveBook(moved.Book.Id, moved.Book.DriveId, moved.Book.RelPath, moved.NewRelPath, moved.FolderId, moved.NewDriveId);
+
+    /// <summary>
+    /// After a scan, the books that were certainly moved or renamed in Explorer take their new place, with everything
+    /// the user gave them. Uses only what the scan already knows (names, sizes, folders): nothing is read from the drives.
+    /// </summary>
+    public static List<MovedBook> RelinkMoved(LibraryRepository repo)
+    {
+        // A book on an unplugged drive is not missing, only away; its file may still be there.
+        var missing = repo.GetMissing().Where(m => DriveRegistry.IsOnline(m.DriveId)).ToList();
+        if (missing.Count == 0) return new();
+        var moves = PairMoves(missing, repo.GetFreshBooks());
+        foreach (var m in moves)
+        {
+            Relink(repo, m);
+            Log.Write($"Moved: {m.Book.DriveId}|{m.Book.RelPath} -> {m.NewDriveId}|{m.NewRelPath} ({m.Why})");
+        }
+        return moves;
+    }
+
+    /// <summary>
+    /// Which missing books are certainly a fresh book somewhere else. Moved: the same file name and size, on any
+    /// connected drive. Renamed: the same folder, size and kind of file. Only one-to-one: when two files could be the
+    /// book, or two books the file, the book stays missing for the user to decide.
+    /// </summary>
+    public static List<MovedBook> PairMoves(IReadOnlyList<MissingEntry> missing, IReadOnlyList<LibraryRepository.FreshBook> fresh)
+    {
+        var moves = new List<MovedBook>();
+        var taken = new HashSet<long>();
+        Pair((m, f) => Same(Path.GetFileName(m.RelPath), Path.GetFileName(f.RelPath)), "same name and size");
+        Pair((m, f) => Same(m.DriveId, f.DriveId) && Same(Path.GetDirectoryName(m.RelPath) ?? "", Path.GetDirectoryName(f.RelPath) ?? "")
+                       && Same(Path.GetExtension(m.RelPath), Path.GetExtension(f.RelPath)), "renamed in its folder, same size");
+        return moves;
+
+        void Pair(Func<MissingEntry, LibraryRepository.FreshBook, bool> fits, string why)
+        {
+            var open = missing.Where(m => m.FileSize > 0 && moves.All(x => x.Book.Id != m.Id)).ToList();
+            var free = fresh.Where(f => !taken.Contains(f.Id)).ToList();
+            foreach (var m in open)
+            {
+                var files = free.Where(f => !taken.Contains(f.Id) && f.FileSize == m.FileSize && fits(m, f)).ToList();
+                if (files.Count != 1) continue;
+                var file = files[0];
+                if (open.Count(o => o.FileSize == file.FileSize && fits(o, file)) != 1) continue;
+                taken.Add(file.Id);
+                moves.Add(new MovedBook
+                {
+                    Book = m, NewRelPath = file.RelPath, FolderId = file.FolderId, NewDriveId = file.DriveId,
+                    NewRowId = file.Id, Why = why
+                });
+            }
+        }
+    }
 
     private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 

@@ -776,6 +776,7 @@ public sealed class LibraryViewModel : ObservableObject
 
         try
         {
+            var lastId = Repo.LastBookId();
             foreach (var folder in folders)
             {
                 // Pick up favorites/notes stored on the drive itself before indexing.
@@ -783,6 +784,23 @@ public sealed class LibraryViewModel : ObservableObject
                 total.Add(await AppServices.Scanner.ScanAsync(new[] { folder }, progress, ct));
                 await ReloadAsync();
                 if (imported > 0) AppServices.Annotations.RaiseChanged();
+            }
+
+            // Files moved or renamed in Explorer since the last scan take their old book's place, with everything the
+            // user gave it. Only now: a file moved to another folder is missing from one and new in the other.
+            var moved = await Task.Run(() => MissingBooks.RelinkMoved(Repo), ct);
+            if (moved.Count > 0)
+            {
+                total.Moved = moved.Count;
+                total.Inserted -= moved.Count(m => m.NewRowId > lastId);   // counted as new by the folder's scan
+                var scanned = folders.Select(f => f.Id).ToHashSet();
+                total.Missing = Repo.GetMissing().Count(m => scanned.Contains(m.FolderId));
+                // The drives' own copies (sidecars) under the new paths, and a renamed file's name read again.
+                foreach (var id in moved.SelectMany(m => new[] { m.Book.FolderId, m.FolderId }).Distinct())
+                    AppServices.Sync.Schedule(id);
+                await Task.Run(AppServices.Scanner.RefreshNamesFromFiles, ct);
+                await ReloadAsync();
+                AppServices.Annotations.RaiseChanged();
             }
 
             StatusText = "Scan complete: " + total.Summary +
