@@ -16,7 +16,12 @@ No accounts, no telemetry. The log (`aryan.log`) stays on your computer.
 
 ## Install
 
-Run `AryanEbookLibrary-Setup-<version>.exe`. It installs for your user only (no administrator rights) and never touches `AryanLibrary-Data`, so updating keeps your library. The app is portable too: the whole folder, with its `AryanLibrary-Data`, can live on any drive.
+Run `AryanEbookLibrary-Setup-<version>.exe`. Its first page asks how you want Aryan:
+
+- **Install for me:** for your user only (no administrator rights), with a Start menu entry, and removable from Settings > Apps.
+- **Portable:** copied into any folder you choose, such as a USB drive or `D:\`. Nothing is written to Windows: no Start menu entry, no uninstaller. The library lives in `AryanLibrary-Data` beside the app, so the whole folder can move to another drive or PC. Running Setup again on the same folder updates the app and keeps the library.
+
+Either way Setup never touches `AryanLibrary-Data`, so updating keeps your library. A portable copy can also be made silently: `AryanEbookLibrary-Setup-<version>.exe /VERYSILENT /PORTABLE /DIR="E:\Aryan"`.
 
 ## Build
 

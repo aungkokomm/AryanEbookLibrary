@@ -30,7 +30,7 @@
     <PublishReadyToRun>false</PublishReadyToRun>
     <PublishTrimmed>false</PublishTrimmed>
 
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <!-- Keeps ProductVersion a plain "0.2.0" (no +commit suffix): the installer reads its version from it -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Aryan eBook Library</Product>

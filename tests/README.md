@@ -27,3 +27,5 @@ PowerShell scripts that start a copy of the app off-screen and drive it with UI 
 - `single_instance.ps1 -App <copy> -OtherApp <another copy>`: one running copy per library.
 - `session_test.ps1 -App <copy> -Out <folder>`: a normal close, a kill, and Windows ending the session.
 - `first_run.ps1 -App <new copy> -Books <folder of books> -Out <folder>`: a brand-new library, from the empty page's button through the real folder picker to the books.
+- `installer_portable.ps1 -Setup <setup exe> -Work <temp folder>`: a silent portable copy leaves no trace in Windows, and running Setup again on it keeps its library.
+- `installer_pages.ps1 -Setup <setup exe> -Out <folder> -Mode portable|install|switch`: walks the installer's pages off-screen for each choice and cancels at the Ready page, so nothing is installed.
