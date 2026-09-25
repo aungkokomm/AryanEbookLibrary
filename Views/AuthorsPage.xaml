@@ -23,8 +23,30 @@
                             QueryIcon="Find" TextChanged="OnSearchChanged" VerticalAlignment="Center" />
         </Grid>
 
+        <StackPanel Grid.Row="1" Spacing="12">
+        <!-- Books from a website with no author, in a folder named like a person -->
+        <Border x:Name="OfferPanel" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Books with no author" FontWeight="SemiBold" />
+                <ItemsControl x:Name="OfferList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="services:AuthorOffer">
+                            <Grid ColumnSpacing="12" Margin="0,4" ColumnDefinitions="*,Auto,Auto">
+                                <TextBlock Text="{x:Bind Question}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Grid.Column="1" Content="{x:Bind Answer}" Click="OnSetAuthor" Tag="{x:Bind}"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                <Button Grid.Column="2" Content="No" Click="OnNotAuthor" Tag="{x:Bind}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
         <!-- Names that look like one person -->
-        <Border x:Name="MergePanel" Grid.Row="1" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
+        <Border x:Name="MergePanel" Visibility="Collapsed" CornerRadius="8" Padding="16,12"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <StackPanel Spacing="10">
@@ -50,6 +72,7 @@
                 </ItemsControl>
             </StackPanel>
         </Border>
+        </StackPanel>
 
         <!-- The authors -->
         <ListView x:Name="AuthorList" Grid.Row="2" SelectionMode="None" IsItemClickEnabled="True"

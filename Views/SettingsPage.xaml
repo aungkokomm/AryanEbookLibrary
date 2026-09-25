@@ -152,10 +152,25 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Fill in missing details online" />
                             <TextBlock Style="{StaticResource SettingDescriptionStyle}"
-                                       Text="Books with no author, description or real cover are looked up on Open Library, Wikidata and Wikipedia. Only a title, author or ISBN is sent, and your files are never changed." />
+                                       Text="Books with no author, description or real cover are looked up on Open Library, Wikidata and Wikipedia, and on Google Books when you give it a key. Only a title, author or ISBN is sent, and your files are never changed." />
                         </StackPanel>
                         <ToggleSwitch x:Name="LookupOnlineSwitch" Grid.Column="2" Toggled="OnLookupOnlineToggled"
                                       AutomationProperties.Name="Fill in missing details from Open Library" />
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE8D7;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Google Books key" />
+                            <TextBlock Style="{StaticResource SettingDescriptionStyle}"
+                                       Text="Google Books has descriptions, years and subjects for many books Open Library lacks, but it only answers with a free key of your own, for about a thousand books a day. It only fills details that are still empty." />
+                            <HyperlinkButton Content="How to get a key" Padding="0" Margin="0,2,0,0" FontSize="12"
+                                             NavigateUri="https://developers.google.com/books/docs/v1/using#APIKey" />
+                        </StackPanel>
+                        <PasswordBox x:Name="GoogleKeyBox" Grid.Column="2" Width="240" VerticalAlignment="Center"
+                                     PlaceholderText="Paste your key" PasswordChanged="OnGoogleKeyChanged" LostFocus="OnGoogleKeyLostFocus"
+                                     AutomationProperties.Name="Google Books key" />
                     </Grid>
                 </Border>
                 <Expander AutomationProperties.Name="Duplicates: the copy to keep">

@@ -28,6 +28,22 @@ public static class PeopleParser
     private static readonly Regex LeadingBy = new(@"^by\s+", RegexOptions.IgnoreCase);
     private static readonly Regex ScanCredit = new(
         @"^(pdfed|scanned|ocr'?ed|converted|uploaded|ripped|typed|digiti[sz]ed)\s+by\b", RegexOptions.IgnoreCase);
+    // "Ikenna Nwaiwu<br><i>Foreword by Melissa van der Hecht</i>": markup from a web page, and whoever wrote the
+    // foreword, who is not an author of the book.
+    private static readonly Regex HtmlBreak = new(@"<\s*(br|/p|/div|/li)\s*/?>", RegexOptions.IgnoreCase);
+    private static readonly Regex HtmlTag = new(@"<[^>]{1,40}>");
+    private static readonly Regex Foreword = new(
+        @"(\bwith\s+)?(\ban?\s+)?\b(foreword|introduction|preface|afterword)\s+by\b[^;]*", RegexOptions.IgnoreCase);
+
+    // Not people: a web address or its site ("www.oshoworld.com", "https://www.pdfmagaz.in", "savarkar.org"), and the
+    // program that made the file ("ComicRack", "CamScanner", "Microsoft Office User", "JPG To PDF Converter").
+    private static readonly Regex Site = new(
+        @"^(https?://)?(www\.)?(?<host>[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|info|biz|in|co|io|me|ru|to|cc|us|uk|de|edu|gov|xyz|site|online|tk))(\.[a-z]{2})?(/\S*)?$",
+        RegexOptions.IgnoreCase);
+    private static readonly Regex Program = new(
+        @"^(comicrack|camscanner|calibre|pdfcreator|pdf creator|pdf24|ilovepdf|smallpdf|ghostscript|pdftex|genius scan|adobe scan|scanbot|" +
+        @"adobe systems( incorporated)?|adobe acrobat.*|acrobat .*|nitro( pdf.*)?|foxit.*|abbyy.*|finereader.*|office lens|microsoft lens|" +
+        @"(microsoft )?office user|.*\b(converter|scanner)\b.*)$", RegexOptions.IgnoreCase);
 
     public static List<string> Parse(string? raw)
     {
@@ -35,6 +51,13 @@ public static class PeopleParser
         if (string.IsNullOrWhiteSpace(raw)) return people;
 
         var s = raw.Trim();
+        if (s.Contains('<'))
+        {
+            s = HtmlBreak.Replace(s, ";");
+            s = HtmlTag.Replace(s, " ");
+        }
+        if (s.Contains('&')) s = System.Net.WebUtility.HtmlDecode(s);
+        s = Foreword.Replace(s, ";");
         if (s.StartsWith('(') && s.EndsWith(')') && s.IndexOf(')') == s.Length - 1) s = s[1..^1];   // "( Mg-Tun-Thu )"
         // "Confucius, James Legge (Translator)": a role in brackets after a full name shows the names are whole
         // names, not "Last, First" pairs.
@@ -70,13 +93,32 @@ public static class PeopleParser
         return people
             .Select(p => FixCase(TrimDot(p.Trim(' ', ',', '-'))))
             .Select(p => p.EndsWith(" Jr", StringComparison.Ordinal) || Regex.IsMatch(p, @"\b[A-Z]$") ? p + "." : p)
-            .Where(p => p.Count(char.IsLetter) >= 2)
+            .Where(p => p.Count(char.IsLetter) >= 2 && !IsNotAPerson(p))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
     /// <summary>Display form: the people joined with ", " (the separator EPUB authors use too).</summary>
     public static string Tidy(string? raw) => string.Join(", ", Parse(raw));
+
+    /// <summary>A web address, an e-mail address, or the program that made the file, written where the author goes.</summary>
+    public static bool IsNotAPerson(string name)
+    {
+        name = name.Trim();
+        return name.Contains('@') || Site.IsMatch(name) || Program.IsMatch(name);
+    }
+
+    /// <summary>
+    /// The site an author field names instead of a person ("www.oshoworld.com" gives "oshoworld.com"): where the file
+    /// came from, which is kept as its publisher when it has none. Null when no piece of it is a web address.
+    /// </summary>
+    public static string? SiteIn(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        foreach (var piece in raw.Split(new[] { ',', ';', '&' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (!piece.Contains('@') && Site.Match(piece) is { Success: true } m) return m.Groups["host"].Value.ToLowerInvariant();
+        return null;
+    }
 
     /// <summary>"Thomas." → "Thomas", but an initial keeps its dot: "Sam J.", "A.J.", "G. D.".</summary>
     private static string TrimDot(string p)

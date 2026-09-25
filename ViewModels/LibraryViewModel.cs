@@ -827,6 +827,24 @@ public sealed class LibraryViewModel : ObservableObject
         return changed;
     }
 
+    /// <summary>The user's own author on these books (an edit like any other, kept in book_state; the files are untouched).</summary>
+    public int SetAuthor(IEnumerable<Book> books, string author)
+    {
+        var changed = 0;
+        foreach (var book in books)
+        {
+            if (book.Author == author) continue;
+            book.SetCustomDetails(book.CustomTitle, author, book.CustomSeries);
+            SaveState(book);
+            changed++;
+        }
+        if (changed > 0) ApplyFilter();
+        return changed;
+    }
+
+    /// <summary>Authors worked out for books a website left without one, minus the ones the user turned down.</summary>
+    public List<AuthorOffer> GetAuthorOffers() => AuthorSuggester.Build(_all, Settings.NoAuthorOffers);
+
     /// <summary>The library's authors, and the names that look like one person written differently.</summary>
     public List<AuthorEntry> GetAuthors() => AuthorIndex.Build(_all, Repo.GetAllAuthorsOnline());
 

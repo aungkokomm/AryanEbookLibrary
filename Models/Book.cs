@@ -126,14 +126,17 @@ public sealed class Book : ObservableObject
     /// The user's edit wins, then Open Library details the user picked, then the file's own details. Details
     /// Open Library found by itself only fill what the file lacks: an empty field, an author read from the file
     /// name, a title that is no title ("isbn 0671818325"), a missing cover or a page of text as the cover.
+    /// Google Books comes after Open Library and only fills what is still empty (never the title or the cover).
     /// </summary>
     private void ShowDetails()
     {
         var o = _online.GetValueOrDefault(OnlineSource.OpenLibrary) is { IsApplied: true } a ? a : null;
         var wikidata = _online.GetValueOrDefault(OnlineSource.Wikidata) is { IsApplied: true } b ? b : null;
         var wikipedia = _online.GetValueOrDefault(OnlineSource.Wikipedia) is { IsApplied: true } c ? c : null;
+        var google = _online.GetValueOrDefault(OnlineSource.GoogleBooks) is { IsApplied: true } d ? d : null;
         var picked = o?.IsPicked == true;
         bool Use(string? online, bool fileIsWeak) => o is not null && !string.IsNullOrWhiteSpace(online) && (picked || fileIsWeak);
+        bool Fills(string? online, bool fileIsWeak) => google is not null && !string.IsNullOrWhiteSpace(online) && !picked && fileIsWeak;
 
         var nameTitle = (NameFields & BookMetadata.NameField.Title) != 0;
         var nameAuthor = (NameFields & BookMetadata.NameField.Author) != 0;
@@ -142,12 +145,15 @@ public sealed class Book : ObservableObject
         var weakTitle = nameTitle && (Services.Online.OnlineMatcher.HasNoTitleWords(FileTitle) ||
                                       o?.How == OnlineDetails.ByIsbn && !Services.Online.OnlineMatcher.SameWords(FileTitle, o.Title ?? ""));
         BaseTitle = Use(o?.Title, weakTitle) ? o!.Title! : FileTitle;
-        BaseAuthor = Use(o?.Author, FileAuthor.Length == 0 || nameAuthor) ? o!.Author! : FileAuthor;
+        var weakAuthor = FileAuthor.Length == 0 || nameAuthor;
+        BaseAuthor = Use(o?.Author, weakAuthor) ? o!.Author! : Fills(google?.Author, weakAuthor) ? google!.Author! : FileAuthor;
 
         Title = CustomTitle ?? BaseTitle;
         Author = CustomAuthor ?? BaseAuthor;
-        Publisher = Use(o?.Publisher, FilePublisher.Length == 0) ? o!.Publisher! : FilePublisher;
-        Subjects = Use(o?.Subjects, FileSubjects.Length == 0) ? o!.Subjects! : FileSubjects;
+        Publisher = Use(o?.Publisher, FilePublisher.Length == 0) ? o!.Publisher!
+            : Fills(google?.Publisher, FilePublisher.Length == 0) ? google!.Publisher! : FilePublisher;
+        Subjects = Use(o?.Subjects, FileSubjects.Length == 0) ? o!.Subjects!
+            : Fills(google?.Subjects, FileSubjects.Length == 0) ? google!.Subjects! : FileSubjects;
 
         // Series: the user's, then the file's, then Wikidata's (name and number always together), then Open Library's.
         SeriesSource = null;
@@ -174,7 +180,7 @@ public sealed class Book : ObservableObject
 
         YearSource = null;
         Year = FileYear;
-        if ((FileYear is null || picked) && First(o, wikidata, x => x.Year?.ToString()) is { } year)
+        if ((FileYear is null || picked) && First(o, wikidata, google, x => x.Year?.ToString()) is { } year)
         {
             Year = year.Year;
             YearSource = year.Source;
@@ -183,7 +189,7 @@ public sealed class Book : ObservableObject
         // Wikipedia's opening paragraphs beat Open Library's synopsis, which most records do not have.
         DescriptionSource = null;
         Description = FileDescription;
-        if ((FileDescription.Length == 0 || picked) && First(wikipedia, o, x => x.Description) is { } text)
+        if ((FileDescription.Length == 0 || picked) && First(wikipedia, o, google, x => x.Description) is { } text)
         {
             Description = text.Description!;
             DescriptionSource = text.Source;
@@ -206,6 +212,10 @@ public sealed class Book : ObservableObject
         if (second is not null && !string.IsNullOrWhiteSpace(value(second))) return second;
         return null;
     }
+
+    /// <summary>The first of three sources that has this detail.</summary>
+    private static OnlineDetails? First(OnlineDetails? first, OnlineDetails? second, OnlineDetails? third, Func<OnlineDetails, string?> value) =>
+        First(first, second, value) ?? (third is not null && !string.IsNullOrWhiteSpace(value(third)) ? third : null);
 
     /// <summary>The book's cover is missing or is a page of text, so another one is better.</summary>
     public bool NeedsCover => FileCoverFile is null || CoverWeak;

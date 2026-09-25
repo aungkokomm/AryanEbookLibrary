@@ -24,6 +24,7 @@ public sealed class OnlineLookupService
     public OpenLibraryClient Client { get; } = new();
     public WikidataClient Wikidata { get; } = new();
     public WikipediaClient Wikipedia { get; } = new();
+    public GoogleBooksClient Google { get; } = new(() => AppServices.Settings.GoogleBooksKey);
 
     /// <summary>Background progress for the status bar, "" when there is nothing to say. Raised on the UI thread.</summary>
     public event Action<string>? StatusChanged;
@@ -44,7 +45,14 @@ public sealed class OnlineLookupService
             .Select(b => new Item(ToLookup(b), b.NeedsCover, b.Online?.Tries ?? 0))
             .ToList();
         var authors = AuthorJobs(books, now);
-        if (queue.Count == 0 && authors.Count == 0) return;
+        var google = Google.HasKey
+            ? books.Where(b => NeedsGoogle(b, now))
+                .OrderBy(b => b.Isbn.Length > 0 ? 0 : 1)
+                .ThenByDescending(b => b.LastOpenedUtc ?? DateTime.MinValue)   // the books being read first
+                .Select(b => new Item(ToLookup(b), false, b.OnlineFrom(OnlineSource.GoogleBooks)?.Tries ?? 0))
+                .ToList()
+            : new List<Item>();
+        if (queue.Count == 0 && authors.Count == 0 && google.Count == 0) return;
 
         _running = true;
         _cts = new CancellationTokenSource();
@@ -55,6 +63,7 @@ public sealed class OnlineLookupService
             {
                 if (queue.Count > 0) await RunAsync(queue, ui, _cts.Token);
                 if (authors.Count > 0) await RunAuthorsAsync(authors, ui, _cts.Token);
+                if (google.Count > 0) await RunGoogleAsync(google, ui, _cts.Token);
             }
             finally
             {
@@ -127,8 +136,24 @@ public sealed class OnlineLookupService
         return l.Isbn is not null || OnlineMatcher.CanSearch(l);
     }
 
-    public static OnlineDetails FromCandidate(OnlineCandidate c, string status, string? how) => new()
+    /// <summary>
+    /// Not asked of Google Books yet (or it failed a while ago), still missing something Google gives (a description,
+    /// year, publisher or subjects), and something to look it up by.
+    /// </summary>
+    private static bool NeedsGoogle(Book b, DateTime now)
     {
+        if (b.OnlineFrom(OnlineSource.GoogleBooks) is { } g &&
+            !(g.Status == OnlineDetails.Error && g.Tries < 5 && now - g.UpdatedUtc > TimeSpan.FromMinutes(30)))
+            return false;
+        if (!(b.Description.Length == 0 || b.Year is null || b.Publisher.Length == 0 || b.Subjects.Length == 0)) return false;
+        var l = ToLookup(b);
+        return l.Isbn is not null || OnlineMatcher.CanSearch(l);
+    }
+
+    public static OnlineDetails FromCandidate(OnlineCandidate c, string status, string? how, string source = OnlineSource.OpenLibrary) => new()
+    {
+        Source = source,
+        Description = c.Description,
         Status = status,
         How = how,
         SourceKey = c.WorkKey,
@@ -252,6 +277,70 @@ public sealed class OnlineLookupService
         finally
         {
             Log.Write($"Open Library: {done} of {queue.Count} looked up, {filled} filled in, {suggested} suggested");
+        }
+    }
+
+    /// <summary>
+    /// Google Books, one book at a time (its key allows about a thousand requests a day): the same matching as Open
+    /// Library's, and each answer saved as it comes. When the day's allowance is used up it stops without marking the
+    /// books still to do, so the next start carries on with them.
+    /// </summary>
+    private async Task RunGoogleAsync(List<Item> queue, DispatcherQueue ui, CancellationToken ct)
+    {
+        int done = 0, filled = 0, failuresInARow = 0;
+        void Report(string text) => ui.TryEnqueue(() => StatusChanged?.Invoke(text));
+        Report($"Google Books: looking up {queue.Count:N0} books");
+        try
+        {
+            foreach (var item in queue)
+            {
+                while (Volatile.Read(ref _held) > 0) await Task.Delay(500, ct);
+                ct.ThrowIfCancellationRequested();
+                OnlineDetails details;
+                try
+                {
+                    var d = await OnlineMatcher.LookupAsync(Google, item.Book, ct);
+                    details = d.Candidate is { } c
+                        ? FromCandidate(c, d.Status, d.How, OnlineSource.GoogleBooks)
+                        : new OnlineDetails { Source = OnlineSource.GoogleBooks, Status = d.Status };
+                    failuresInARow = 0;
+                    if (details.IsApplied) filled++;
+                }
+                catch (OnlineUnavailableException)
+                {
+                    details = new OnlineDetails { Source = OnlineSource.GoogleBooks, Status = OnlineDetails.Error, Tries = item.Tries + 1 };
+                    if (++failuresInARow >= 3)
+                    {
+                        _repo.UpsertOnline(item.Book.Key, details);
+                        Report("Google Books isn't answering. Aryan will try again after the next scan.");
+                        return;
+                    }
+                }
+                _repo.UpsertOnline(item.Book.Key, details);
+                var key = item.Book.Key;
+                ui.TryEnqueue(() => AppServices.Library.FindByKey(key)?.SetOnline(details));
+                done++;
+                Report($"Google Books: {done:N0} of {queue.Count:N0} looked up, {filled:N0} filled in");
+            }
+            Report($"Google Books filled in {filled:N0} of {queue.Count:N0} books");
+        }
+        catch (GoogleQuotaException ex)
+        {
+            Log.Write("Google Books: " + ex.Message);
+            Report(ex.Message + (done > 0 ? $" {filled:N0} of {done:N0} filled in so far;" : "") + " Aryan carries on after the next start.");
+        }
+        catch (OperationCanceledException)
+        {
+            Report("");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Google Books lookups failed: " + ex);
+            Report("");
+        }
+        finally
+        {
+            Log.Write($"Google Books: {done} of {queue.Count} looked up, {filled} filled in");
         }
     }
 

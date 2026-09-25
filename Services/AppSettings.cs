@@ -12,6 +12,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public string GridDensity { get; set; } = "M";     // S | M | L | XL card size
     public bool LookupOnline { get; set; }               // fill missing details from Open Library in the background
+    public string GoogleBooksKey { get; set; } = "";     // the user's own Google Books API key; "" = Google Books is not asked
+    // Authors the library offered for books with none ("site|name") and the user turned down.
+    public List<string> NoAuthorOffers { get; set; } = new();
     public List<string> NotSamePeople { get; set; } = new();   // name pairs the user said are different people
     // When the same book is in the library twice, which copy to keep. "" means no preference.
     public string PreferredFormat { get; set; } = "";          // EPUB | PDF | MOBI | AZW3 | CBZ | CBR

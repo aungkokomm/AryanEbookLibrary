@@ -3,13 +3,14 @@ namespace AryanEbookLibrary.Models;
 /// <summary>Where online details came from, and how that reads on screen.</summary>
 public static class OnlineSource
 {
-    public const string OpenLibrary = "openlibrary", Wikidata = "wikidata", Wikipedia = "wikipedia";
+    public const string OpenLibrary = "openlibrary", Wikidata = "wikidata", Wikipedia = "wikipedia", GoogleBooks = "googlebooks";
 
     public static string Name(string? source) => source switch
     {
         OpenLibrary => "Open Library",
         Wikidata => "Wikidata",
         Wikipedia => "Wikipedia",
+        GoogleBooks => "Google Books",
         _ => "online"
     };
 }

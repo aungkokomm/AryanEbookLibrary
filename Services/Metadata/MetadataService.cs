@@ -18,8 +18,10 @@ public static class MetadataService
     /// 4: Burmese written in Zawgyi, or with ေ and ြ out of order, is shown in Unicode.
     /// 5: any bracketed web address ("[smtebooks.com]") goes, a catalogue number in front of a title becomes its
     ///    number in the series, and a file name left as the title reads with spaces ("Aath_Pahar_Youn_Jhumte").
+    /// 6: no web address, e-mail or program ("ComicRack", "CamScanner") as an author (a site becomes the publisher),
+    ///    and a PDF's copyright page gives its year and publisher.
     /// </summary>
-    public const int Version = 5;
+    public const int Version = 6;
 
     public static async Task<BookMetadata> ReadAsync(string path, BookFormat format, bool useCalibre, bool readCover = true)
     {
@@ -65,8 +67,12 @@ public static class MetadataService
             md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://\S+|www\.\S+|[\w-]+\.(com|net|org|info|biz|ru|cc|to))$", RegexOptions.IgnoreCase) ? null : t;
         }
         // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
+        // A web address written there instead is where the file came from, kept as its publisher when it has none.
+        md.FallbackPublisher ??= PeopleParser.SiteIn(md.Author);
         if (!string.IsNullOrWhiteSpace(md.Author)) md.Author = PeopleParser.Tidy(md.Author);
         var name = FillFromFileName(md, path);
+        // The copyright page's publisher, or the website, only when neither the book nor its file name names one.
+        if (string.IsNullOrWhiteSpace(md.Publisher)) md.Publisher = md.FallbackPublisher;
         // "00095 Jasma of Odes": the number in front is the book's place in its series, or the one its file name gives
         // too, not part of its title. Any other number stays: "1001 Magic Tricks", "090 Hari Maut" filed as 120.
         if (md.Title is { } numbered && FileNameParser.SplitCatalogueNumber(numbered) is { } catalogue

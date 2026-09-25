@@ -35,6 +35,10 @@ public sealed partial class AuthorsPage : Page
             : $"{groups.Count} names look like the same person";
         MergePanel.Visibility = groups.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        var offers = Library.GetAuthorOffers();
+        OfferList.ItemsSource = offers;
+        OfferPanel.Visibility = offers.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
         Show(SearchBox.Text ?? "");
     }
 
@@ -74,6 +78,28 @@ public sealed partial class AuthorsPage : Page
             CloseButtonText = "OK",
             XamlRoot = XamlRoot
         }.ShowThemedAsync();
+    }
+
+    private async void OnSetAuthor(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not AuthorOffer offer) return;
+        var changed = Library.SetAuthor(offer.Books, offer.Name);
+        Refresh();
+        await new ContentDialog
+        {
+            Title = "Author set",
+            Content = $"{changed} book(s) now name {offer.Name}. Undo it in a book's details, under \"Edit title, author and series\".",
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot
+        }.ShowThemedAsync();
+    }
+
+    private void OnNotAuthor(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not AuthorOffer offer) return;
+        AppServices.Settings.NoAuthorOffers.Add(offer.Key);
+        AppServices.Settings.Save();
+        Refresh();
     }
 
     private void OnNotSame(object sender, RoutedEventArgs e)

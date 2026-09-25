@@ -19,6 +19,7 @@ public sealed partial class SettingsPage : Page
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
+        GoogleKeyBox.Password = AppServices.Settings.GoogleBooksKey;
         ReadInAppSwitch.IsOn = AppServices.Settings.ReadPdfInApp;
         ReadEpubInAppSwitch.IsOn = AppServices.Settings.ReadEpubInApp;
         ReadComicsInAppSwitch.IsOn = AppServices.Settings.ReadComicsInApp;
@@ -81,6 +82,19 @@ public sealed partial class SettingsPage : Page
         AppServices.Settings.Save();
         if (LookupOnlineSwitch.IsOn) AppServices.Library.StartOnlineLookups();
         else AppServices.Online.Stop();
+    }
+
+    private void OnGoogleKeyChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.GoogleBooksKey = GoogleKeyBox.Password.Trim();
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>A key just given: the books still missing details are looked up now, not after the next start.</summary>
+    private void OnGoogleKeyLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (AppServices.Settings.LookupOnline && AppServices.Settings.GoogleBooksKey.Length > 0) AppServices.Library.StartOnlineLookups();
     }
 
     private static void Select(ComboBox box, string tag)

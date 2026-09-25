@@ -164,6 +164,8 @@ public static class PdfReader
         var info = doc.Information;
         var title = XmlUtil.Clean(info.Title);
         var authors = SplitAuthors(info.Author);
+        // "www.oshoworld.com" as the author: not a person, but where the file came from.
+        var site = PeopleParser.SiteIn(XmlUtil.Clean(info.Author));
 
         if (title is null || LooksLikeJunkTitle(title) || authors.Count == 0)
         {
@@ -173,7 +175,12 @@ public static class PdfReader
                 {
                     var x = xmp.GetXDocument();
                     if (title is null || LooksLikeJunkTitle(title)) title = XmlUtil.Clean(XmpValues(x, "title").FirstOrDefault());
-                    if (authors.Count == 0) authors = XmpValues(x, "creator").SelectMany(SplitAuthors).ToList();
+                    if (authors.Count == 0)
+                    {
+                        var creators = XmpValues(x, "creator").ToList();
+                        authors = creators.SelectMany(SplitAuthors).ToList();
+                        site ??= PeopleParser.SiteIn(string.Join(", ", creators));
+                    }
                 }
             }
             catch (Exception ex)
@@ -189,9 +196,13 @@ public static class PdfReader
         if (XmlUtil.Clean(info.Keywords) is { } kw) md.Subjects = kw;
 
         ReadPageText(doc, md);
+        md.FallbackPublisher ??= site;   // the copyright page's publisher is better, when there is one
     }
 
-    /// <summary>ISBN from the first 6 and last 2 pages, and whether page 1 is a page of text.</summary>
+    /// <summary>
+    /// The ISBN, and the year and publisher from the copyright page, in the first 6 and last 2 pages; and whether
+    /// page 1 is a page of text.
+    /// </summary>
     private static void ReadPageText(PigDocument doc, BookMetadata md)
     {
         var count = doc.NumberOfPages;
@@ -200,9 +211,11 @@ public static class PdfReader
         foreach (var number in pages)
         {
             string text;
+            UglyToad.PdfPig.Content.Page page;
             try
             {
-                text = doc.GetPage(number).Text;
+                page = doc.GetPage(number);
+                text = page.Text;
             }
             catch
             {
@@ -210,8 +223,28 @@ public static class PdfReader
             }
             if (number == 1) md.CoverIsTextPage = text.Count(char.IsLetter) > 600;
             if (md.Isbn is null && Isbn.Find(text) is { } isbn) md.Isbn = isbn;
-            if (md.Isbn is not null) break;
+            if ((md.Year is null || md.FallbackPublisher is null) && Imprint.LooksLikeOne(text))
+            {
+                // Its lines, which the plain text runs together ("... reviews. First published: January 2019 Production").
+                var facts = Imprint.Read(TextInLines(page) ?? text);
+                md.Year ??= facts.Year;
+                md.FallbackPublisher ??= facts.Publisher;
+            }
+            if (md.Isbn is not null && md.Year is not null && md.FallbackPublisher is not null) break;
             if (number == 2 && md.Isbn is null && text.Length == 0 && !md.CoverIsTextPage) break;   // a scan: no text layer
+        }
+    }
+
+    /// <summary>A page's text line by line, or null when PdfPig cannot lay it out.</summary>
+    private static string? TextInLines(UglyToad.PdfPig.Content.Page page)
+    {
+        try
+        {
+            return UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor.ContentOrderTextExtractor.GetText(page);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -222,8 +255,30 @@ public static class PdfReader
         {
             var items = el.Descendants(Rdf + "li").Select(li => li.Value).ToList();
             foreach (var v in items.Count > 0 ? items : new List<string> { el.Value })
-                if (!string.IsNullOrWhiteSpace(v)) yield return v;
+                if (!string.IsNullOrWhiteSpace(v)) yield return Unescaped(v);
         }
+    }
+
+    /// <summary>
+    /// Some writers copy the PDF string's bytes into XMP as escapes: "\376\377\000w\000w\000w" is UTF-16 (after its
+    /// byte order mark) for "www". 34 books of a real library say their author that way.
+    /// </summary>
+    private static string Unescaped(string v)
+    {
+        if (!v.StartsWith("\\376\\377", StringComparison.Ordinal)) return v;
+        var bytes = new List<byte>();
+        for (var i = 0; i < v.Length; i++)
+        {
+            if (v[i] == '\\' && i + 3 < v.Length && v.Substring(i + 1, 3).All(c => c is >= '0' and <= '7'))
+            {
+                bytes.Add((byte)Convert.ToInt32(v.Substring(i + 1, 3), 8));
+                i += 3;
+            }
+            else if (v[i] < 256) bytes.Add((byte)v[i]);
+            else return v;
+        }
+        var pairs = (bytes.Count - 2) / 2 * 2;   // a cut-off last byte is dropped
+        return System.Text.Encoding.BigEndianUnicode.GetString(bytes.ToArray(), 2, pairs).Trim('\0', ' ');
     }
 
     /// <summary>"Stoltz, Dustin;Taylor, Marshall;" and "Arden, John B." become "Dustin Stoltz", "Marshall Taylor", "John B. Arden".</summary>
@@ -245,7 +300,7 @@ public static class PdfReader
 
     /// <summary>Editor placeholders and machine names: "&lt;Name of Project&gt;", "Document1", "Layout 1", a path, a hash.</summary>
     private static readonly Regex PlaceholderTitle = new(
-        @"^(<[^>]*>|(new\s+)?document\s*\d*|layout\s*\d+|book\s*\d+|title|no title|cover|ebook|[a-z]:\\.*|/.*|[0-9a-f]{16,}|isbn[\s_:-]*[\dxX-]{10,17})$",
+        @"^(<[^>]*>|(new\s+)?document\s*\d*|new\s*doc(\s.*|\d.*)?|layout\s*\d+|book\s*\d+|title|no title|cover|ebook|[a-z]:\\.*|/.*|[0-9a-f]{16,}|isbn[\s_:-]*[\dxX-]{10,17})$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex CopyOf = new(@"^copy of\s+", RegexOptions.IgnoreCase);   // "Copy of ACK 303 Senapati Bapat"

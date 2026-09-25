@@ -23,6 +23,12 @@ public sealed class BookMetadata
     /// <summary>The first page of a PDF is a page of text (a copyright page, a scan's notes), not a cover.</summary>
     public bool CoverIsTextPage { get; set; }
 
+    /// <summary>
+    /// A publisher the book shows only indirectly: its copyright page, or the website its author field names. Used when
+    /// neither the book's metadata nor its file name says one, which name the edition more surely.
+    /// </summary>
+    public string? FallbackPublisher { get; set; }
+
     public static class NameField
     {
         public const int Title = 1, Author = 2, Series = 4, Year = 8, Publisher = 16;

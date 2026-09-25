@@ -333,6 +333,9 @@ public static class FileNameParser
         var first = parts[0];
         var right = parts[^1];
         var rightScore = Score(right, ctx);
+        // "120 Nagraj - Hari Maut", "1918 Chacha Chaudhary - Murgi Chor": the left side is the same across many files,
+        // a series, so the side that changes is the story, only shaped like a name.
+        if (rightScore == 1 && ctx.IsRepeatedSide(NameContext.WithoutNumber(first)) && !ctx.IsRepeatedSide(right)) return null;
         if (rightScore >= 1) return (right, string.Join(" - ", parts[..^1]));
 
         var leftScore = Score(first, ctx);
@@ -743,8 +746,9 @@ public sealed class NameContext
             var parts = Regex.Split(s, @"\s+[-–—]\s+|(?<=[\u1000-\u109F])-(?=[\u1000-\u109F])");
             if (parts.Length == 2)
             {
-                Pair(parts[0], parts[1]);
-                Pair(parts[1], parts[0]);
+                // "120 Nagraj - Hari Maut", "121 Nagraj - Zehreela Barood": the side is "Nagraj", not "120 Nagraj".
+                Pair(WithoutNumber(parts[0]), parts[1]);
+                Pair(parts[1], WithoutNumber(parts[0]));
             }
             var paren = Regex.Match(s, @"^(?<t>.+?)\s*\((?<n>[^()]+)\)$");
             if (paren.Success) Pair(paren.Groups["n"].Value, paren.Groups["t"].Value);
@@ -777,6 +781,9 @@ public sealed class NameContext
         string.Join(", ", PeopleParser.Parse(authors).Select(p => CanonicalPerson(p) ?? p));
 
     public bool IsRepeatedSide(string s) => _repeatedSides.Contains(Norm(s));
+
+    /// <summary>A name without the catalogue number in front of it: "050Nagraj" and "1918 Chacha Chaudhary" give the series.</summary>
+    public static string WithoutNumber(string s) => Regex.Replace(s, @"^\d{1,5}\s*(?=\p{L})", "");
 
     public bool IsGivenName(string s) => _givenNames.Contains(s);
 

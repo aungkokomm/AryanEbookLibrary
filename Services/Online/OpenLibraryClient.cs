@@ -8,7 +8,8 @@ namespace AryanEbookLibrary.Services.Online;
 /// <summary>One book as Open Library's search returns it.</summary>
 public sealed record OnlineCandidate(
     string WorkKey, string Title, string? Subtitle, IReadOnlyList<string> Authors, int? Year, string? Publisher,
-    long? CoverId, IReadOnlyList<string> Isbns, int EditionCount, IReadOnlyList<string> Subjects, bool ByIsbn)
+    long? CoverId, IReadOnlyList<string> Isbns, int EditionCount, IReadOnlyList<string> Subjects, bool ByIsbn,
+    string? Description = null)
 {
     public string AuthorText => string.Join(", ", Authors.Take(3));
     public string? CoverUrl(char size) => CoverId is { } id ? $"https://covers.openlibrary.org/b/id/{id}-{size}.jpg" : null;
@@ -22,7 +23,7 @@ public sealed class OnlineUnavailableException(string message, Exception? inner 
 /// send contact details, and none are sent), a 10 second connection timeout, and one retry. Nothing about the
 /// user is sent, only the title, author or ISBN being looked up.
 /// </summary>
-public sealed class OpenLibraryClient
+public sealed class OpenLibraryClient : IBookCatalogue
 {
     private const string Fields =
         "key,title,subtitle,author_name,first_publish_year,publisher,cover_i,isbn,edition_count,subject";

@@ -17,8 +17,8 @@ public static class OnlineMatcher
 {
     public sealed record Decision(string Status, string? How, OnlineCandidate? Candidate);
 
-    /// <summary>Looks the book up and decides. Throws <see cref="OnlineUnavailableException"/> when Open Library does not answer.</summary>
-    public static async Task<Decision> LookupAsync(OpenLibraryClient client, LookupBook b, CancellationToken ct)
+    /// <summary>Looks the book up and decides. Throws <see cref="OnlineUnavailableException"/> when the catalogue does not answer.</summary>
+    public static async Task<Decision> LookupAsync(IBookCatalogue client, LookupBook b, CancellationToken ct)
     {
         OnlineCandidate? byIsbn = null;
         if (!string.IsNullOrEmpty(b.Isbn))
