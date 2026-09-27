@@ -6,7 +6,8 @@
     <!-- Mica shows through the title bar and the sidebar; the pages sit on their own layer over it. When
          Mica is not available the root falls back to a themed colour (set in code), because a Dark app on a
          light Windows used to show white behind the sidebar and title bar. -->
-    <Grid x:Name="RootGrid">
+    <!-- Placement Hidden: a shortcut on the root would otherwise show "Ctrl+F" as a tooltip over the whole window -->
+    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAccelerator" />
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnFindAccelerator" />

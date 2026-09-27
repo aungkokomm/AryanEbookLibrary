@@ -110,6 +110,7 @@ public sealed partial class BookDetailsWindow : Window
             OnEscape();
         };
         RootGrid.KeyboardAccelerators.Add(escape);
+        RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;   // no "Esc" tooltip everywhere
 
         _refreshTimer = DispatcherQueue.CreateTimer();
         _refreshTimer.Interval = TimeSpan.FromMilliseconds(120);
