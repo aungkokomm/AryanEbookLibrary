@@ -90,6 +90,17 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _theme = AppServices.Settings.ReaderPageTheme switch { "Sepia" => 1, "Night" => 2, _ => 0 };
         (_theme switch { 1 => SepiaItem, 2 => NightItem, _ => PaperItem }).IsChecked = true;
         SetContentsOpen(AppServices.Settings.ReaderContentsOpen, remember: false);
+        ZoomButton.Configure(25, 400, 5, "Zoom out", "Zoom in", ("width", "Fit width"), ("page", "Fit page"));
+        ZoomButton.Stepped += StepZoom;
+        ZoomButton.SliderMoved += percent =>
+        {
+            if (_book is not null) SetZoom((float)(percent / PercentPerZoom), Fit.Custom);
+        };
+        ZoomButton.FitClicked += fit =>
+        {
+            if (fit == "page") OnFitPage(this, new RoutedEventArgs());
+            else OnFitWidth(this, new RoutedEventArgs());
+        };
         _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, ContentsPane, FocusPages);
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
@@ -492,9 +503,6 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         SetZoom((float)(next / PercentPerZoom), Fit.Custom);
     }
 
-    private void OnZoomIn(object sender, RoutedEventArgs e) => StepZoom(+1);
-    private void OnZoomOut(object sender, RoutedEventArgs e) => StepZoom(-1);
-
     private void OnFitWidth(object sender, RoutedEventArgs e)
     {
         _fit = Fit.Width;
@@ -507,12 +515,6 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         var page = Math.Max(0, _currentPage);
         _expectedZoom = FitZoom(page);
         GoTo(page, 0, FitZoom(page));
-    }
-
-    private void OnZoomPreset(object sender, RoutedEventArgs e)
-    {
-        if ((sender as MenuFlyoutItem)?.Tag is string tag && int.TryParse(tag, out var percent))
-            SetZoom((float)(percent / PercentPerZoom), Fit.Custom);
     }
 
     private void OnScrollerSizeChanged(object sender, SizeChangedEventArgs e)
@@ -534,12 +536,13 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     private void ShowZoom()
     {
-        ZoomButton.Content = _fit switch
+        var percent = Math.Round(Scroller.ZoomFactor * PercentPerZoom);
+        ZoomButton.Show(_fit switch
         {
             Fit.Width => "Fit width",
             Fit.Page => "Fit page",
-            _ => $"{Math.Round(Scroller.ZoomFactor * PercentPerZoom):0}%",
-        };
+            _ => $"{percent:0}%",
+        }, percent);
     }
 
     // ================================================================ the view: which pages exist, what to render

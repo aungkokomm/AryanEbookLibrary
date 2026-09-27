@@ -76,32 +76,7 @@
             </StackPanel>
 
             <StackPanel x:Name="ZoomGroup" Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                <Button Style="{StaticResource ToolButtonStyle}" Click="OnZoomOut"
-                        AutomationProperties.Name="Zoom out" ToolTipService.ToolTip="Zoom out (Ctrl+minus)">
-                    <FontIcon Glyph="&#xE71F;" FontSize="15" />
-                </Button>
-                <DropDownButton x:Name="ZoomButton" Height="32" MinWidth="86" Content="100%" AllowFocusOnInteraction="False"
-                                AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom">
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="Fit width" Click="OnFitWidth" KeyboardAcceleratorTextOverride="Ctrl+0" />
-                            <MenuFlyoutItem Text="Fit page" Click="OnFitPage" />
-                            <MenuFlyoutSeparator />
-                            <MenuFlyoutItem Text="50%" Tag="50" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="75%" Tag="75" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="100%" Tag="100" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="125%" Tag="125" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="150%" Tag="150" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="200%" Tag="200" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="300%" Tag="300" Click="OnZoomPreset" />
-                            <MenuFlyoutItem Text="400%" Tag="400" Click="OnZoomPreset" />
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-                <Button Style="{StaticResource ToolButtonStyle}" Click="OnZoomIn"
-                        AutomationProperties.Name="Zoom in" ToolTipService.ToolTip="Zoom in (Ctrl+plus)">
-                    <FontIcon Glyph="&#xE8A3;" FontSize="15" />
-                </Button>
+                <reader:ZoomButton x:Name="ZoomButton" AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" />
             </StackPanel>
 
             <StackPanel x:Name="SearchGroup" Grid.Column="5" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">

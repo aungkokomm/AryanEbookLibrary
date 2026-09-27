@@ -85,27 +85,15 @@
             </StackPanel>
 
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="6,0,0,0">
-                <!-- Text size and layout. -->
+                <!-- A book's zoom is its text size. -->
+                <reader:ZoomButton x:Name="ZoomButton" AutomationProperties.Name="Text size" ToolTipService.ToolTip="Text size" />
                 <DropDownButton x:Name="TextButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
-                                AutomationProperties.Name="Text and layout" ToolTipService.ToolTip="Text and layout">
+                                AutomationProperties.Name="Layout" ToolTipService.ToolTip="Layout">
                     <FontIcon Glyph="&#xE8D2;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight">
                             <StackPanel Spacing="10" Width="220">
-                                <TextBlock Text="Text size" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <Button Width="40" Click="OnSmallerText" AutomationProperties.Name="Smaller text"
-                                            ToolTipService.ToolTip="Smaller (Ctrl+minus)">
-                                        <FontIcon Glyph="&#xE738;" FontSize="12" />
-                                    </Button>
-                                    <TextBlock x:Name="FontSizeText" Grid.Column="1" HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" AutomationProperties.Name="Text size" />
-                                    <Button Grid.Column="2" Width="40" Click="OnLargerText" AutomationProperties.Name="Larger text"
-                                            ToolTipService.ToolTip="Larger (Ctrl+plus)">
-                                        <FontIcon Glyph="&#xE710;" FontSize="12" />
-                                    </Button>
-                                </Grid>
-                                <TextBlock Text="Layout" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,4,0,0" />
+                                <TextBlock Text="Layout" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <RadioButton x:Name="PagesRadio" Content="Pages" GroupName="Flow" Click="OnFlowClick" Tag="paginated" />
                                 <RadioButton x:Name="ScrollRadio" Content="Scroll" GroupName="Flow" Click="OnFlowClick" Tag="scrolled" />
                             </StackPanel>

@@ -34,7 +34,7 @@ public sealed class AppSettings
     // The same for EPUB, MOBI and AZW3 books.
     public bool ReadEpubInApp { get; set; } = true;
     public int ReaderFontSize { get; set; } = 100;             // percent of the book's own size
-    public string ReaderFlow { get; set; } = "paginated";      // paginated | scrolled
+    public string ReaderFlow { get; set; } = "scrolled";       // paginated | scrolled
     // And for CBZ and CBR comics.
     public bool ReadComicsInApp { get; set; } = true;
     public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width

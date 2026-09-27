@@ -68,7 +68,7 @@ internal static class ReaderShortcuts
                 : new[]
                 {
                     ("Click the left or right margin", "Previous or next page"),
-                    ("Wheel", "Turn the page, or scroll in Scroll layout"),
+                    ("Wheel", "Turn the page; in Scroll layout, scroll on through the whole book"),
                     ("Right-click a word", "Define, copy or find it"),
                     ("Side buttons", "Back or forward after a link or a jump"),
                 };

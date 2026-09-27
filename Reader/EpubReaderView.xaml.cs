@@ -65,7 +65,11 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         _theme = settings.ReaderPageTheme is "Sepia" or "Night" ? settings.ReaderPageTheme : "Paper";
         (_theme switch { "Sepia" => SepiaItem, "Night" => NightItem, _ => PaperItem }).IsChecked = true;
         _fontSize = Math.Clamp(settings.ReaderFontSize, MinFont, MaxFont);
-        FontSizeText.Text = $"{_fontSize}%";
+        ZoomButton.Configure(MinFont, MaxFont, FontStep, "Smaller text", "Larger text", ("usual", "Usual size"));
+        ZoomButton.Stepped += step => SetFontSize(_fontSize + step * FontStep);
+        ZoomButton.SliderMoved += percent => SetFontSize((int)Math.Round(percent / FontStep) * FontStep);
+        ZoomButton.FitClicked += _ => SetFontSize(100);
+        ShowFontSize();
         _flow = settings.ReaderFlow == "scrolled" ? "scrolled" : "paginated";
         (_flow == "scrolled" ? ScrollRadio : PagesRadio).IsChecked = true;
         Web.DefaultBackgroundColor = PageColor();
@@ -548,19 +552,18 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         FocusPages();
     }
 
-    private void OnSmallerText(object sender, RoutedEventArgs e) => SetFontSize(_fontSize - FontStep);
-    private void OnLargerText(object sender, RoutedEventArgs e) => SetFontSize(_fontSize + FontStep);
-
     private void SetFontSize(int size)
     {
         size = Math.Clamp(size, MinFont, MaxFont);
         if (size == _fontSize) return;
         _fontSize = size;
-        FontSizeText.Text = $"{size}%";
+        ShowFontSize();
         AppServices.Settings.ReaderFontSize = size;
         AppServices.Settings.Save();
         Post(new JsonObject { ["type"] = "prefs", ["prefs"] = Prefs() });
     }
+
+    private void ShowFontSize() => ZoomButton.Show(_fontSize == 100 ? "Usual size" : $"Text {_fontSize}%", _fontSize);
 
     private void OnFlowClick(object sender, RoutedEventArgs e)
     {
@@ -611,7 +614,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         ToolbarFit.Fit(ToolBar, Root.ActualWidth,
             () =>
             {
-                TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ShortcutsButton.Visibility = Visibility.Visible;
+                TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ZoomButton.Visibility =
+                    ShortcutsButton.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
                 ChapterText.Width = ChapterRoom;
             },
@@ -619,6 +623,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () => ChapterText.Visibility = Visibility.Collapsed,
             () => SearchBox.Width = 130,
             () => SearchCountText.Visibility = Visibility.Collapsed,
+            () => ZoomButton.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed);
         ChapterText.Width = double.NaN;
     }

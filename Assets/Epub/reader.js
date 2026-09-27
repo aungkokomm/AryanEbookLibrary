@@ -1,7 +1,7 @@
 // Aryan's side of the EPUB reader: opens the book with foliate-js and talks to the app through WebView2
 // messages. The app owns everything around the page (toolbar, contents, Define, the reading record); this
 // only turns pages, reports where the reader is, and says what was right-clicked.
-import './foliate/view.js'
+import { makeBook } from './foliate/view.js'
 import { compare } from './foliate/epubcfi.js'
 import { Overlayer } from './foliate/overlayer.js'
 
@@ -112,11 +112,15 @@ const open = async (url, lastLocation, p, list) => {
         post({ type: 'external', href: e.detail.href_ })
     })
     try {
-        await view.open(url)
+        const book = await makeBook(url)
+        // A fixed-layout book shows one page at a time, never two side by side, whatever the book asks for.
+        if (book.rendition?.layout === 'pre-paginated') book.rendition.spread = 'none'
+        await view.open(book)
     } catch (e) {
         post({ type: 'error', message: String(e?.message ?? e) })
         return
     }
+    view.renderer.addEventListener('scroll', () => { movedAt = Date.now() })
     const { book } = view
     book.transformTarget?.addEventListener('data', ({ detail }) => {
         detail.data = Promise.resolve(detail.data).catch(() => '')
@@ -259,15 +263,28 @@ const onMarginClick = e => {
     else if (side > 0) view.goRight()
 }
 
-// In page layout the wheel turns the page, once per flick: a touchpad sends a stream of small steps.
+// In page layout (and a fixed-layout book) the wheel turns the page, once per flick: a touchpad sends a stream of
+// small steps. In scroll layout it scrolls, and goes on past the end of a section into the next one, or back past its
+// start into the end of the one before: foliate shows one section at a time, and the whole book should scroll
+// without a button. It waits at the edge a moment first, so a flick that just reached a chapter's end stops there.
+const EDGE_WAIT = 300
 let wheelAt = 0
+let movedAt = 0
 const onWheel = e => {
     activity()
-    if (!view || prefs.flow === 'scrolled' || e.ctrlKey) return
+    if (!view || e.ctrlKey) return
     const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
     const now = Date.now()
-    if (Math.abs(d) < 4 || now - wheelAt < 350) return
-    wheelAt = now
+    if (Math.abs(d) < 4) return
+    if (scrolled()) {
+        const r = view.renderer
+        const atEdge = d > 0 ? r.viewSize - r.end <= 2 : r.start <= 0
+        if (!atEdge || now - movedAt < EDGE_WAIT) return
+        movedAt = now
+    } else {
+        if (now - wheelAt < 350) return
+        wheelAt = now
+    }
     if (d > 0) view.next()
     else view.prev()
 }

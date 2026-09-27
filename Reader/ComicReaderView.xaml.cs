@@ -66,6 +66,8 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private bool _closed;
     private int _page = -1;
     private ViewMode _mode;
+    /// <summary>Continuous or Fit width, whichever was last used: the zoom's Fit width goes back to it from Fit page.</summary>
+    private ViewMode _wideMode = ViewMode.Continuous;
     private bool _placePending;
     private bool _showBottom;
     private double _zoomBucket = 1;
@@ -81,6 +83,12 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     private Size? _typical;
     private double[] _tops = [];
     private bool _placing;
+    /// <summary>
+    /// The page at the top of the view and how far down it the view starts, taken just before every page changes
+    /// size at once (a new width, or the first page read giving the rest its shape); the view goes back there. The
+    /// scroller's anchoring did not hold through those while a comic opened: a reopened one landed pages away.
+    /// </summary>
+    private (int Page, double Fraction)? _keep;
 
     private readonly ToolbarReveal _reveal;
     private readonly JumpHistory<int> _jumps = new();
@@ -89,10 +97,24 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     {
         InitializeComponent();
         _mode = Enum.TryParse<ViewMode>(AppServices.Settings.ReaderComicView, out var mode) ? mode : ViewMode.Continuous;
+        if (_mode != ViewMode.Page) _wideMode = _mode;
         var item = _mode switch { ViewMode.Page => FitPageItem, ViewMode.Width => FitWidthItem, _ => ContinuousItem };
         item.IsChecked = true;
         FitButton.Content = item.Text;
         ShowMode();
+        // Zoom is past the fitted page: 100% is the page fitted as the Fit menu says.
+        ZoomButton.Configure(100, 400, 5, "Zoom out", "Zoom in", ("width", "Fit width"), ("page", "Fit page"));
+        ZoomButton.Stepped += step => ZoomBy(step > 0 ? 1.25f : 0.8f);
+        ZoomButton.SliderMoved += percent => ZoomTo((float)(percent / 100));
+        ZoomButton.FitClicked += fit =>
+        {
+            // Fit width keeps a continuous column continuous; from Fit page it goes back to the wide view last used.
+            // A new fit starts unzoomed; the same fit goes back to it.
+            var mode = fit == "page" ? ViewMode.Page : _mode == ViewMode.Page ? _wideMode : _mode;
+            if (mode != _mode) SetMode(mode);
+            else ZoomTo(1);
+        };
+        ShowZoom();
         Scroller.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnWheel), true);
         _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, HighlightsPane, FocusPages);
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
@@ -263,6 +285,18 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         foreach (var (page, image) in _images)
             if (!ReferenceEquals(_strip[page].Source, image.Source)) _strip[page].Source = image.Source;
 
+        if (_keep is { } keep)
+        {
+            _keep = null;
+            if (!_placePending && !_placing)
+            {
+                Scroller.UpdateLayout();
+                var y = _tops[keep.Page] + keep.Fraction * (_strip[keep.Page].Height + Strip.Spacing);
+                Scroller.ChangeView(null, y * Scroller.ZoomFactor, null, disableAnimation: true);
+                return;
+            }
+        }
+
         // A jump, to the page's top. Until the view gets there a page above it can learn its size and move that top,
         // so it is asked again.
         if (!_placePending && !_placing) return;
@@ -281,6 +315,15 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         var (first, last) = (PageAt(top), PageAt(top + Scroller.ViewportHeight / zoom));
         // Until a jump has been scrolled to, the page jumped to.
         return _page >= first && _page <= last ? (first, last) : (_page, _page);
+    }
+
+    /// <summary>Continuous view, placed and settled: the page at the top of the view and how far down it the view starts.</summary>
+    private (int Page, double Fraction)? Where()
+    {
+        if (!Continuous || _tops.Length != _strip.Count || _tops.Length == 0 || _placePending || _placing) return null;
+        var y = Scroller.VerticalOffset / Scroller.ZoomFactor;
+        var page = PageAt(y);
+        return (page, (y - _tops[page]) / (_strip[page].Height + Strip.Spacing));
     }
 
     /// <summary>Continuous view: the page at this height in the column.</summary>
@@ -362,7 +405,11 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
                 var old = _images.GetValueOrDefault(page);
                 _images[page] = decodedPage;
                 _sizes[page] = new Size(d.Width, d.Height);
-                _typical ??= _sizes[page];
+                if (_typical is null)
+                {
+                    _keep ??= Where();
+                    _typical = _sizes[page];
+                }
                 if (page == _page || Continuous) ShowCurrent();
                 old?.Dispose();
                 Evict();
@@ -413,8 +460,15 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         // At least the view's size, so a fitted page sits in the middle of it.
         PageHost.MinWidth = e.NewSize.Width;
         PageHost.MinHeight = e.NewSize.Height;
-        ShowCurrent();
-        Pump();
+        _keep ??= Where();
+        // After this layout pass, not in it: inside it the pages' new sizes are not laid out before the view is placed
+        // on them, and when they are, the scroller moves the view (a reopened comic landed nine pages early).
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_closed) return;
+            ShowCurrent();
+            Pump();
+        });
     }
 
     /// <summary>Zoomed in, the page is decoded again at the new size so it stays sharp.</summary>
@@ -430,6 +484,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
             FollowScroll();
         }
         if (e.IsIntermediate) return;
+        ShowZoom();
         var zoom = Scroller.ZoomFactor;
         var bucket = zoom <= 1.05f ? 1 : Math.Min(4, Math.Ceiling(zoom * 2) / 2);
         if (bucket == _zoomBucket) return;
@@ -578,6 +633,15 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         Scroller.ChangeView(Math.Max(0, x), Math.Max(0, y), zoom);
     }
 
+    private void ZoomTo(float zoom) => ZoomBy(zoom / Scroller.ZoomFactor);
+
+    /// <summary>The zoom on its button: the fit when the page is fitted, otherwise how far past it.</summary>
+    private void ShowZoom()
+    {
+        var percent = Math.Round(Scroller.ZoomFactor * 100);
+        ZoomButton.Show(percent <= 100 ? (_mode == ViewMode.Page ? "Fit page" : "Fit width") : $"{percent:0}%", percent);
+    }
+
     private void AddAccelerators()
     {
         void Add(VirtualKey key, Action action, VirtualKeyModifiers modifiers = VirtualKeyModifiers.Control)
@@ -595,7 +659,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         Add((VirtualKey)187, () => ZoomBy(1.25f));     // the = + key
         Add(VirtualKey.Subtract, () => ZoomBy(0.8f));
         Add((VirtualKey)189, () => ZoomBy(0.8f));      // the - key
-        Add(VirtualKey.Number0, () => Scroller.ChangeView(0, 0, 1f));
+        Add(VirtualKey.Number0, () => ZoomTo(1));
         Add(VirtualKey.G, () =>
         {
             PageBox.Focus(FocusState.Keyboard);
@@ -641,17 +705,26 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnFit(object sender, RoutedEventArgs e)
     {
-        if (sender is not RadioMenuFlyoutItem { Tag: string tag } item || !Enum.TryParse<ViewMode>(tag, out var mode)) return;
+        if (sender is RadioMenuFlyoutItem { Tag: string tag } && Enum.TryParse<ViewMode>(tag, out var mode)) SetMode(mode);
+    }
+
+    /// <summary>Continuous, Fit page or Fit width, from the Fit menu or the zoom's fitted sizes.</summary>
+    private void SetMode(ViewMode mode)
+    {
         if (mode == _mode) return;
         _mode = mode;
+        if (mode != ViewMode.Page) _wideMode = mode;
+        var item = _mode switch { ViewMode.Page => FitPageItem, ViewMode.Width => FitWidthItem, _ => ContinuousItem };
+        item.IsChecked = true;
         FitButton.Content = item.Text;
-        AppServices.Settings.ReaderComicView = tag;
+        AppServices.Settings.ReaderComicView = mode.ToString();
         AppServices.Settings.Save();
         ShowMode();
         _placePending = true;
         _showBottom = false;
         if (!Continuous) _zoomBucket = 1;
         ShowCurrent();
+        ShowZoom();
         Evict();
         Pump();
         FocusPages();
@@ -682,8 +755,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e) =>
         ToolbarFit.Fit(ToolBar, Root.ActualWidth,
-            () => TimeLeftText.Visibility = ShortcutsButton.Visibility = Visibility.Visible,
+            () => TimeLeftText.Visibility = ZoomButton.Visibility = ShortcutsButton.Visibility = Visibility.Visible,
             () => TimeLeftText.Visibility = Visibility.Collapsed,
+            () => ZoomButton.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed);
 
     private void ShowMessage(string title, string text, bool ring, bool external = false)

@@ -70,6 +70,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <reader:ZoomButton x:Name="ZoomButton" AutomationProperties.Name="Zoom" ToolTipService.ToolTip="Zoom" />
                 <DropDownButton x:Name="FitButton" Height="32" MinWidth="100" AllowFocusOnInteraction="False"
                                 AutomationProperties.Name="Fit" ToolTipService.ToolTip="How pages are shown">
                     <DropDownButton.Flyout>
