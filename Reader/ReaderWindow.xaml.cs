@@ -98,6 +98,8 @@ public sealed partial class ReaderWindow : Window
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         var settings = AppServices.Settings;
         AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Max(640, settings.ReaderWidth), Math.Max(480, settings.ReaderHeight)));
+        // Readers open maximized (the user's choice); the size above is what Restore gives.
+        (AppWindow.Presenter as OverlappedPresenter)?.Maximize();
 
         RootGrid.RequestedTheme = AppServices.Theme;
         AppServices.ThemeChanged += OnThemeChanged;
@@ -238,10 +240,14 @@ public sealed partial class ReaderWindow : Window
 
     private bool FullScreen => AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
 
+    private bool _maximizedBeforeFullScreen;
+
     private void ToggleFullScreen()
     {
         var full = !FullScreen;
+        if (full) _maximizedBeforeFullScreen = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
         AppWindow.SetPresenter(full ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        if (!full && _maximizedBeforeFullScreen) (AppWindow.Presenter as OverlappedPresenter)?.Maximize();
         TitleBar.Visibility = full ? Visibility.Collapsed : Visibility.Visible;
         ApplyToolbar();
         _view.FocusPages();
@@ -392,7 +398,8 @@ public sealed partial class ReaderWindow : Window
                 }
             }
 
-            if (AppWindow.Presenter.Kind == AppWindowPresenterKind.Overlapped)
+            // Only a restored window's size: a maximized one's would make Restore fill the screen too.
+            if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
             {
                 AppServices.Settings.ReaderWidth = AppWindow.Size.Width;
                 AppServices.Settings.ReaderHeight = AppWindow.Size.Height;
