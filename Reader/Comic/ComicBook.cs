@@ -6,7 +6,8 @@ namespace AryanEbookLibrary.Reader.Comic;
 
 /// <summary>
 /// A CBZ or CBR comic: its pages are the pictures in the archive in natural name order, the order the library takes
-/// its cover from. Neither archive reader is thread-safe, so every page read takes the lock.
+/// its cover from. A picture EPUB (<see cref="PictureEpub"/>) is one too, its pages in spine order. Neither archive
+/// reader is thread-safe, so every page read takes the lock.
 /// </summary>
 internal sealed class ComicBook : IDisposable
 {
@@ -37,7 +38,7 @@ internal sealed class ComicBook : IDisposable
         if (isZip)
         {
             var zip = new ZipArchive(File.OpenRead(path), ZipArchiveMode.Read);
-            var pages = zip.Entries
+            var pages = PictureEpub.Pages(zip) ?? zip.Entries
                 .Where(e => e.Length > 0 && !e.FullName.Contains("__MACOSX", StringComparison.Ordinal) && ImageSniffer.IsImageName(e.Name))
                 .OrderBy(e => e.FullName, NaturalComparer.Instance)
                 .ToList();

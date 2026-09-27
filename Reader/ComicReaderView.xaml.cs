@@ -19,11 +19,11 @@ using Windows.System;
 namespace AryanEbookLibrary.Reader;
 
 /// <summary>
-/// Reads a CBZ or CBR comic as one continuous column of pages as wide as the view, or one page at a time fitted to the
-/// page or to the width. Each page is decoded off the UI thread at exactly the size it is shown (a high-quality
-/// downscale, where the screen's own scaling would shimmer on the printed dots), again at a higher resolution when
-/// zoomed, and the pages either side are made ready before they are asked for. Arrow keys, Page Up and Down, Space,
-/// the wheel at a page's end and a click near either side turn the page.
+/// Reads a CBZ or CBR comic, or an EPUB made only of pictures, as one continuous column of pages as wide as the view,
+/// or one page at a time fitted to the page or to the width. Each page is decoded off the UI thread at exactly the size
+/// it is shown (a high-quality downscale, where the screen's own scaling would shimmer on the printed dots), again at a
+/// higher resolution when zoomed, and the pages either side are made ready before they are asked for. Arrow keys, Page
+/// Up and Down, Space, the wheel at a page's end and a click near either side turn the page.
 /// </summary>
 public sealed partial class ComicReaderView : UserControl, IReaderView
 {
@@ -140,7 +140,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         Log.Write($"reader: opened {Path.GetFileName(path)}, {book.PageCount} pages, in {clock.ElapsedMilliseconds} ms");
         PageCountText.Text = $"of {book.PageCount:N0}";
         _reveal.Show(ToolbarReveal.Glimpse);
-        GoTo(position is { } p && p.Page >= 0 && p.Page < book.PageCount ? p.Page : 0);
+        // A picture EPUB last read in the book reader: its place names the page, its page number does not.
+        var start = position is null ? 0 : PictureEpub.SpinePage(position.Position) ?? position.Page;
+        GoTo(start >= 0 && start < book.PageCount ? start : 0);
         if (_pendingReveal is { } reveal)
         {
             _pendingReveal = null;

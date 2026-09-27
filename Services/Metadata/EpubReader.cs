@@ -44,7 +44,7 @@ public static class EpubReader
         return meta;
     }
 
-    private static string? FindOpfPath(ZipArchive zip)
+    internal static string? FindOpfPath(ZipArchive zip)
     {
         var container = Find(zip, "META-INF/container.xml");
         if (container is not null)
@@ -71,7 +71,7 @@ public static class EpubReader
 
     private static string Normalize(string p) => p.Replace('\\', '/').TrimStart('/');
 
-    private static ZipArchiveEntry? Find(ZipArchive zip, string path)
+    internal static ZipArchiveEntry? Find(ZipArchive zip, string path)
     {
         path = Normalize(path);
         return zip.GetEntry(path) ??

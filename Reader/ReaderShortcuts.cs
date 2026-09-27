@@ -1,4 +1,3 @@
-using AryanEbookLibrary.Models;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -12,10 +11,10 @@ namespace AryanEbookLibrary.Reader;
 /// </summary>
 internal static class ReaderShortcuts
 {
-    public static UIElement Build(BookFormat format)
+    public static UIElement Build(IReaderView reader)
     {
-        var pdf = format == BookFormat.Pdf;
-        var comic = format is BookFormat.Cbz or BookFormat.Cbr;
+        var pdf = reader is PdfReaderView;
+        var comic = reader is ComicReaderView;
         var book = !pdf && !comic;
 
         var moving = pdf

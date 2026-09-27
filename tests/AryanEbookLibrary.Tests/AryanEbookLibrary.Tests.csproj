@@ -34,7 +34,7 @@
     <Compile Include="..\..\Services\Online\OnlineMatcher.cs;..\..\Services\Online\OpenLibraryClient.cs;..\..\Services\Online\WikidataClient.cs;..\..\Services\Online\WikipediaClient.cs;..\..\Services\Online\GoogleBooksClient.cs" LinkBase="Aryan\Online" />
     <Compile Include="..\..\Reader\Pdf\PdfBook.cs;..\..\Reader\Pdf\PdfNative.cs;..\..\Reader\Pdf\PageTextLayer.cs;..\..\Reader\Pdf\TileGrid.cs;..\..\Reader\Pdf\PageStackGeometry.cs;..\..\Reader\Pdf\SearchOptions.cs;..\..\Reader\Pdf\NightMode.cs;..\..\Reader\Pdf\PageColors.cs" LinkBase="Aryan\Reader" />
     <Compile Include="..\..\Reader\Define\EnglishWord.cs;..\..\Reader\Define\WordDefinitions.cs;..\..\Reader\Define\MyanmarGlosses.cs;..\..\Reader\Define\HindiGlosses.cs;..\..\Services\ReadingSessions.cs" LinkBase="Aryan\Define" />
-    <Compile Include="..\..\Reader\Comic\ComicBook.cs" LinkBase="Aryan\Comic" />
+    <Compile Include="..\..\Reader\Comic\ComicBook.cs;..\..\Reader\Comic\PictureEpub.cs" LinkBase="Aryan\Comic" />
   </ItemGroup>
 
 </Project>

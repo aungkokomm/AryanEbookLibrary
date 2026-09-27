@@ -124,10 +124,12 @@ public sealed partial class ReaderWindow : Window
             if (_inFront) Touch();
         };
 
+        // An EPUB that is only pictures (a comic or graphic novel) reads as a comic: the book reader showed it as spreads.
         _view = book.Format switch
         {
             BookFormat.Pdf => new PdfReaderView(),
             BookFormat.Cbz or BookFormat.Cbr => new ComicReaderView(),
+            BookFormat.Epub when Comic.PictureEpub.Is(path) => new ComicReaderView(),
             _ => new EpubReaderView(),
         };
         var element = (FrameworkElement)_view;
@@ -267,7 +269,7 @@ public sealed partial class ReaderWindow : Window
             await new ContentDialog
             {
                 Title = "Keyboard and mouse",
-                Content = ReaderShortcuts.Build(_book.Format),
+                Content = ReaderShortcuts.Build(_view),
                 CloseButtonText = "Close",
                 XamlRoot = RootGrid.XamlRoot,
             }.ShowThemedAsync();
