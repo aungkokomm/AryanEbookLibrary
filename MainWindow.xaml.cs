@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
 using AryanEbookLibrary.ViewModels;
@@ -61,6 +62,10 @@ public sealed partial class MainWindow : Window
         Library.ListsChanged += (_, _) => BuildLists();
         Library.StateChanged += (_, _) => CountsSoon();
         AppServices.Annotations.Changed += _ => CountsSoon();
+        foreach (var tag in CountedTags) AddCount(FindNav(tag)!);
+        // The card only fits the full pane; on a narrow window the pane is a strip of icons until it is opened.
+        NavView.PaneOpening += (_, _) => NowReadingCard.Visibility = _nowReading is null ? Visibility.Collapsed : Visibility.Visible;
+        NavView.PaneClosing += (_, _) => NowReadingCard.Visibility = Visibility.Collapsed;
         BuildLists();
         ListsItem.IsExpanded = AppServices.Settings.ListsExpanded;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
@@ -73,7 +78,7 @@ public sealed partial class MainWindow : Window
 
         Closed += (_, _) => CloseDown("closing");
 
-        NavView.SelectedItem = NavView.MenuItems[0];
+        SelectNav("all");
         ContentFrame.Navigate(typeof(LibraryPage));
         // The search box must not be what the app opens with a caret in.
         // Pointer focus, not Programmatic: it keeps the search box from taking focus at startup without
@@ -405,8 +410,10 @@ public sealed partial class MainWindow : Window
         Navigate(typeof(LibraryPage));
     }
 
-    private void SelectNav(string tag) =>
-        NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>()
+    private void SelectNav(string tag) => NavView.SelectedItem = FindNav(tag);
+
+    private NavigationViewItem? FindNav(string tag) =>
+        NavView.MenuItems.OfType<NavigationViewItem>()
             .SelectMany(i => i.MenuItems.OfType<NavigationViewItem>().Prepend(i))
             .FirstOrDefault(i => (string?)i.Tag == tag);
 
@@ -440,7 +447,7 @@ public sealed partial class MainWindow : Window
             {
                 Content = name,
                 Tag = ShelfTag + name,
-                Icon = new FontIcon { Glyph = ((char)0xE71C).ToString() }   // the Filters button's funnel
+                Icon = new FontIcon { Glyph = ((char)0xE71C).ToString(), Style = PaneIconStyle("PaneLibraryIconStyle") }   // the Filters button's funnel
             };
             ToolTipService.SetToolTip(item, ShelfFilter.SuggestName(shelf));   // what is on it
 
@@ -528,7 +535,11 @@ public sealed partial class MainWindow : Window
         // and the Collapsed event would then remember it folded as if the user had done it.
         if (_newListItem is null)
         {
-            _newListItem = new NavigationViewItem { Content = "New list...", Tag = NewListTag, SelectsOnInvoked = false, Icon = new SymbolIcon(Symbol.Add) };
+            _newListItem = new NavigationViewItem
+            {
+                Content = "New list...", Tag = NewListTag, SelectsOnInvoked = false,
+                Icon = new SymbolIcon(Symbol.Add) { Style = PaneIconStyle("PaneNotesIconStyle") }
+            };
             ToolTipService.SetToolTip(_newListItem, "Make a list, then put books on it from their details or menu, or by dragging them here");
             ListsItem.MenuItems.Add(_newListItem);
         }
@@ -543,23 +554,13 @@ public sealed partial class MainWindow : Window
 
     private NavigationViewItem MakeListItem(string name)
     {
-        var count = new TextBlock { Style = (Style)Application.Current.Resources["PaneBadgeTextStyle"] };
-        _listCounts[name] = count;
-        var badge = new Border { Style = (Style)Application.Current.Resources["PaneBadgeStyle"], Child = count };
-        Grid.SetColumn(badge, 1);
-        var label = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        var content = new Grid { ColumnSpacing = 8, Children = { label, badge } };
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
         var item = new NavigationViewItem
         {
-            Content = content,
+            Content = name,
             Tag = UserListTag + name,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Icon = new FontIcon { Glyph = ((char)0xE8FD).ToString() }
+            Icon = new FontIcon { Glyph = ((char)0xE8FD).ToString(), Style = PaneIconStyle("PaneNotesIconStyle") }
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, name);
+        _listCounts[name] = WithCount(item);
         ToolTipService.SetToolTip(item, name);
 
         var copy = new MenuFlyoutItem { Text = "Copy books to folder...", Icon = new SymbolIcon(Symbol.Copy) };
@@ -641,13 +642,100 @@ public sealed partial class MainWindow : Window
         _countsTimer.Start();
     });
 
-    private void RefreshCounts()
+    // ---- sidebar counts and the book being read ----
+
+    /// <summary>The shelves that show how much is on them. Recently Added is an order, not a part, so it has none.</summary>
+    private static readonly string[] CountedTags =
+        { "all", "continue", "favorites", "unread", "finished", "highlights", "notes", "authors", "series", "tags", "missing", "needs" };
+
+    private readonly Dictionary<string, TextBlock> _counts = new();
+    private int _countsRun;
+    private Book? _nowReading;
+    private string? _nowReadingCover;
+
+    private static Style PaneIconStyle(string key) => (Style)Application.Current.Resources[key];
+
+    private void AddCount(NavigationViewItem item) => _counts[(string)item.Tag] = WithCount(item);
+
+    /// <summary>The item's label with a quiet count at its right, which RefreshCounts fills in. Returns the count.</summary>
+    private static TextBlock WithCount(NavigationViewItem item)
     {
+        var label = (string)item.Content;
+        var count = new TextBlock { Style = (Style)Application.Current.Resources["PaneCountStyle"] };
+        Grid.SetColumn(count, 1);
+        var content = new Grid
+        {
+            ColumnSpacing = 8,
+            Children = { new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }, count }
+        };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        item.Content = content;
+        item.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, label);
+        return count;
+    }
+
+    /// <summary>
+    /// Every shelf's count and the book being read, worked out off the window's thread (the Authors, Series and Tags
+    /// indexes take about 30 ms for 2,800 books). A later refresh wins over one still running.
+    /// </summary>
+    private async void RefreshCounts()
+    {
+        var run = ++_countsRun;
+        var books = Library.AllBooks.ToList();
         var (highlights, notes) = AppServices.Annotations.Counts();
-        HighlightsCount.Text = highlights.ToString("N0");
-        NotesCount.Text = (Library.NotesCount + notes).ToString("N0");
-        var counts = Library.ListCounts();
-        foreach (var (name, text) in _listCounts) text.Text = counts.GetValueOrDefault(name).ToString("N0");
+        var lists = Library.ListCounts();
+        var repo = AppServices.Repo;
+        var (counts, reading) = await Task.Run(() =>
+        {
+            var n = new Dictionary<string, int>
+            {
+                ["all"] = books.Count,
+                ["continue"] = books.Count(b => b.Status == ReadStatus.Reading),
+                ["favorites"] = books.Count(b => b.IsFavorite),
+                ["unread"] = books.Count(b => b.Status == ReadStatus.Unread),
+                ["finished"] = books.Count(b => b.Status == ReadStatus.Finished),
+                ["highlights"] = highlights,
+                ["notes"] = books.Count(b => b.HasNote) + notes,
+                ["authors"] = AuthorIndex.Build(books, repo.GetAllAuthorsOnline()).Count,
+                ["series"] = SeriesIndex.Build(books).Count,
+                ["tags"] = Tags.Build(books).Count,
+                ["missing"] = repo.GetMissing().Count,
+                ["needs"] = books.Count(b => b.NeedsDetails)
+            };
+            var now = books.Where(b => b.Status == ReadStatus.Reading && b.IsAvailable).MaxBy(b => b.LastOpenedUtc ?? DateTime.MinValue);
+            return (n, now);
+        });
+        if (run != _countsRun) return;
+        foreach (var (tag, text) in _counts) text.Text = counts[tag].ToString("N0");
+        foreach (var (name, text) in _listCounts) text.Text = lists.GetValueOrDefault(name).ToString("N0");
+        ShowNowReading(reading);
+    }
+
+    /// <summary>The card for the book opened last of those being read, or none.</summary>
+    private void ShowNowReading(Book? book)
+    {
+        _nowReading = book;
+        NowReadingCard.Visibility = book is not null && NavView.IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (book is null) return;
+        NowReadingTitle.Text = book.Title;
+        NowReadingProgress.Value = book.Progress;
+        NowReadingPercent.Text = book.Progress + "%";
+        ToolTipService.SetToolTip(NowReadingCard, $"Continue reading “{book.Title}”");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NowReadingCard, "Now reading: " + book.Title);
+        var cover = book.CoverPath;
+        if (cover == _nowReadingCover) return;
+        _nowReadingCover = cover;
+        NowReadingCover.Source = null;
+        if (cover is not null && File.Exists(cover)) _ = CoverLoader.ShowAsync(NowReadingCover, cover, 80);
+    }
+
+    private void OnNowReading(object sender, RoutedEventArgs e)
+    {
+        if (_nowReading is null) return;
+        var error = Library.OpenBook(_nowReading);
+        if (error is not null) Library.Tell(error);
     }
 
     private void Navigate(Type page)

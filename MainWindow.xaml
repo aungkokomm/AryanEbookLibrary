@@ -52,100 +52,113 @@
             IsSettingsVisible="True"
             ItemInvoked="NavView_ItemInvoked">
 
+            <!-- The book being read, first thing in the sidebar: a click opens it where it was left. Shown while the pane is
+                 open and something is being read on a connected drive (filled in code). -->
+            <NavigationView.PaneCustomContent>
+                <Button x:Name="NowReadingCard" Visibility="Collapsed" Click="OnNowReading" Margin="12,4,12,6" Padding="8"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="34" Height="46" CornerRadius="3" Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                            <Image x:Name="NowReadingCover" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                            <TextBlock Text="Now reading" Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock x:Name="NowReadingTitle" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar x:Name="NowReadingProgress" Maximum="100" VerticalAlignment="Center" />
+                                <TextBlock x:Name="NowReadingPercent" Grid.Column="1" Style="{StaticResource PaneCountStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Button>
+            </NavigationView.PaneCustomContent>
+
+            <!-- Five sections, each with its icons in one colour; the counts at the right are added in code (AddCount) -->
             <NavigationView.MenuItems>
+                <NavigationViewItemHeader Content="Library" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 <NavigationViewItem Content="All Books" Tag="all">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8F1;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8F1;" Style="{StaticResource PaneLibraryIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Continue Reading" Tag="continue">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE736;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE736;" Style="{StaticResource PaneLibraryIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Recently Added" Tag="recent">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE787;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE787;" Style="{StaticResource PaneLibraryIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Favorites" Tag="favorites">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE734;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Unread" Tag="unread">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Finished" Tag="finished">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <!-- Every highlight and clipped picture from every book, as cards, and how many -->
-                <NavigationViewItem x:Name="HighlightsItem" Tag="highlights" HorizontalContentAlignment="Stretch"
-                                    AutomationProperties.Name="Highlights"
-                                    ToolTipService.ToolTip="Everything you highlighted in Aryan's reader, from every book">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7E6;" /></NavigationViewItem.Icon>
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Highlights" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        <Border Grid.Column="1" Style="{StaticResource PaneBadgeStyle}">
-                            <TextBlock x:Name="HighlightsCount" Text="0" Style="{StaticResource PaneBadgeTextStyle}" />
-                        </Border>
-                    </Grid>
-                </NavigationViewItem>
-                <!-- Every note: on a book (its details), on a highlight, and on a page in the reader -->
-                <NavigationViewItem x:Name="NotesItem" Tag="notes" HorizontalContentAlignment="Stretch"
-                                    AutomationProperties.Name="My Notes"
-                                    ToolTipService.ToolTip="Every note you wrote, on books, highlights and pages">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" /></NavigationViewItem.Icon>
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="My Notes" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        <Border Grid.Column="1" Style="{StaticResource PaneBadgeStyle}">
-                            <TextBlock x:Name="NotesCount" Text="0" Style="{StaticResource PaneBadgeTextStyle}" />
-                        </Border>
-                    </Grid>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE734;" Style="{StaticResource PaneLibraryIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <!-- The user's saved views ("Save as shelf" on the library page); filled in code, hidden while there are none -->
                 <NavigationViewItem x:Name="ShelvesItem" Content="Shelves" Tag="shelves" Visibility="Collapsed"
                                     SelectsOnInvoked="False" IsExpanded="True"
                                     ToolTipService.ToolTip="Your saved views of the library">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BC;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BC;" Style="{StaticResource PaneLibraryIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItemHeader Content="Reading" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <NavigationViewItem Content="Unread" Tag="unread">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE71D;" Style="{StaticResource PaneReadingIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Finished" Tag="finished">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE73E;" Style="{StaticResource PaneReadingIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Reading log" Tag="reading"
+                                    ToolTipService.ToolTip="Books finished by month and year, your yearly goal, and what to read next">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D2;" Style="{StaticResource PaneReadingIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItemHeader Content="Your notes" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <!-- Every highlight and clipped picture from every book, as cards -->
+                <NavigationViewItem Content="Highlights" Tag="highlights"
+                                    ToolTipService.ToolTip="Everything you highlighted in Aryan's reader, from every book">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7E6;" Style="{StaticResource PaneNotesIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <!-- Every note: on a book (its details), on a highlight, and on a page in the reader -->
+                <NavigationViewItem Content="My Notes" Tag="notes"
+                                    ToolTipService.ToolTip="Every note you wrote, on books, highlights and pages">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" Style="{StaticResource PaneNotesIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <!-- The user's hand-picked lists (CineLibrary's MY LISTS); filled in code, with "New list" last -->
                 <NavigationViewItem x:Name="ListsItem" Content="My lists" Tag="lists"
                                     SelectsOnInvoked="False" IsExpanded="True"
                                     ToolTipService.ToolTip="Lists you make and put books on yourself">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE728;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE728;" Style="{StaticResource PaneNotesIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItemHeader Content="Browse" />
+
+                <NavigationViewItemHeader Content="Browse" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 <NavigationViewItem Content="Authors" Tag="authors">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE77B;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE77B;" Style="{StaticResource PaneBrowseIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Series" Tag="series">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE82D;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE82D;" Style="{StaticResource PaneBrowseIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Tags" Tag="tags">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8EC;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8EC;" Style="{StaticResource PaneBrowseIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Reading log" Tag="reading"
-                                    ToolTipService.ToolTip="Books finished by month and year, your yearly goal, and what to read next">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D2;" /></NavigationViewItem.Icon>
+
+                <NavigationViewItemHeader Content="Tidy up" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <NavigationViewItem Content="Duplicates" Tag="duplicates"
+                                    ToolTipService.ToolTip="Books that look like they are in the library twice">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C8;" Style="{StaticResource PaneTidyIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="Check" Tag="check"
-                                    ToolTipService.ToolTip="Duplicates, missing files and books that need details">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D5;" /></NavigationViewItem.Icon>
-                    <NavigationViewItem.MenuItems>
-                        <NavigationViewItem Content="Duplicates" Tag="duplicates"
-                                            ToolTipService.ToolTip="Books that look like they are in the library twice">
-                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C8;" /></NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                        <NavigationViewItem Content="Missing" Tag="missing"
-                                            ToolTipService.ToolTip="Books whose file the last scan could not find">
-                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9CE;" /></NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                        <NavigationViewItem Content="Needs Details" Tag="needs"
-                                            ToolTipService.ToolTip="Books with no author, no real cover, or a name that is not a title">
-                                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                    </NavigationViewItem.MenuItems>
+                <NavigationViewItem Content="Missing" Tag="missing"
+                                    ToolTipService.ToolTip="Books whose file the last scan could not find">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9CE;" Style="{StaticResource PaneTidyIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Needs Details" Tag="needs"
+                                    ToolTipService.ToolTip="Books with no author, no real cover, or a name that is not a title">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" Style="{StaticResource PaneTidyIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 

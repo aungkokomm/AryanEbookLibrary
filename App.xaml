@@ -64,6 +64,8 @@
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#FAAC17" />
                     <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#6AA8FF" />
+                    <SolidColorBrush x:Key="PaneReadingBrush" Color="#4CC9A4" />
+                    <SolidColorBrush x:Key="PaneBrowseBrush" Color="#B4A9F8" />
                     <!-- Cover placeholder gradient (book without a cover), as CineLibrary's poster placeholder -->
                     <Color x:Key="PlaceholderTopColor">#1C2636</Color>
                     <Color x:Key="PlaceholderBottomColor">#0C121C</Color>
@@ -71,6 +73,8 @@
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="BrandGoldTextBrush" Color="#9A6200" />
                     <SolidColorBrush x:Key="BrandBlueTextBrush" Color="#186BD5" />
+                    <SolidColorBrush x:Key="PaneReadingBrush" Color="#0E8566" />
+                    <SolidColorBrush x:Key="PaneBrowseBrush" Color="#6553D0" />
                     <Color x:Key="PlaceholderTopColor">#EEF3FB</Color>
                     <Color x:Key="PlaceholderBottomColor">#D6E0EE</Color>
                 </ResourceDictionary>
@@ -119,18 +123,28 @@
                 <Setter Property="Padding" Value="8,3" />
             </Style>
 
-            <!-- A count beside an item in the navigation pane (Notes, My lists), as CineLibrary's sidebar badges -->
-            <Style x:Key="PaneBadgeStyle" TargetType="Border">
-                <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
-                <Setter Property="CornerRadius" Value="10" />
-                <Setter Property="Padding" Value="6,1" />
-                <Setter Property="MinWidth" Value="24" />
-                <Setter Property="VerticalAlignment" Value="Center" />
+            <!-- The sidebar: each section's icons in one colour (the brand's blue and gold first), and a quiet count at the
+                 right of a shelf -->
+            <Style x:Key="PaneLibraryIconStyle" TargetType="IconElement">
+                <Setter Property="Foreground" Value="{ThemeResource BrandBlueTextBrush}" />
             </Style>
-            <Style x:Key="PaneBadgeTextStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="11" />
+            <Style x:Key="PaneReadingIconStyle" TargetType="IconElement">
+                <Setter Property="Foreground" Value="{ThemeResource PaneReadingBrush}" />
+            </Style>
+            <Style x:Key="PaneNotesIconStyle" TargetType="IconElement">
+                <Setter Property="Foreground" Value="{ThemeResource BrandGoldTextBrush}" />
+            </Style>
+            <Style x:Key="PaneBrowseIconStyle" TargetType="IconElement">
+                <Setter Property="Foreground" Value="{ThemeResource PaneBrowseBrush}" />
+            </Style>
+            <Style x:Key="PaneTidyIconStyle" TargetType="IconElement">
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Setter Property="HorizontalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="PaneCountStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
             </Style>
 
             <!-- Small dark badge on a cover (favorite star) -->
