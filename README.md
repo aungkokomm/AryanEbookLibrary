@@ -12,6 +12,8 @@
 <p align="center">
   <a href="../../releases/latest"><b>Download for Windows</b></a>
   &nbsp;·&nbsp;
+  <a href="https://aungkokomm.github.io/aryan/guide/">User guide</a>
+  &nbsp;·&nbsp;
   <a href="#screenshots">Screenshots</a>
   &nbsp;·&nbsp;
   <a href="#what-it-can-do">What it can do</a>
@@ -178,6 +180,8 @@ No account and no tracking, and Aryan never changes, renames or moves a book fil
    - **Install for me:** for your user only, with no administrator rights needed, a Start menu entry, and an uninstaller in Settings > Apps.
    - **Portable:** into any folder you like, a USB drive included. Nothing is written to Windows, and the whole folder, library and all, can move to another drive or PC.
 3. Add the folders where your books are, and let it scan.
+
+New to Aryan? The [getting-started guide](https://aungkokomm.github.io/aryan/guide/) walks you through your first hour, from adding your books to highlights and backups.
 
 To update, run the newer Setup on the same folder: your library is kept. A portable copy can also be made silently, with `AryanEbookLibrary-Setup-<version>.exe /VERYSILENT /PORTABLE /DIR="E:\Aryan"`.
 

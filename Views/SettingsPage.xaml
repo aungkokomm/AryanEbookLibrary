@@ -279,7 +279,9 @@
                             <TextBlock x:Name="VersionText" />
                             <TextBlock Style="{StaticResource SettingDescriptionStyle}"
                                        Text="Free and open source (MIT), no telemetry, no accounts. Reads the details already inside your books or in Calibre's metadata.opf, never changes your files, and goes online only to look up details on Open Library, Wikidata, Wikipedia and Google Books, when you ask or switch it on above." />
-                            <HyperlinkButton Content="Website: aungkokomm.github.io/aryan" Padding="0" Margin="0,6,0,0"
+                            <HyperlinkButton Content="User guide: getting started with Aryan" Padding="0" Margin="0,6,0,0"
+                                             NavigateUri="https://aungkokomm.github.io/aryan/guide/" />
+                            <HyperlinkButton Content="Website: aungkokomm.github.io/aryan" Padding="0" Margin="0,2,0,0"
                                              NavigateUri="https://aungkokomm.github.io/aryan/" />
                             <HyperlinkButton Content="Source code: github.com/aungkokomm/AryanEbookLibrary" Padding="0" Margin="0,2,0,0"
                                              NavigateUri="https://github.com/aungkokomm/AryanEbookLibrary" />
