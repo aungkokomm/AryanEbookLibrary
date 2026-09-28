@@ -279,6 +279,8 @@
                             <TextBlock x:Name="VersionText" />
                             <TextBlock Style="{StaticResource SettingDescriptionStyle}"
                                        Text="Free and open source (MIT), no telemetry, no accounts. Reads the details already inside your books or in Calibre's metadata.opf, never changes your files, and goes online only to look up details on Open Library, Wikidata, Wikipedia and Google Books, when you ask or switch it on above." />
+                            <TextBlock Style="{StaticResource SettingDescriptionStyle}" Margin="0,6,0,0"
+                                       Text="About the name: Aryan (आर्यन) is named after the author's son. In India and across South Asia it is a common given name, meaning &quot;noble&quot; in Sanskrit and Hindi. The app has nothing to do with the racist misuse of the word in 20th-century Europe, which the author rejects completely." />
                             <HyperlinkButton Content="User guide: getting started with Aryan" Padding="0" Margin="0,6,0,0"
                                              NavigateUri="https://aungkokomm.github.io/aryan/guide/" />
                             <HyperlinkButton Content="Website: aungkokomm.github.io/aryan" Padding="0" Margin="0,2,0,0"
