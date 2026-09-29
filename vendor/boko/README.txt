@@ -8,7 +8,8 @@ result. Aryan itself is under the MIT licence; boko is not part of it and keeps 
 Licence: boko is free software under the GNU General Public License, version 3 or (at your option) any later
 version. The full text is in COPYING.txt beside this file. boko comes with no warranty.
 
-Source: https://github.com/zacharydenton/boko
+Source: https://github.com/aungkokomm/boko/tree/aryan-1.1.0 (a copy kept with Aryan, tag aryan-1.1.0)
+Upstream: https://github.com/zacharydenton/boko
 This copy was built from commit b148716498fdac70134555293a7405913988256a (29 July 2026), unchanged, with:
     cargo build --release --bin boko        (rustc 1.94.0, x86_64-pc-windows-msvc)
 
