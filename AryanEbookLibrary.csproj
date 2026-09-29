@@ -32,7 +32,7 @@
     <PublishReadyToRun>true</PublishReadyToRun>
     <PublishTrimmed>false</PublishTrimmed>
 
-    <Version>1.0.12</Version>
+    <Version>1.1.0</Version>
     <!-- Keeps ProductVersion a plain "0.2.0" (no +commit suffix): the installer reads its version from it -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Aryan eBook Library</Product>
@@ -72,6 +72,9 @@
     <!-- The EPUB reader: foliate-js (MIT, see Assets\Epub\foliate\SOURCE.txt) in a WebView2, and Aryan's page around it. -->
     <Content Include="Assets\Epub\**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Epub\foliate\LICENSE" Link="Licenses\foliate-js-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- KFX books are read through an EPUB copy that boko makes: a separate GPL-3.0 program, run beside the app, with
+         its licence and where its source is (vendor\boko\README.txt) in the same folder. -->
+    <Content Include="vendor\boko\*" Link="tools\boko\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- Aryan's own licence and everyone else's, beside the exe (THIRD-PARTY-NOTICES.txt lists them all) -->
     <Content Include="LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />

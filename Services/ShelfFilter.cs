@@ -23,7 +23,7 @@ public static class ShelfFilter
         Array.Empty<BookFormat>(),
         new[] { BookFormat.Epub },
         new[] { BookFormat.Pdf },
-        new[] { BookFormat.Mobi, BookFormat.Azw3 },
+        new[] { BookFormat.Mobi, BookFormat.Azw3, BookFormat.Kfx },
         new[] { BookFormat.Cbz, BookFormat.Cbr }
     };
 

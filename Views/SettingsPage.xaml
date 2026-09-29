@@ -85,9 +85,9 @@
                                           AutomationProperties.Name="Open PDF books in Aryan's own reader" />
                         </Grid>
                         <Grid ColumnDefinitions="*,Auto" MinHeight="40">
-                            <TextBlock Text="EPUB, MOBI and AZW3" VerticalAlignment="Center" />
+                            <TextBlock Text="EPUB, MOBI, AZW3 and KFX" VerticalAlignment="Center" />
                             <ToggleSwitch x:Name="ReadEpubInAppSwitch" Grid.Column="1" Toggled="OnReadInAppToggled"
-                                          AutomationProperties.Name="Open EPUB, MOBI and AZW3 books in Aryan's own reader" />
+                                          AutomationProperties.Name="Open EPUB, MOBI, AZW3 and KFX books in Aryan's own reader" />
                         </Grid>
                         <Grid ColumnDefinitions="*,Auto" MinHeight="40">
                             <TextBlock Text="CBZ and CBR comics" VerticalAlignment="Center" />
@@ -206,6 +206,7 @@
                                 <ComboBoxItem Content="PDF" Tag="PDF" />
                                 <ComboBoxItem Content="MOBI" Tag="MOBI" />
                                 <ComboBoxItem Content="AZW3" Tag="AZW3" />
+                                <ComboBoxItem Content="KFX" Tag="KFX" />
                                 <ComboBoxItem Content="CBZ" Tag="CBZ" />
                                 <ComboBoxItem Content="CBR" Tag="CBR" />
                             </ComboBox>

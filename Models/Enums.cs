@@ -8,7 +8,8 @@ public enum BookFormat
     Mobi = 3,
     Azw3 = 4,
     Cbz = 5,
-    Cbr = 6
+    Cbr = 6,
+    Kfx = 7
 }
 
 public enum ReadStatus
@@ -56,6 +57,7 @@ public static class FormatHelper
         [".prc"] = BookFormat.Mobi,
         [".azw"] = BookFormat.Mobi,
         [".azw3"] = BookFormat.Azw3,
+        [".kfx"] = BookFormat.Kfx,
         [".cbz"] = BookFormat.Cbz,
         [".cbr"] = BookFormat.Cbr,
     };
@@ -71,6 +73,7 @@ public static class FormatHelper
         BookFormat.Pdf => "PDF",
         BookFormat.Mobi => "MOBI",
         BookFormat.Azw3 => "AZW3",
+        BookFormat.Kfx => "KFX",
         BookFormat.Cbz => "CBZ",
         BookFormat.Cbr => "CBR",
         _ => "?"

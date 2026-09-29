@@ -39,6 +39,7 @@ beside the app.
   - utf16string 0.2.0, Rust crate in reader_core.dll (MIT) - https://crates.io/crates/utf16string
   - vecmath 1.0.0, Rust crate in reader_core.dll (MIT) - https://crates.io/crates/vecmath
   - windows-link 0.2.1, Rust crate in reader_core.dll (MIT) - https://crates.io/crates/windows-link
+  - boko 0.5.0, a separate program that turns KFX books into EPUB (GNU GPL v3 or later) - https://github.com/zacharydenton/boko
   - WordNet (English meanings)
   - AKK English-Myanmar dictionary
   - Hindi meanings
@@ -1079,6 +1080,16 @@ MIT License
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE
+
+====================================================================================================
+boko 0.5.0 (GNU GPL v3 or later) - https://github.com/zacharydenton/boko
+====================================================================================================
+
+boko is a separate program that Aryan runs to turn a KFX book into an EPUB copy it can read. It is not part of
+Aryan and is not under Aryan's MIT licence: it is free software under the GNU General Public License, version 3 or
+any later version, and comes with no warranty. It is in the tools\boko folder beside the app, with the full licence
+(COPYING.txt) and a README.txt that says where its source code is, which version this is and how it was built, and
+lists the Rust crates it is built from with their licences.
 
 ====================================================================================================
 WordNet (English meanings)

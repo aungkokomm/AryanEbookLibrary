@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AryanEbookLibrary.Models;
 using AryanEbookLibrary.Services;
+using AryanEbookLibrary.Services.Metadata;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -19,7 +20,7 @@ using Windows.System;
 namespace AryanEbookLibrary.Reader;
 
 /// <summary>
-/// Reads an EPUB, MOBI or AZW3 book. foliate-js (the engine of the Foliate reader) lays out and turns the pages in a
+/// Reads an EPUB, MOBI or AZW3 book, and a KFX book through its EPUB copy (KfxBook). foliate-js (the engine of the Foliate reader) lays out and turns the pages in a
 /// web view; the app keeps everything around them, as for a PDF: contents, find in book, page colour, Define and the
 /// reading record. The page is served from the app's own files under a made-up host and the book from its file, so
 /// nothing is fetched from the internet. A "page" here is a foliate location, about 1,500 bytes of the book's text.
@@ -88,9 +89,21 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     public async Task OpenAsync(string path, ReadingPosition? position)
     {
-        _path = path;
         _pending = position;
         _openClock.Restart();
+        // A KFX book is read through its EPUB copy, made now if the scan has not made it yet.
+        if (FormatHelper.FromPath(path) == BookFormat.Kfx)
+        {
+            ShowMessage("Opening the book...", "", ring: true);
+            var (epub, problem) = await KfxBook.EpubAsync(path);
+            if (epub is null)
+            {
+                ShowMessage(problem!.Locked ? "This book is locked" : "This book cannot be opened here", problem.Text, ring: false, external: true);
+                return;
+            }
+            path = epub;
+        }
+        _path = path;
         // By its own name, as foliate tells some formats apart by the extension. The browser reads files by path
         // and stops at Windows' 260-character limit, so a longer path is served by the handler below instead.
         _bookUrl = path.Length < 260

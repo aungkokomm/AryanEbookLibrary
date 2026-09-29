@@ -17,7 +17,7 @@ public sealed class AppSettings
     public List<string> NoAuthorOffers { get; set; } = new();
     public List<string> NotSamePeople { get; set; } = new();   // name pairs the user said are different people
     // When the same book is in the library twice, which copy to keep. "" means no preference.
-    public string PreferredFormat { get; set; } = "";          // EPUB | PDF | MOBI | AZW3 | CBZ | CBR
+    public string PreferredFormat { get; set; } = "";          // EPUB | PDF | MOBI | AZW3 | KFX | CBZ | CBR
     public string PreferredLanguage { get; set; } = "";        // en | hi | my ...
     // Groups where the user picked the copy themselves: group key -> that file's key.
     public Dictionary<string, string> KeptCopies { get; set; } = new();
@@ -31,7 +31,7 @@ public sealed class AppSettings
     public Dictionary<int, int> ReadingGoals { get; set; } = new();
     // The app's own reader. Off, PDFs open in the default app as before.
     public bool ReadPdfInApp { get; set; } = true;
-    // The same for EPUB, MOBI and AZW3 books.
+    // The same for EPUB, MOBI, AZW3 and KFX books.
     public bool ReadEpubInApp { get; set; } = true;
     public int ReaderFontSize { get; set; } = 100;             // percent of the book's own size
     public string ReaderFlow { get; set; } = "scrolled";       // paginated | scrolled

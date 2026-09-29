@@ -35,6 +35,7 @@ public static class MetadataService
                 BookFormat.Pdf => await PdfReader.ReadAsync(path, readCover),
                 BookFormat.Mobi or BookFormat.Azw3 => await Task.Run(() => MobiReader.Read(path)),
                 BookFormat.Cbz or BookFormat.Cbr => await Task.Run(() => ComicReader.Read(path)),
+                BookFormat.Kfx => await ReadKfxAsync(path),
                 _ => new BookMetadata()
             };
         }
@@ -63,7 +64,7 @@ public static class MetadataService
             t = FileNameParser.StripSiteTags(t);
             // A file name left as the title: "Aath_Pahar_Youn_Jhumte", "Harsha-The Great Ruler of Thaneshwar.cbz".
             if (t.Contains('_') && !t.Contains(' ')) t = FileNameParser.Squash(t.Replace('_', ' '));
-            t = Regex.Replace(t, @"\.(pdf|epub|mobi|azw3|cbz|cbr)$", "", RegexOptions.IgnoreCase);
+            t = Regex.Replace(t, @"\.(pdf|epub|mobi|azw3|kfx|cbz|cbr)$", "", RegexOptions.IgnoreCase);
             md.Title = t.Length == 0 || Regex.IsMatch(t, @"^(https?://\S+|www\.\S+|[\w-]+\.(com|net|org|info|biz|ru|cc|to))$", RegexOptions.IgnoreCase) ? null : t;
         }
         // Every reader's author field in one display form: "Harari, Yuval Noah" → "Yuval Noah Harari", "Jason Hannan;" → "Jason Hannan"
@@ -84,6 +85,18 @@ public static class MetadataService
         FixBurmese(md);
         if (string.IsNullOrWhiteSpace(md.Title)) md.Title = "Untitled";
         return md;
+    }
+
+    /// <summary>A KFX book's details, from the EPUB copy it is read through (made now, once, if there is none yet).</summary>
+    private static async Task<BookMetadata> ReadKfxAsync(string path)
+    {
+        var (epub, problem) = await KfxBook.EpubAsync(path);
+        if (epub is null)
+        {
+            Log.Write($"KFX details not read ({Path.GetFileName(path)}): {problem?.Text}");
+            return new BookMetadata();
+        }
+        return await Task.Run(() => EpubReader.Read(epub));
     }
 
     /// <summary>

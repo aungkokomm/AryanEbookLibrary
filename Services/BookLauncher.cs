@@ -16,7 +16,7 @@ public static class BookLauncher
     public static bool ReadsInApp(Book book) => InAppReader is not null && book.Format switch
     {
         BookFormat.Pdf => AppServices.Settings.ReadPdfInApp,
-        BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3 => AppServices.Settings.ReadEpubInApp,
+        BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3 or BookFormat.Kfx => AppServices.Settings.ReadEpubInApp,
         BookFormat.Cbz or BookFormat.Cbr => AppServices.Settings.ReadComicsInApp,
         _ => false,
     };

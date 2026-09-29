@@ -24,7 +24,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4.svg" alt="Windows 10 and 11">
-  <img src="https://img.shields.io/badge/reads-EPUB%20%7C%20PDF%20%7C%20MOBI%20%7C%20AZW3%20%7C%20CBZ%20%7C%20CBR-186BD5.svg" alt="Reads EPUB, PDF, MOBI, AZW3, CBZ and CBR">
+  <img src="https://img.shields.io/badge/reads-EPUB%20%7C%20PDF%20%7C%20MOBI%20%7C%20AZW3%20%7C%20KFX%20%7C%20CBZ%20%7C%20CBR-186BD5.svg" alt="Reads EPUB, PDF, MOBI, AZW3, KFX, CBZ and CBR">
   <img src="https://img.shields.io/badge/word%20meanings-English%20%7C%20Myanmar%20%7C%20Hindi-orange.svg" alt="Word meanings in English, Myanmar and Hindi">
   <a href="../../releases"><img src="https://img.shields.io/github/downloads/aungkokomm/AryanEbookLibrary/total.svg" alt="Downloads"></a>
 </p>
@@ -77,7 +77,7 @@ Add the folders you keep books in, on any drive. Each drive is known by its hard
 <td width="50%" valign="top">
 
 ### 📖 A reader for every book
-PDFs are drawn by PDFium and stay sharp at any zoom. EPUB, MOBI and AZW3 books scroll straight through from chapter to chapter, or turn like pages. Comics, whether CBZ, CBR or picture EPUBs, run in one continuous column as wide as the window.
+PDFs are drawn by PDFium and stay sharp at any zoom. EPUB, MOBI, AZW3 and KFX books scroll straight through from chapter to chapter, or turn like pages. Comics, whether CBZ, CBR or picture EPUBs, run in one continuous column as wide as the window.
 
 </td>
 </tr>
@@ -147,6 +147,7 @@ No account and no tracking, and Aryan never changes, renames or moves a book fil
 ### Reading
 - PDF: drawn by PDFium, sharp at every zoom up to 800%, continuous pages, fit width or fit page, text selection, find, the book's own outline, and links with Back and Forward
 - EPUB, MOBI and AZW3: scroll through the whole book or turn pages, text size, find, and the contents
+- KFX, Amazon's newest Kindle format: read the same way, through an EPUB copy made once and kept in the data folder (books locked with DRM cannot be read)
 - Comics: CBZ, CBR and EPUBs made only of pictures, as one continuous column or a page at a time
 - One zoom button in every reader: minus, a slider, plus, and Fit width or Fit page (in books, the text size)
 - Paper, sepia and night pages, full screen, and a toolbar that hides until you point at it
@@ -266,7 +267,7 @@ PDFium comes with the repository, in `native/reader_core/vendor/pdfium`, from [p
 
 ## Under the hood
 
-The window is **WinUI 3** in C# on .NET 10 with the Windows App SDK, and it carries its own runtime. PDFs are drawn by a small **Rust** core on **PDFium**, through pdfium-render. EPUB, MOBI and AZW3 books are read by **foliate-js** in WebView2, comics come out of their archives through **SharpCompress**, and the catalogue lives in **SQLite**.
+The window is **WinUI 3** in C# on .NET 10 with the Windows App SDK, and it carries its own runtime. PDFs are drawn by a small **Rust** core on **PDFium**, through pdfium-render. EPUB, MOBI and AZW3 books are read by **foliate-js** in WebView2 (KFX books too, once **boko** has made an EPUB copy), comics come out of their archives through **SharpCompress**, and the catalogue lives in **SQLite**.
 
 <details>
 <summary><b>Where things are</b></summary>
@@ -281,6 +282,7 @@ The window is **WinUI 3** in C# on .NET 10 with the Windows App SDK, and it carr
 | `Reader/` | The PDF, book and comic readers, highlights and Define |
 | `Assets/Epub/` | foliate-js and the page script that drives it |
 | `native/reader_core/` | The Rust core on PDFium, and its tests |
+| `vendor/boko/` | boko, the separate program that turns KFX books into EPUB, with its licence and source details |
 | `installer/` | The Inno Setup script |
 | `tools/` | The installer and deploy scripts |
 | `tests/` | The C# tests, real-library checks and off-screen UI checks |
@@ -295,6 +297,8 @@ Aryan eBook Library is free and open source under the [MIT License](LICENSE), an
 
 It stands on the work of many others, each under its own licence. See [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) and the [licenses](licenses/) folder; the app shows them in Settings > About too.
 
+KFX books are turned into EPUB by [boko](https://github.com/zacharydenton/boko), a separate program that comes with Aryan and keeps its own licence, the GNU GPL v3 or later. It is not part of Aryan's MIT-licensed code; [vendor/boko](vendor/boko/README.txt) says where its source is and how it was built.
+
 ## Thanks
 
-To John Factotum for foliate-js; to the people behind PDFium, pdfium-binaries, pdfium-render, SharpCompress, PdfPig and SQLite; to Princeton University for WordNet; to Open Library, Wikidata and Wikipedia for the details they share with everyone; and to Project Gutenberg for the books in the screenshots.
+To John Factotum for foliate-js; to Zach Denton for boko; to the people behind PDFium, pdfium-binaries, pdfium-render, SharpCompress, PdfPig and SQLite; to Princeton University for WordNet; to Open Library, Wikidata and Wikipedia for the details they share with everyone; and to Project Gutenberg for the books in the screenshots.
