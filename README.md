@@ -30,6 +30,9 @@
 </p>
 
 ---
+>## [About the App name]
+
+>Aryan (आर्यन) is my son's name; he is one year old. In India and across South Asia it is a common given name, meaning "noble" in Sanskrit and Hindi. The app has nothing to do with the racist misuse of the word in 20th-century Europe, which I reject completely.
 
 Your books are everywhere: a folder on this drive, a USB disk in a drawer, a downloads folder you keep meaning to sort. Most eBook managers deal with that by copying everything into a library of their own, renaming your files on the way.
 
@@ -284,9 +287,7 @@ The window is **WinUI 3** in C# on .NET 10 with the Windows App SDK, and it carr
 
 </details>
 
-## About the name
 
-Aryan (आर्यन) is my son's name; he is one year old. In India and across South Asia it is a common given name, meaning "noble" in Sanskrit and Hindi. The app has nothing to do with the racist misuse of the word in 20th-century Europe, which I reject completely.
 
 ## Licence
 
