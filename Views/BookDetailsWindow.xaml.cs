@@ -101,6 +101,7 @@ public sealed partial class BookDetailsWindow : Window
         AppServices.ThemeChanged += OnThemeChanged;
         RootGrid.ActualThemeChanged += (_, _) => PaintCaptionButtons();
         PaintCaptionButtons();
+        ColorTheme.Follow(this, RootGrid, PageTint);
         TitleBar.Loaded += (_, _) => SyncCaptionColumn();
 
         var escape = new KeyboardAccelerator { Key = Windows.System.VirtualKey.Escape };

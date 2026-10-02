@@ -105,6 +105,8 @@ public sealed partial class ReaderWindow : Window
         AppServices.ThemeChanged += OnThemeChanged;
         RootGrid.ActualThemeChanged += (_, _) => PaintCaptionButtons();
         PaintCaptionButtons();
+        // A colour theme tints the title bar, toolbar and side pane; the pages and the surface around them stay as they are.
+        ColorTheme.Follow(this, RootGrid, null);
         TitleBar.Loaded += (_, _) => SyncCaptionColumn();
         AppWindow.Changed += (_, e) =>
         {

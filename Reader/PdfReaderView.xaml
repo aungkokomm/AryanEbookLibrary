@@ -48,7 +48,7 @@
 
             <!-- Behind the toolbar only while it floats over the page. -->
             <Border x:Name="ToolBarBack" Grid.ColumnSpan="7" Margin="-8,-4,-8,-6" Visibility="Collapsed"
-                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    Background="{ThemeResource FloatingBarBrush}"
                     BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
 
             <!-- Back to the library first: a book opens in a window of its own, over the library. -->

@@ -55,6 +55,8 @@
         </Grid>
 
         <Grid Grid.Row="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8,8,0,0">
+            <!-- A colour theme's tint of the page (ColorTheme.Follow); empty for Aryan blue -->
+            <Border x:Name="PageTint" CornerRadius="8,8,0,0" />
             <ScrollViewer x:Name="ContentScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                           ViewChanged="OnContentScrolled" SizeChanged="OnScrollerSizeChanged">
                 <StackPanel MaxWidth="1100" Padding="24,20,24,40">
@@ -350,7 +352,7 @@
 
             <!-- Sticky bar: once the banner has scrolled away, the title and Read stay at hand -->
             <Border x:Name="StickyBar" Visibility="Collapsed" VerticalAlignment="Top" Height="52" BorderThickness="0,0,0,1"
-                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    Background="{ThemeResource FloatingBarBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <Grid Padding="20,0" ColumnSpacing="12">
                     <Grid.ColumnDefinitions>

@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
@@ -6,8 +7,8 @@ namespace AryanEbookLibrary.Services;
 
 /// <summary>
 /// Colour themes, as My Notebook has them: one accent for every control (buttons, switches, selections, links,
-/// progress) and, for every theme but Aryan blue, a tint of it across the window's title bar, sidebar and page, as
-/// strong as the intensity setting says. Aryan blue is the classic look: App.xaml's hand-tuned brand blue over Mica,
+/// progress) and, for every theme but Aryan blue, a tint of it across every window's title bar, chrome and page, as
+/// strong as the intensity setting says (Follow). Aryan blue is the classic look: App.xaml's hand-tuned brand blue over Mica,
 /// brought back exactly as it was.
 /// </summary>
 public static class ColorTheme
@@ -59,6 +60,7 @@ public static class ColorTheme
     /// </summary>
     public static void Apply()
     {
+        PaintBars();
         var resources = Application.Current.Resources;
         var brand = resources.MergedDictionaries.FirstOrDefault(d =>
             d.ThemeDictionaries.TryGetValue("Dark", out var t) && ((ResourceDictionary)t).ContainsKey("SystemAccentColorLight2"));
@@ -120,7 +122,67 @@ public static class ColorTheme
     }
 
     /// <summary>The intensity setting changed.</summary>
-    public static void IntensityChanged() => TintChanged?.Invoke();
+    public static void IntensityChanged()
+    {
+        PaintBars();
+        TintChanged?.Invoke();
+    }
+
+    private static (Color Dark, Color Light)? _plainBars;
+
+    /// <summary>
+    /// App.xaml's FloatingBarBrush, for bars that float over a page: the window's tint in both themes, or their plain
+    /// colour back for Aryan blue. Changed in place, so open windows follow.
+    /// </summary>
+    private static void PaintBars()
+    {
+        var themes = Application.Current.Resources.ThemeDictionaries;
+        var dark = (SolidColorBrush)((ResourceDictionary)themes["Default"])["FloatingBarBrush"];
+        var light = (SolidColorBrush)((ResourceDictionary)themes["Light"])["FloatingBarBrush"];
+        _plainBars ??= (dark.Color, light.Color);
+        dark.Color = Surfaces(true)?.Chrome ?? _plainBars.Value.Dark;
+        light.Color = Surfaces(false)?.Chrome ?? _plainBars.Value.Light;
+    }
+
+    /// <summary>
+    /// Keeps a window in the colour theme until it closes: root is its root grid (title bar and chrome, otherwise
+    /// Mica), page the optional border behind its page. It follows the app theme, a new accent and the intensity.
+    /// </summary>
+    public static void Follow(Window window, Panel root, Border? page)
+    {
+        var plain = root.Background;
+        void Paint()
+        {
+            if (Surfaces(root.ActualTheme == ElementTheme.Dark) is { } tint)
+            {
+                root.Background = new SolidColorBrush(tint.Chrome);
+                if (page is not null) page.Background = new SolidColorBrush(tint.Page);
+            }
+            else
+            {
+                root.Background = plain;
+                if (page is not null) page.Background = null;
+            }
+        }
+        // Fluent's accent brushes were made from the old shades: a theme flip makes every control in the window look
+        // them up again. Flyouts and dialogs made from now on use the new ones by themselves.
+        void NewAccent()
+        {
+            var requested = root.RequestedTheme;
+            root.RequestedTheme = root.ActualTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+            root.RequestedTheme = requested;
+            Paint();
+        }
+        Paint();
+        root.ActualThemeChanged += (_, _) => Paint();
+        AccentChanged += NewAccent;
+        TintChanged += Paint;
+        window.Closed += (_, _) =>
+        {
+            AccentChanged -= NewAccent;
+            TintChanged -= Paint;
+        };
+    }
 
     private static readonly Color White = Color.FromArgb(255, 255, 255, 255);
     private static readonly Color DarkChrome = Color.FromArgb(255, 28, 28, 28);
