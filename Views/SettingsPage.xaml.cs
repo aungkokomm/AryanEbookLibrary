@@ -35,6 +35,8 @@ public sealed partial class SettingsPage : Page
         DefineMyanmarBox.IsChecked = AppServices.Settings.DefineShowsMyanmar;
         DefineHindiBox.IsChecked = AppServices.Settings.DefineShowsHindi;
         Select(ReaderToolbarBox, AppServices.Settings.ReaderToolbar);
+        Select(ReadAloudSpeedBox, AppServices.Settings.ReadAloudRate.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        ShowVoices();
         Select(LanguageBox, AppServices.Settings.PreferredLanguage);
         Select(FormatBox, AppServices.Settings.PreferredFormat);
         ShowKeptCopies();
@@ -138,6 +140,31 @@ public sealed partial class SettingsPage : Page
         AppServices.Settings.ReaderToolbar = TagOf(ReaderToolbarBox) is "Hide" ? "Hide" : "Always";
         AppServices.Settings.Save();
         Reader.ReaderWindow.ToolbarSettingChanged();
+    }
+
+    private void OnReadAloudSpeedChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        if (double.TryParse(TagOf(ReadAloudSpeedBox), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rate))
+            AppServices.Settings.ReadAloudRate = rate;
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>Read aloud uses Windows' own voices: which languages they read here, and where more come from.</summary>
+    private void ShowVoices()
+    {
+        string languages;
+        try
+        {
+            languages = Reader.ReadAloud.VoiceLanguages();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("read aloud: the voices could not be listed: " + ex.Message);
+            languages = "";
+        }
+        VoicesText.Text = (languages.Length > 0 ? $"Windows' voices here read {languages}. " : "Windows has no voices here. ")
+            + "More are added in Windows Settings, Time & language, Speech. Ctrl+Shift+U reads a book aloud.";
     }
 
     private void OnDefineLanguagesChanged(object sender, RoutedEventArgs e)

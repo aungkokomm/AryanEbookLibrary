@@ -110,6 +110,12 @@
             </StackPanel>
 
             <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="6,0,0,0">
+                <!-- Read aloud with Windows' voices, a page at a time from the page shown -->
+                <ToggleButton x:Name="ReadAloudButton" Width="36" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
+                              AllowFocusOnInteraction="False" Checked="OnReadAloudToggled" Unchecked="OnReadAloudToggled"
+                              AutomationProperties.Name="Read aloud" ToolTipService.ToolTip="Read aloud (Ctrl+Shift+U)">
+                    <FontIcon Glyph="&#xE767;" FontSize="15" />
+                </ToggleButton>
                 <!-- Lit while the page being read is bookmarked; the bookmarks are listed under Highlights -->
                 <ToggleButton x:Name="BookmarkButton" Width="36" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
                               AllowFocusOnInteraction="False" Checked="OnBookmarkToggled" Unchecked="OnBookmarkToggled"
@@ -252,6 +258,9 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Read aloud found nothing it can speak: pages that are pictures, or a language with no Windows voice. -->
+                <InfoBar x:Name="SpeechBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16" Background="{ThemeResource FloatingBarBrush}"
+                         MaxWidth="560" IsOpen="False" Severity="Informational" IsClosable="True" />
                 <!-- The last page: offer to mark the book finished, once. -->
                 <InfoBar x:Name="EndBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
                          MaxWidth="560" IsOpen="False" Severity="Success" IsClosable="True"

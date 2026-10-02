@@ -44,6 +44,7 @@ public sealed class AppSettings
     public string ReaderLineSpacing { get; set; } = "normal";  // tight | normal | wide | extra
     public string ReaderTextWidth { get; set; } = "medium";    // narrow | medium | wide
     public bool ReaderJustify { get; set; }
+    public double ReadAloudRate { get; set; } = 1.0;           // Windows' usual speed is 1
     // And for CBZ and CBR comics.
     public bool ReadComicsInApp { get; set; } = true;
     public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width

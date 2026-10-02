@@ -96,6 +96,12 @@
             </StackPanel>
 
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="6,0,0,0">
+                <!-- Read aloud with Windows' voices, from the place shown; the paragraph read is marked on the page -->
+                <ToggleButton x:Name="ReadAloudButton" Width="36" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
+                              AllowFocusOnInteraction="False" Checked="OnReadAloudToggled" Unchecked="OnReadAloudToggled"
+                              AutomationProperties.Name="Read aloud" ToolTipService.ToolTip="Read aloud (Ctrl+Shift+U)">
+                    <FontIcon Glyph="&#xE767;" FontSize="15" />
+                </ToggleButton>
                 <!-- Lit while the place being read is bookmarked; the bookmarks are listed under Highlights -->
                 <ToggleButton x:Name="BookmarkButton" Width="36" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
                               AllowFocusOnInteraction="False" Checked="OnBookmarkToggled" Unchecked="OnBookmarkToggled"
@@ -218,6 +224,11 @@
                             HorizontalAlignment="Center" Click="OnOpenExternally" />
                 </StackPanel>
 
+                <!-- Read aloud found no Windows voice for the book's language (Burmese has none). -->
+                <InfoBar x:Name="SpeechBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16" Background="{ThemeResource FloatingBarBrush}"
+                         MaxWidth="560" IsOpen="False" Severity="Informational" IsClosable="True"
+                         Title="No voice for this language"
+                         Message="Windows has no voice that reads this book's language, so it cannot be read aloud. Voices for other languages are added in Windows Settings, Time &amp; language, Speech." />
                 <!-- The last page: offer to mark the book finished, once. -->
                 <InfoBar x:Name="EndBar" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
                          MaxWidth="560" IsOpen="False" Severity="Success" IsClosable="True"

@@ -36,8 +36,9 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     public event Action<int, int>? PageChanged;
 
-    // The pages are XAML, so the window hears their input, Escape and Ctrl+W itself.
-    public event Action? Activity { add { } remove { } }
+    // The pages are XAML, so the window hears their input, Escape and Ctrl+W itself. Activity is reading aloud, which
+    // has no input to hear.
+    public event Action? Activity;
     public event Action? EscapeRequested { add { } remove { } }
     public event Action? CloseRequested { add { } remove { } }
 
@@ -956,7 +957,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             () =>
             {
                 TimeLeftText.Visibility = SearchCountText.Visibility = ZoomGroup.Visibility = ShortcutsButton.Visibility =
-                    LibraryLabel.Visibility = BookmarkButton.Visibility = Visibility.Visible;
+                    LibraryLabel.Visibility = BookmarkButton.Visibility = ReadAloudButton.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
             },
             () => TimeLeftText.Visibility = Visibility.Collapsed,
@@ -965,6 +966,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomGroup.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed,
+            () => ReadAloudButton.Visibility = Visibility.Collapsed,   // Ctrl+Shift+U still reads
             () => BookmarkButton.Visibility = Visibility.Collapsed);   // Ctrl+D still marks the page
 
     // ================================================================ contents
@@ -1680,6 +1682,110 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     private double PositionOf(int page, double within) =>
         _book is not { PageCount: > 0 } book ? 0 : (page + Math.Clamp(within, 0, 0.999)) / book.PageCount;
 
+    // ---- read aloud ----
+
+    private ReadAloud? _speech;
+    private bool _reading;
+    private bool _showingReading;
+    private bool _spoke;         // something was spoken since reading began
+    private bool _sawWords;      // a page had words, whether or not they could be spoken
+    private int _silentPages;    // pages in a row with nothing spoken
+    private int _readPage = -1;
+
+    /// <summary>The button turned on or off, by a click, Space or a screen reader.</summary>
+    private void OnReadAloudToggled(object sender, RoutedEventArgs e)
+    {
+        if (_showingReading) return;
+        if (ReadAloudButton.IsChecked == true) StartReading();
+        else StopReading();
+    }
+
+    private void ToggleReading()
+    {
+        if (_reading) StopReading();
+        else StartReading();
+    }
+
+    /// <summary>From the page shown on, a page at a time, the view going to each page as it is read.</summary>
+    private void StartReading()
+    {
+        if (_book is null || _currentPage < 0) return;
+        if (_speech is null)
+        {
+            _speech = new ReadAloud();
+            _speech.Ended += () => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_reading) _ = ReadPageAsync(_readPage + 1);
+            });
+        }
+        (_spoke, _sawWords, _silentPages) = (false, false, 0);
+        SpeechBar.IsOpen = false;
+        ShowReading(true);
+        _ = ReadPageAsync(_currentPage);
+    }
+
+    private void StopReading()
+    {
+        if (!_reading) return;
+        ShowReading(false);
+        _speech?.Stop();
+    }
+
+    private void ShowReading(bool on)
+    {
+        _reading = on;
+        _showingReading = true;
+        ReadAloudButton.IsChecked = on;
+        _showingReading = false;
+        ToolTipService.SetToolTip(ReadAloudButton, on ? "Stop reading aloud (Ctrl+Shift+U)" : "Read aloud (Ctrl+Shift+U)");
+    }
+
+    /// <summary>
+    /// A page's words. A page with none (a scan) or none that can be spoken is passed over; when the first few pages
+    /// all are, reading stops and says why rather than turning through the book in silence.
+    /// </summary>
+    private async Task ReadPageAsync(int page)
+    {
+        if (!_reading || _book is not { } book || _speech is null) return;
+        if (page >= book.PageCount)
+        {
+            StopReading();
+            return;
+        }
+        _readPage = page;
+        var text = await Task.Run(() => string.Join(' ', (Text(page)?.Text ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+        if (!_reading) return;
+        if (page != _currentPage) GoToPage(page);
+        Activity?.Invoke();   // listening is reading: the reading log counts it
+        // A font's own glyph numbers (private use) or broken characters would be read out as nonsense.
+        var speakable = text.Length > 0 && !text.Any(c => c is >= (char)0xE000 and <= (char)0xF8FF or (char)0xFFFD);
+        _sawWords |= text.Length > 0;
+        try
+        {
+            if (speakable && await _speech.SpeakAsync(text, AppServices.Settings.ReadAloudRate))
+            {
+                (_spoke, _silentPages) = (true, 0);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write("read aloud: " + ex.Message);
+        }
+        if (!_reading) return;
+        if (!_spoke && ++_silentPages >= 3)
+        {
+            StopReading();
+            SpeechBar.Title = _sawWords ? "No voice for this language" : "No words to read";
+            SpeechBar.Message = _sawWords
+                ? "Windows has no voice that reads this book's language, or its text cannot be read out. Voices for other languages are added in Windows Settings, Time & language, Speech."
+                : "This PDF's pages are pictures, with no text in them, so there is nothing to read aloud.";
+            SpeechBar.IsOpen = true;
+            return;
+        }
+        _ = ReadPageAsync(page + 1);
+    }
+
     // ---- bookmarks ----
 
     private bool _showingBookmark;
@@ -2065,6 +2171,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => OnSearchPrevious(this, new RoutedEventArgs()));
         Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusPageBox);
         Add(VirtualKey.D, VirtualKeyModifiers.Control, ToggleBookmark);
+        Add(VirtualKey.U, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, ToggleReading);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, GoBack);
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, GoForward);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -2079,6 +2186,11 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (_reveal.HasFocus)
         {
             FocusPages();
+            return true;
+        }
+        if (_reading)
+        {
+            StopReading();
             return true;
         }
         if (_notes?.BarOpen == true)
@@ -2126,6 +2238,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _reveal.Close();
         _flashTimer?.Stop();
         _searchCts?.Cancel();
+        _reading = false;
+        _speech?.Dispose();
         _queue?.Dispose();
         var book = _book;
         _book = null;

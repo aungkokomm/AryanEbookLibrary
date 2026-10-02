@@ -89,6 +89,7 @@ internal static class ReaderShortcuts
             AddGroup(panel, "Finding", find);
         }
         AddGroup(panel, "Marking", new[] { ("Ctrl+D", "Bookmark this page, or take its bookmark off") });
+        if (!comic) AddGroup(panel, "Listening", new[] { ("Ctrl+Shift+U", "Read aloud from here, or stop; Escape stops too") });
         AddGroup(panel, "View", view);
         AddGroup(panel, "Mouse", mouse);
         AddGroup(panel, "Window", new[]

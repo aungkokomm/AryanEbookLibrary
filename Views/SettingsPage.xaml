@@ -140,6 +140,23 @@
                 </Border>
                 <Border Style="{StaticResource SettingCardStyle}">
                     <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                        <FontIcon Glyph="&#xE767;" Style="{StaticResource SettingIconStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Read aloud speed" />
+                            <!-- Which languages this computer's voices read, filled in from Windows -->
+                            <TextBlock x:Name="VoicesText" Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                        <ComboBox x:Name="ReadAloudSpeedBox" Grid.Column="2" Width="200" VerticalAlignment="Center"
+                                  SelectionChanged="OnReadAloudSpeedChanged" AutomationProperties.Name="Read aloud speed">
+                            <ComboBoxItem Content="Slower" Tag="0.75" />
+                            <ComboBoxItem Content="Normal" Tag="1" />
+                            <ComboBoxItem Content="Faster" Tag="1.25" />
+                            <ComboBoxItem Content="Fastest" Tag="1.5" />
+                        </ComboBox>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource SettingCardStyle}">
+                    <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
                         <FontIcon Glyph="&#xE82D;" Style="{StaticResource SettingIconStyle}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Define in other languages" />

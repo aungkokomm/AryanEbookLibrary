@@ -60,6 +60,8 @@ const css = () => {
             widows: 2;
         }
         ${font ? `body, body *:not(code):not(pre):not(kbd):not(samp):not(tt) { font-family: ${font} !important; }` : ''}
+        .aryan-reading { background-color: rgba(250, 204, 21, .3) !important; box-shadow: 0 0 0 4px rgba(250, 204, 21, .3); border-radius: 3px; }
+        ::highlight(aryan-word) { background-color: rgb(250, 204, 21); color: #000; }
         ${spacing ? `body, p, li, blockquote, dd, div { line-height: ${spacing} !important; }` : ''}
         [align="left"] { text-align: left; }
         [align="right"] { text-align: right; }
@@ -155,6 +157,7 @@ const open = async (url, lastLocation, p, list) => {
 
 const onRelocate = detail => {
     const { fraction, location, tocItem, pageItem, cfi } = detail
+    lastRange = detail.range ?? null
     post({
         type: 'relocate',
         fraction: fraction ?? 0,
@@ -166,6 +169,98 @@ const onRelocate = detail => {
         page: pageItem?.label ?? '',
     })
     activity(true)
+}
+
+// ---- read aloud ----
+// The app speaks, a paragraph at a time, with Windows' voices; this finds the paragraphs from the place being read on,
+// marks the one spoken and keeps it in view, and goes on into the next section at the end of one.
+
+const SPOKEN = 'p, li, h1, h2, h3, h4, h5, h6, blockquote, dd, dt, figcaption, td, th, pre, div'
+let lastRange = null
+let reading = null   // { index, blocks, i }
+
+// The innermost blocks with words: a quote or a div holding paragraphs is read through its paragraphs.
+const spokenBlocks = doc => [...(doc?.body?.querySelectorAll(SPOKEN) ?? [])]
+    .filter(el => !el.querySelector(SPOKEN) && el.textContent.trim().length > 0)
+
+const unmarkReading = () => {
+    const el = reading?.blocks[reading.i]
+    el?.classList.remove('aryan-reading')
+    el?.ownerDocument.defaultView?.CSS?.highlights?.delete('aryan-word')
+}
+
+// Where the nth character of a paragraph's spoken text is in its text nodes. The text was sent with each run of white
+// space made one space and the ends trimmed, so they are counted the same way here.
+const pointAt = (el, n) => {
+    const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let count = 0, space = true
+    for (let node; (node = walker.nextNode());)
+        for (let k = 0; k < node.data.length; k++) {
+            if (/\s/.test(node.data[k])) {
+                if (space) continue
+                space = true
+            } else space = false
+            if (count++ === n) return [node, k]
+        }
+    return null
+}
+
+// The word being spoken: marked, and the page turned when it goes on past the one shown.
+const readWord = async (at, length) => {
+    const el = reading?.blocks[reading.i]
+    const start = el && pointAt(el, at), end = el && pointAt(el, at + length - 1)
+    if (!start || !end) return
+    const doc = el.ownerDocument, range = doc.createRange()
+    range.setStart(...start)
+    range.setEnd(end[0], end[1] + 1)
+    const win = doc.defaultView
+    if (win?.Highlight) win.CSS.highlights.set('aryan-word', new win.Highlight(range))
+    if (lastRange?.startContainer.ownerDocument !== doc || lastRange.comparePoint(...start) > 0)
+        await view.renderer.scrollToAnchor?.(range)
+}
+
+const speakBlock = async () => {
+    const el = reading.blocks[reading.i]
+    el.classList.add('aryan-reading')
+    const range = el.ownerDocument.createRange()
+    range.selectNodeContents(el)
+    await view.renderer.scrollToAnchor?.(range)
+    post({ type: 'readText', text: el.textContent.replace(/\s+/g, ' ').trim() })
+}
+
+const readStart = async () => {
+    const { doc, index } = view?.renderer?.getContents?.()[0] ?? {}
+    if (!doc) return post({ type: 'readEnd' })
+    const blocks = spokenBlocks(doc)
+    // From the first paragraph that is at or after the place shown.
+    const at = lastRange?.startContainer
+    let i = at && at.ownerDocument === doc
+        ? blocks.findIndex(el => el.contains(at) || (at.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))
+        : 0
+    reading = { index, blocks, i: Math.max(0, i) - 1 }
+    await readNext()
+}
+
+const readNext = async () => {
+    if (!reading) return
+    unmarkReading()
+    reading.i++
+    while (reading.i >= reading.blocks.length) {
+        const next = reading.index + 1
+        if (next >= (view.book.sections?.length ?? 0)) {
+            reading = null
+            return post({ type: 'readEnd' })
+        }
+        await view.renderer.goTo({ index: next })
+        const { doc, index } = view.renderer.getContents()[0] ?? {}
+        reading = { index: index ?? next, blocks: spokenBlocks(doc), i: 0 }
+    }
+    await speakBlock()
+}
+
+const readStop = () => {
+    unmarkReading()
+    reading = null
 }
 
 // ---- input ----
@@ -181,7 +276,7 @@ const activity = force => {
 
 // Keys the app itself answers: the page has the keyboard, so they come from here.
 const APP_KEYS = ['F1', 'F3', 'F11', 'Escape']
-const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', 'd', 'D', '=', '+', '-', '0']
+const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', 'd', 'D', 'u', 'U', '=', '+', '-', '0']
 
 // A fixed-layout book (a Kindle comic) is always shown a page at a time, whatever the layout setting.
 const scrolled = () => prefs.flow === 'scrolled' && !view?.isFixedLayout
@@ -597,6 +692,10 @@ window.chrome.webview.addEventListener('message', async e => {
             case 'deselect': view?.deselect(); break
             case 'probe': probe(m.word); break
             case 'probeSelect': probeSelect(m.word); break
+            case 'readStart': await readStart(); break
+            case 'readNext': await readNext(); break
+            case 'readWord': await readWord(m.at, m.length); break
+            case 'readStop': readStop(); break
         }
     } catch (err) {
         console.error(err)

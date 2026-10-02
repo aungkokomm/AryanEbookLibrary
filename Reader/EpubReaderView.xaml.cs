@@ -292,6 +292,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "selection": OnSelection(m); break;
             case "mark": OnMarkClicked(m); break;
             case "tap": _reveal.Show(ToolbarReveal.TapHold); break;
+            case "readText": OnReadText(Str(m, "text")); break;
+            case "readEnd": StopReading(); break;
         }
     }
 
@@ -394,6 +396,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "g" or "G": FocusProgress(); break;
             case "w" or "W": CloseRequested?.Invoke(); break;
             case "d" or "D": ToggleBookmark(); break;
+            case "u" or "U" when Flag(m, "shift"): ToggleReading(); break;
             case "=" or "+": SetFontSize(_fontSize + FontStep); break;
             case "-": SetFontSize(_fontSize - FontStep); break;
             case "0": SetFontSize(100); break;
@@ -670,7 +673,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () =>
             {
                 TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ZoomButton.Visibility =
-                    ShortcutsButton.Visibility = LibraryLabel.Visibility = BookmarkButton.Visibility = Visibility.Visible;
+                    ShortcutsButton.Visibility = LibraryLabel.Visibility = BookmarkButton.Visibility = ReadAloudButton.Visibility =
+                    Visibility.Visible;
                 SearchBox.Width = 200;
                 ChapterText.Width = ChapterRoom;
             },
@@ -681,6 +685,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomButton.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed,
+            () => ReadAloudButton.Visibility = Visibility.Collapsed,   // Ctrl+Shift+U still reads
             () => BookmarkButton.Visibility = Visibility.Collapsed);   // Ctrl+D still marks the page
         ChapterText.Width = double.NaN;
     }
@@ -749,6 +754,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => StepSearch(-1));
         Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusProgress);
         Add(VirtualKey.D, VirtualKeyModifiers.Control, ToggleBookmark);
+        Add(VirtualKey.U, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, ToggleReading);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "back" }));
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "forward" }));
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -789,6 +795,97 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private const string AnchorTag = "epub1:";
     private const string BookmarkTag = "epubmark1:";
     private string _chapter = "";
+
+    // ---- read aloud ----
+
+    private ReadAloud? _speech;
+    private bool _reading;
+    private bool _showingReading;
+    private bool _spoke;    // something was spoken since reading began
+    private int _silent;    // paragraphs in a row with no voice for them
+
+    /// <summary>The button turned on or off, by a click, Space or a screen reader.</summary>
+    private void OnReadAloudToggled(object sender, RoutedEventArgs e)
+    {
+        if (_showingReading) return;
+        if (ReadAloudButton.IsChecked == true) StartReading();
+        else StopReading();
+    }
+
+    private void ToggleReading()
+    {
+        if (_reading) StopReading();
+        else StartReading();
+    }
+
+    /// <summary>From the place shown on: the page script hands over a paragraph at a time.</summary>
+    private void StartReading()
+    {
+        if (_current < 0) return;
+        if (_speech is null)
+        {
+            _speech = new ReadAloud();
+            _speech.Ended += () => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_reading) Post(new JsonObject { ["type"] = "readNext" });
+            });
+            _speech.Word += (at, length) => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_reading) Post(new JsonObject { ["type"] = "readWord", ["at"] = at, ["length"] = length });
+            });
+        }
+        (_spoke, _silent) = (false, 0);
+        SpeechBar.IsOpen = false;
+        ShowReading(true);
+        Post(new JsonObject { ["type"] = "readStart" });
+    }
+
+    private void StopReading()
+    {
+        if (!_reading) return;
+        ShowReading(false);
+        _speech?.Stop();
+        Post(new JsonObject { ["type"] = "readStop" });
+    }
+
+    private void ShowReading(bool on)
+    {
+        _reading = on;
+        _showingReading = true;
+        ReadAloudButton.IsChecked = on;
+        _showingReading = false;
+        ToolTipService.SetToolTip(ReadAloudButton, on ? "Stop reading aloud (Ctrl+Shift+U)" : "Read aloud (Ctrl+Shift+U)");
+    }
+
+    /// <summary>
+    /// A paragraph to speak. One with no voice is passed over; when the first few all have none (a Burmese book), reading
+    /// stops and says why rather than racing silently through the book.
+    /// </summary>
+    private async void OnReadText(string text)
+    {
+        if (!_reading || _speech is null) return;
+        Activity?.Invoke();   // listening is reading: the reading log counts it
+        try
+        {
+            if (await _speech.SpeakAsync(text, AppServices.Settings.ReadAloudRate))
+            {
+                (_spoke, _silent) = (true, 0);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write("read aloud: " + ex.Message);
+        }
+        if (!_reading) return;
+        if (!_spoke && ++_silent >= 3)
+        {
+            StopReading();
+            SpeechBar.IsOpen = true;
+            return;
+        }
+        Post(new JsonObject { ["type"] = "readNext" });
+    }
 
     // ---- bookmarks ----
 
@@ -919,6 +1016,11 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             FocusPages();
             return true;
         }
+        if (_reading)
+        {
+            StopReading();
+            return true;
+        }
         if (_notes?.BarOpen == true)
         {
             _notes.HideBar();
@@ -946,6 +1048,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     {
         if (_closed) return;
         _closed = true;
+        _reading = false;
+        _speech?.Dispose();
         _reveal.Close();
         Web.Close();
     }
