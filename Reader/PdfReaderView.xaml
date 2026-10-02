@@ -15,6 +15,9 @@
                     <SolidColorBrush x:Key="ReaderSurfaceBrush" Color="#FF1A1A1C" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+            <!-- Two page pictures side by side in the 290 wide pane (PageThumbWidth in code too) -->
+            <x:Double x:Key="PageThumbWidth">108</x:Double>
+            <x:Double x:Key="PageThumbHeight">146</x:Double>
             <Style x:Key="ToolButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="Width" Value="36" />
                 <Setter Property="Height" Value="32" />
@@ -147,6 +150,7 @@
                   BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
                 <SelectorBar x:Name="PaneTabs" Margin="4,4,4,0" SelectionChanged="OnPaneTabChanged">
                     <SelectorBarItem x:Name="ContentsTab" Text="Contents" IsSelected="True" />
+                    <SelectorBarItem x:Name="PagesTab" Text="Pages" />
                     <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" />
                 </SelectorBar>
                 <ListView x:Name="OutlineList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
@@ -172,6 +176,31 @@
                 <TextBlock x:Name="NoOutlineText" Grid.Row="1" Margin="16,4,16,0" TextWrapping="Wrap" Visibility="Collapsed"
                            Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="This book has no table of contents of its own." />
+                <!-- Every page as a small picture, drawn as it scrolls into view (OnPageThumbChanging). The page being
+                     read is the selected one. -->
+                <GridView x:Name="PagesList" Grid.Row="1" Visibility="Collapsed" SelectionMode="Single"
+                          IsItemClickEnabled="True" ItemClick="OnPageThumbClick"
+                          ContainerContentChanging="OnPageThumbChanging" Padding="10,8,4,12">
+                    <GridView.ItemContainerStyle>
+                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                            <Setter Property="Margin" Value="2" />
+                            <Setter Property="Padding" Value="6" />
+                        </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="{StaticResource PageThumbWidth}" Spacing="4">
+                                <Border Height="{StaticResource PageThumbHeight}" BorderThickness="1"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                                    <Image Stretch="Uniform" />
+                                </Border>
+                                <TextBlock HorizontalAlignment="Center" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
                 <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" Visibility="Collapsed" />
             </Grid>
 

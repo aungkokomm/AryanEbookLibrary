@@ -295,6 +295,13 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (_closed) return;
         _outline = outline;
         OutlineList.ItemsSource = outline.Select(e => new OutlineRow(e)).ToList();
+        // No contents of its own (most scanned books): the pane shows the pages instead of an empty tab.
+        // (Removed, not collapsed: a SelectorBar whose selected item is collapsed showed no tabs at all.)
+        if (outline.Count == 0)
+        {
+            if (!ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab)) PaneTabs.SelectedItem = PagesTab;
+            PaneTabs.Items.Remove(ContentsTab);
+        }
         ShowPaneTab();
     }
 
@@ -837,6 +844,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             ClearTiles(card);
         }
         UpdateView(final: true);
+        ForgetThumbs();
     }
 
     // ================================================================ page number and moving by pages
@@ -845,6 +853,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     {
         if (_currentPage >= 0 && !ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), PageBox))
             PageBox.Text = (_currentPage + 1).ToString(CultureInfo.CurrentCulture);
+        FollowCurrentPage();
     }
 
     private void OnPageBoxKeyDown(object sender, KeyRoutedEventArgs e)
@@ -1875,12 +1884,117 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     private void ShowPaneTab()
     {
         var highlights = ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab);
+        var pages = ReferenceEquals(PaneTabs.SelectedItem, PagesTab);
+        var contents = !highlights && !pages;
         HighlightsList.Visibility = highlights ? Visibility.Visible : Visibility.Collapsed;
-        OutlineList.Visibility = highlights ? Visibility.Collapsed : Visibility.Visible;
-        NoOutlineText.Visibility = !highlights && OutlineLoaded && _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        OutlineList.Visibility = contents ? Visibility.Visible : Visibility.Collapsed;
+        NoOutlineText.Visibility = contents && OutlineLoaded && _outline.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PagesList.Visibility = pages ? Visibility.Visible : Visibility.Collapsed;
+        if (pages) ShowThumbs();
     }
 
     private bool OutlineLoaded => OutlineList.ItemsSource is not null;
+
+    // ---- the Pages tab: every page as a small picture ----
+
+    private const double PageThumbWidth = 108;   // as in the XAML
+    private const int ThumbsKept = 120;          // pictures kept for scrolling back (each about 0.3 MB)
+    private readonly Dictionary<int, WriteableBitmap> _thumbs = new();
+    private readonly Queue<int> _thumbOrder = new();
+    // One page picture at a time, and none for a picture already scrolled away: a fast fling through a long book must
+    // not stand in front of the pages being read.
+    private readonly SemaphoreSlim _thumbGate = new(1, 1);
+
+    /// <summary>The pictures, made the first time the tab is shown, with the page being read selected and in view.</summary>
+    private void ShowThumbs()
+    {
+        if (_book is not { } book) return;
+        if (PagesList.ItemsSource is not List<int> pages || pages.Count != book.PageCount)
+            PagesList.ItemsSource = Enumerable.Range(0, book.PageCount).ToList();
+        FollowCurrentPage();
+    }
+
+    private void FollowCurrentPage()
+    {
+        if (PagesList.Visibility != Visibility.Visible || _currentPage < 0 || PagesList.ItemsSource is not List<int> pages
+            || _currentPage >= pages.Count || PagesList.SelectedIndex == _currentPage) return;
+        PagesList.SelectedIndex = _currentPage;
+        PagesList.ScrollIntoView(_currentPage);
+    }
+
+    private void OnPageThumbChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.ItemContainer.ContentTemplateRoot is not StackPanel { Children: [Border { Child: Image image }, TextBlock label] })
+            return;
+        if (args.InRecycleQueue)
+        {
+            image.Source = null;
+            image.Tag = null;
+            return;
+        }
+        var page = (int)args.Item;
+        label.Text = (page + 1).ToString(CultureInfo.CurrentCulture);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(args.ItemContainer, $"Page {page + 1}");
+        image.Tag = page;
+        args.Handled = true;
+        if (_thumbs.TryGetValue(page, out var made))
+        {
+            image.Source = made;
+            return;
+        }
+        image.Source = null;
+        _ = MakeThumbAsync(page, image);
+    }
+
+    private async Task MakeThumbAsync(int page, Image image)
+    {
+        var book = _book;
+        if (book is null) return;
+        var (theme, generation) = (_theme, _themeGeneration);
+        var width = (int)Math.Ceiling(PageThumbWidth * (XamlRoot?.RasterizationScale ?? 1));
+        await _thumbGate.WaitAsync();
+        try
+        {
+            // Scrolled away (or closed, or recoloured) while waiting its turn: nothing to draw.
+            if (_closed || generation != _themeGeneration || image.Tag is not int wanted || wanted != page) return;
+            var render = await Task.Run(() =>
+            {
+                var r = book.RenderPage(page, width);
+                if (r is { } done) PageColors.Apply(done.Bgra, theme);
+                return r;
+            });
+            if (_closed || generation != _themeGeneration || render is not { } result) return;
+            var bitmap = ToBitmap(result);
+            _thumbs[page] = bitmap;
+            _thumbOrder.Enqueue(page);
+            while (_thumbOrder.Count > ThumbsKept) _thumbs.Remove(_thumbOrder.Dequeue());
+            if (image.Tag is int now && now == page) image.Source = bitmap;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"reader: the picture of page {page + 1} could not be made: {ex.Message}");
+        }
+        finally
+        {
+            _thumbGate.Release();
+        }
+    }
+
+    private void OnPageThumbClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not int page) return;
+        JumpTo(page);
+        FocusPages();
+    }
+
+    /// <summary>A new page colour: the pictures are drawn again in it.</summary>
+    private void ForgetThumbs()
+    {
+        _thumbs.Clear();
+        _thumbOrder.Clear();
+        if (PagesList.ItemsSource is List<int> pages) PagesList.ItemsSource = pages.ToList();
+        FollowCurrentPage();
+    }
 
     // ================================================================ keys
 
