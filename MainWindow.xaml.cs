@@ -20,7 +20,9 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        StartupTimes.Mark("theme");
         InitializeComponent();
+        StartupTimes.Mark("window");
 
         Title = "Aryan eBook Library";
         // Mica, so the title bar and the sidebar sit on the desktop's own material, as Windows 11 apps do.
@@ -82,6 +84,7 @@ public sealed partial class MainWindow : Window
 
         SelectNav("all");
         ContentFrame.Navigate(typeof(LibraryPage));
+        StartupTimes.Mark("page");
         // The search box must not be what the app opens with a caret in.
         // Pointer focus, not Programmatic: it keeps the search box from taking focus at startup without
         // painting a focus rectangle on the pane button.

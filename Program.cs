@@ -19,6 +19,7 @@ public static class Program
     [STAThread]
     private static int Main()
     {
+        StartupTimes.Mark("main");
         WinRT.ComWrappersSupport.InitializeComWrappers();
 
         AppPaths.Init();
@@ -30,6 +31,7 @@ public static class Program
             return 0;
         }
 
+        StartupTimes.Mark("one copy");
         Application.Start(p =>
         {
             SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));

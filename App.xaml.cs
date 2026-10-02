@@ -11,6 +11,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        StartupTimes.Mark("app");
         // Every failure reaches the log. One on the window's thread is handled so Aryan carries on, and the user is told
         // once; one on another thread ends the app, and the next start says so (Session).
         UnhandledException += (_, e) =>
@@ -33,10 +34,13 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        StartupTimes.Mark("launched");
         AppServices.Init();
+        StartupTimes.Mark("services");
         Log.Write("app: started " + typeof(App).Assembly.GetName().Version?.ToString(3));
         Session.Begin();
         AppServices.Library = new LibraryViewModel();
+        StartupTimes.Mark("library");
         BookLauncher.InAppReader = book => Reader.ReaderWindow.Open(book);
 
         // The colour theme before the first window: every brush made from the accent then starts in its colour.

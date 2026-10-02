@@ -453,12 +453,22 @@ public sealed class LibraryViewModel : ObservableObject
             var clock = System.Diagnostics.Stopwatch.StartNew();
             await Task.Run(() => DriveRegistry.Refresh(Repo.GetDrives()));
             var drives = clock.ElapsedMilliseconds;
-            // Edits made while a drive was away reach its sidecars now that it is here.
-            await Task.Run(() => SyncSidecars(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId))));
-            var sidecars = clock.ElapsedMilliseconds;
             await ReloadAsync();
             Log.Write($"app: {TotalCount:N0} books shown {before + clock.ElapsedMilliseconds:N0} ms after start (app and window " +
-                      $"{before:N0}, drives {drives:N0}, sidecars {sidecars - drives:N0}, index {clock.ElapsedMilliseconds - sidecars:N0} ms)");
+                      $"{before:N0}, drives {drives:N0}, index {clock.ElapsedMilliseconds - drives:N0} ms)");
+            Log.Write($"app: start steps, ms after the process began: {StartupTimes.Summary()}");
+
+            // Edits made while a drive was away reach its sidecars now that it is here, and edits made on another
+            // computer come in. After the books show, not before: it reads (and may write) files in every folder, half
+            // a second to a second at start-up, and what comes in is rare, so the books are read again only then.
+            var synced = System.Diagnostics.Stopwatch.StartNew();
+            var came = await Task.Run(() => SyncSidecars(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId))));
+            Log.Write($"app: sidecars synced in {synced.ElapsedMilliseconds:N0} ms" + (came > 0 ? $", {came:N0} changes came in" : ""));
+            if (came > 0)
+            {
+                await ReloadAsync();
+                AppServices.Annotations.RaiseChanged();
+            }
             // Drive changes arrive from DeviceChangeWatcher (WM_DEVICECHANGE); nothing polls.
         }
         catch (Exception ex)
