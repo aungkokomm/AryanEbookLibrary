@@ -151,8 +151,8 @@ public sealed partial class MainWindow : Window
         _closedDown = true;
         Log.Write("app: " + why);
         _deviceWatcher.Dispose();
-        // A scan still running would go on writing to the database after it closes.
-        Library.CancelScan();
+        // A scan still running would go on writing to the database after it closes; a sidecar sync is let finish.
+        Library.Close();
         // The readers first: each saves its place and reading time, and the database closes after.
         Reader.ReaderWindow.CloseAll();
         BookDetailsWindow.CloseAll();   // a note being typed is saved
@@ -720,6 +720,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Many saves come at once (a list renamed on 200 books): the counts are worked out once after them.</summary>
     private void CountsSoon() => DispatcherQueue.TryEnqueue(() =>
     {
+        if (_closedDown) return;
         if (_countsTimer is null)
         {
             _countsTimer = DispatcherQueue.CreateTimer();
@@ -771,6 +772,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void RefreshCounts()
     {
+        // Closing during the start-up scan or sync left a refresh queued: the database is closed by then.
+        if (_closedDown) return;
         var run = ++_countsRun;
         var books = Library.AllBooks.ToList();
         var (highlights, notes) = AppServices.Annotations.Counts();

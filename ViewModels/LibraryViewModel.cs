@@ -16,6 +16,8 @@ public sealed class LibraryViewModel : ObservableObject
     private readonly DispatcherQueueTimer _searchTimer;
     private readonly Random _random = new();
     private CancellationTokenSource? _scanCts;
+    private Task _sidecarSync = Task.CompletedTask;   // the sidecars being brought level, which Close lets finish
+    private bool _closing;
     private List<Book> _all = new();
     private int _deviceChangeCallId;
 
@@ -462,8 +464,9 @@ public sealed class LibraryViewModel : ObservableObject
             // computer come in. After the books show, not before: it reads (and may write) files in every folder, half
             // a second to a second at start-up, and what comes in is rare, so the books are read again only then.
             var synced = System.Diagnostics.Stopwatch.StartNew();
-            var came = await Task.Run(() => SyncSidecars(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId))));
+            var came = await SyncSidecarsAsync(Repo.GetFolders().Where(f => DriveRegistry.IsOnline(f.DriveId)));
             Log.Write($"app: sidecars synced in {synced.ElapsedMilliseconds:N0} ms" + (came > 0 ? $", {came:N0} changes came in" : ""));
+            if (_closing) return;   // the window closed while they synced: the database is closed now
             if (came > 0)
             {
                 await ReloadAsync();
@@ -478,6 +481,7 @@ public sealed class LibraryViewModel : ObservableObject
             return;
         }
 
+        if (_closing) return;
         if (!Settings.AutoScanOnStart || Repo.GetFolders().Count == 0)
         {
             StartOnlineLookups();
@@ -513,6 +517,14 @@ public sealed class LibraryViewModel : ObservableObject
     /// </summary>
     private static int SyncSidecars(IEnumerable<LibraryFolder> folders) => folders.Sum(f => AppServices.Sync.SyncFolder(f));
 
+    /// <summary>The sync off the UI thread, kept so that closing waits for it.</summary>
+    private Task<int> SyncSidecarsAsync(IEnumerable<LibraryFolder> folders)
+    {
+        var sync = Task.Run(() => SyncSidecars(folders));
+        _sidecarSync = sync;
+        return sync;
+    }
+
     /// <summary>
     /// Called by DeviceChangeWatcher on the UI thread when Windows reports a volume arriving or leaving.
     /// USB hubs send several messages per plug-in, so calls are coalesced (CineLibrary's 150 ms debounce).
@@ -543,7 +555,7 @@ public sealed class LibraryViewModel : ObservableObject
             if (back.Count > 0 && !IsScanning)
             {
                 var folders = Repo.GetFolders().Where(f => back.Contains(f.DriveId)).ToList();
-                if (await Task.Run(() => SyncSidecars(folders)) > 0)
+                if (await SyncSidecarsAsync(folders) > 0 && !_closing)
                 {
                     await ReloadAsync();
                     AppServices.Annotations.RaiseChanged();
@@ -846,6 +858,24 @@ public sealed class LibraryViewModel : ObservableObject
     }
 
     public void CancelScan() => _scanCts?.Cancel();
+
+    /// <summary>
+    /// The window is closing, before the database does: a scan stops, and a sync of the sidecars under way (it writes to
+    /// them and to the database) is let finish, a second or two.
+    /// </summary>
+    public void Close()
+    {
+        _closing = true;
+        CancelScan();
+        try
+        {
+            if (!_sidecarSync.Wait(TimeSpan.FromSeconds(15))) Log.Write("app: the sidecars were still syncing at close");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("app: the sidecar sync failed: " + ex.Message);
+        }
+    }
 
     // ------------------------------------------------------------ personal state
 
