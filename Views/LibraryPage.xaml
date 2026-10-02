@@ -254,7 +254,7 @@
                      fills the width exactly with even gaps: no empty band on the right, no loose gaps. -->
                 <Border x:Name="GridArea" Grid.Row="1" Padding="28,0,28,28" SizeChanged="OnGridAreaSizeChanged"
                         Visibility="{x:Bind ViewModel.IsGridView, Mode=OneWay}">
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
+                    <ItemsRepeater x:Name="GridRepeater" ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout x:Name="GridLayout" MinItemWidth="150" MinItemHeight="240"
                                                MinColumnSpacing="12" MinRowSpacing="14" />
@@ -269,7 +269,7 @@
 
                 <!-- List view -->
                 <Border Grid.Row="1" Padding="28,0,28,28" Visibility="{x:Bind ViewModel.IsListView, Mode=OneWay}">
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
+                    <ItemsRepeater x:Name="ListRepeater" ItemsSource="{x:Bind ViewModel.Books, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
                         </ItemsRepeater.Layout>

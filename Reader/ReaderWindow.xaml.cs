@@ -269,13 +269,7 @@ public sealed partial class ReaderWindow : Window
         _shortcutsOpen = true;
         try
         {
-            await new ContentDialog
-            {
-                Title = "Keyboard and mouse",
-                Content = ReaderShortcuts.Build(_view),
-                CloseButtonText = "Close",
-                XamlRoot = RootGrid.XamlRoot,
-            }.ShowThemedAsync();
+            await ReaderShortcuts.ShowAsync(ReaderShortcuts.Build(_view), RootGrid.XamlRoot);
         }
         catch (Exception ex)
         {

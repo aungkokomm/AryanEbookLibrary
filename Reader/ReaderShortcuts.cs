@@ -1,3 +1,4 @@
+using AryanEbookLibrary.Views;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -5,9 +6,9 @@ using Microsoft.UI.Xaml.Controls;
 namespace AryanEbookLibrary.Reader;
 
 /// <summary>
-/// What F1 shows: every key and mouse action the reader answers, for the kind of book open. Kept beside the key
-/// handling it describes (PdfReaderView, EpubReaderView with reader.js, ComicReaderView, ReaderWindow); a key added
-/// there belongs here too.
+/// What F1 shows: every key and mouse action the reader answers, for the kind of book open, and in the library window
+/// the library's. Kept beside the key handling it describes (PdfReaderView, EpubReaderView with reader.js,
+/// ComicReaderView, ReaderWindow; MainWindow, BookCardControl, BookRowControl); a key added there belongs here too.
 /// </summary>
 internal static class ReaderShortcuts
 {
@@ -129,6 +130,48 @@ internal static class ReaderShortcuts
         Note(panel, "When the toolbar hides (Settings, Reading), point at the top of the page to bring it back.");
         return panel;
     }
+
+    /// <summary>The library window's keys and mouse actions.</summary>
+    public static UIElement Library()
+    {
+        var panel = new StackPanel { Spacing = 4, MinWidth = 440 };
+        AddGroup(panel, "Books", new[]
+        {
+            ("Tab, Shift+Tab", "Move between the books and the buttons"),
+            ("Page Down, Page Up", "Down or up a screen of books"),
+            ("Home, End", "The first or last book; Ctrl+Home and Ctrl+End too"),
+            ("Enter", "Read the book"),
+            ("Alt+Enter", "The book's details"),
+            ("Shift+F10, Menu key", "The book's menu"),
+        });
+        AddGroup(panel, "Finding", new[]
+        {
+            ("Ctrl+F, Ctrl+E", "Search the library"),
+            ("Escape", "Clear the search, in the search box"),
+        });
+        AddGroup(panel, "Mouse", new[]
+        {
+            ("Click a book", "The book's details"),
+            ("Double-click a book", "Read it"),
+            ("Point at a cover", "Read and View details buttons"),
+            ("Right-click a book", "The book's menu"),
+        });
+        AddGroup(panel, "Window", new[] { ("F1", "This list") });
+        Note(panel, "In a book, F1 lists the reader's own keys.");
+        return panel;
+    }
+
+    /// <summary>
+    /// The list in a dialog. It scrolls when it is taller than the window allows: a dialog's own content does not.
+    /// </summary>
+    public static async Task ShowAsync(UIElement list, XamlRoot root) =>
+        await new ContentDialog
+        {
+            Title = "Keyboard and mouse",
+            Content = new ScrollViewer { Content = list, Padding = new Thickness(0, 0, 16, 0) },
+            CloseButtonText = "Close",
+            XamlRoot = root,
+        }.ShowThemedAsync();
 
     private static void AddGroup(StackPanel panel, string title, IReadOnlyList<(string Keys, string What)> rows)
     {

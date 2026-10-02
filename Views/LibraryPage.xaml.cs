@@ -8,12 +8,74 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
+using Windows.System;
 
 namespace AryanEbookLibrary.Views;
 
 public sealed partial class LibraryPage : Page
 {
     public LibraryViewModel ViewModel => AppServices.Library;
+
+    /// <summary>
+    /// Page Down and Page Up a screen of books; Home and End (with Ctrl too) the first or last book, with the keyboard
+    /// on it so Enter reads it. False for any other key. The window sends the keys nothing else wanted.
+    /// </summary>
+    public bool ScrollByKey(VirtualKey key)
+    {
+        if (ViewModel.Books.Count == 0) return false;
+        switch (key)
+        {
+            case VirtualKey.PageDown or VirtualKey.PageUp:
+                var step = MainScroller.ViewportHeight * 0.9 * (key == VirtualKey.PageDown ? 1 : -1);
+                MainScroller.ChangeView(null, Math.Clamp(MainScroller.VerticalOffset + step, 0, MainScroller.ScrollableHeight), null);
+                return true;
+            case VirtualKey.Home:
+                ScrollThenFocus(0, 0);
+                return true;
+            case VirtualKey.End:
+                ScrollThenFocus(MainScroller.ScrollableHeight, ViewModel.Books.Count - 1);
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The book takes the keyboard once the scroll has landed: asked for before, the repeater handed back a card it
+    /// then gave to another book.
+    /// </summary>
+    private void ScrollThenFocus(double offset, int index)
+    {
+        if (Math.Abs(MainScroller.VerticalOffset - offset) < 1)
+        {
+            FocusBook(index);
+            return;
+        }
+        // After a long jump the repeater settles its cards over more than one pass: the keyboard waits for the last.
+        void Landed(object? sender, ScrollViewerViewChangedEventArgs e)
+        {
+            if (e.IsIntermediate) return;
+            MainScroller.ViewChanged -= Landed;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => FocusBook(index));
+        }
+        MainScroller.ViewChanged += Landed;
+        if (!MainScroller.ChangeView(null, offset, null, disableAnimation: true))
+        {
+            MainScroller.ViewChanged -= Landed;
+            FocusBook(index);
+        }
+    }
+
+    /// <summary>A book far down the list may not be made yet: the repeater makes it, then it takes the keyboard.</summary>
+    private void FocusBook(int index)
+    {
+        // The cards for where the view now is are made first, so the one asked for is the card that stays its own.
+        MainScroller.UpdateLayout();
+        var repeater = ViewModel.IsGridView ? GridRepeater : ListRepeater;
+        if (repeater.GetOrCreateElement(index) is not Control book) return;
+        book.UpdateLayout();
+        book.StartBringIntoView();
+        book.Focus(FocusState.Keyboard);
+    }
 
     // The sort box lists key and direction together, as CineLibrary does ("Title ↑", "Title ↓").
     private static readonly (string Label, SortMode Mode, bool Descending)[] SortChoices =

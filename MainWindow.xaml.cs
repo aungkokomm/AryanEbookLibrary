@@ -302,6 +302,41 @@ public sealed partial class MainWindow : Window
         args.Handled = true;
     }
 
+    /// <summary>
+    /// Page Up and Down, Home and End move through the books wherever the keyboard is, before the scroller takes them
+    /// (it scrolled only while a book had the keyboard, and did nothing with Ctrl). A text box keeps Home and End for its
+    /// caret, and a drop-down all four.
+    /// </summary>
+    private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Handled || ContentFrame.Content is not LibraryPage page) return;
+        var focused = FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        if (focused is ComboBox || focused is TextBox && e.Key is Windows.System.VirtualKey.Home or Windows.System.VirtualKey.End) return;
+        if (page.ScrollByKey(e.Key)) e.Handled = true;
+    }
+
+    private bool _shortcutsOpen;
+
+    /// <summary>F1: the library's keys and mouse actions, as a book's window lists its own.</summary>
+    private async void OnShortcutsAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (_shortcutsOpen || RootGrid.XamlRoot is null) return;
+        _shortcutsOpen = true;
+        try
+        {
+            await Reader.ReaderShortcuts.ShowAsync(Reader.ReaderShortcuts.Library(), RootGrid.XamlRoot);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("library: the shortcuts could not be shown: " + ex.Message);   // another dialog is open
+        }
+        finally
+        {
+            _shortcutsOpen = false;
+        }
+    }
+
     private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
         if (args.IsSettingsInvoked)

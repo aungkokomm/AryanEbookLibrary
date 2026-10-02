@@ -7,10 +7,11 @@
          Mica is not available the root falls back to a themed colour (set in code), because a Dark app on a
          light Windows used to show white behind the sidebar and title bar. -->
     <!-- Placement Hidden: a shortcut on the root would otherwise show "Ctrl+F" as a tooltip over the whole window -->
-    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden">
+    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden" PreviewKeyDown="OnRootPreviewKeyDown">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAccelerator" />
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnFindAccelerator" />
+            <KeyboardAccelerator Key="F1" Invoked="OnShortcutsAccelerator" />
         </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
