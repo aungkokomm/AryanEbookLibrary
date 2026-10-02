@@ -153,7 +153,8 @@ public sealed partial class ReaderWindow : Window
         _notes = new ReaderAnnotations(book);
         _view.UseAnnotations(_notes);
         // From inside the web view's own message: the window closes once that is over.
-        _view.CloseRequested += () => DispatcherQueue.TryEnqueue(Close);
+        _view.CloseRequested += () => DispatcherQueue.TryEnqueue(BackToLibrary);
+        _view.LibraryRequested += BackToLibrary;
         ApplyToolbar();
 
         _clock = DispatcherQueue.CreateTimer();
@@ -218,7 +219,7 @@ public sealed partial class ReaderWindow : Window
         }
         else if (e.Key == VirtualKey.W && ctrl)
         {
-            Close();
+            BackToLibrary();
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Escape)
@@ -376,6 +377,19 @@ public sealed partial class ReaderWindow : Window
     {
         AppServices.Library.SetStatus(_book, ReadStatus.Finished);
         _view.OfferFinish = false;
+    }
+
+    /// <summary>
+    /// The Library button and Ctrl+W: the book closes, its place and reading time saved, and the library comes to the
+    /// front, restored if it was minimized. A book is a window of its own over the library, so the window's X was the
+    /// only way back, and people looked for one.
+    /// </summary>
+    private void BackToLibrary()
+    {
+        Close();
+        if (App.MainWindow is not { } library) return;
+        if (library.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter) presenter.Restore();
+        library.Activate();
     }
 
     private void OnClosed(object sender, WindowEventArgs args)

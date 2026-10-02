@@ -80,6 +80,13 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
+            <!-- Brand colours, taken from the app icon. The blue is the accent: a colour theme (Services\ColorTheme)
+                 changes these brushes in place, so every page using them follows. Before the styles that use them. -->
+            <Color x:Key="SystemAccentColor">#186BD5</Color>
+            <SolidColorBrush x:Key="BrandBlueBrush" Color="#186BD5" />
+            <SolidColorBrush x:Key="BrandBlueHoverBrush" Color="#2A7BE0" />
+            <SolidColorBrush x:Key="BrandBluePressedBrush" Color="#145CB8" />
+
             <!-- Pill buttons (CineLibrary's filter pills), active = brand blue -->
             <Style x:Key="PillButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
@@ -91,9 +98,9 @@
                 <Setter Property="FontSize" Value="12" />
             </Style>
             <Style x:Key="PillButtonActiveStyle" TargetType="Button" BasedOn="{StaticResource PillButtonStyle}">
-                <Setter Property="Background" Value="#186BD5" />
+                <Setter Property="Background" Value="{StaticResource BrandBlueBrush}" />
                 <Setter Property="Foreground" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#186BD5" />
+                <Setter Property="BorderBrush" Value="{StaticResource BrandBlueBrush}" />
             </Style>
 
             <!-- One look for every page: the same title, the same quiet line under it, the same cards -->
@@ -158,9 +165,6 @@
             <SolidColorBrush x:Key="PillBackgroundBrush" Color="#CC000000" />
             <SolidColorBrush x:Key="OfflineBrush" Color="#E0B45309" />
 
-            <!-- Brand colours, taken from the app icon (fixed in every theme) -->
-            <Color x:Key="SystemAccentColor">#186BD5</Color>
-            <SolidColorBrush x:Key="BrandBlueBrush" Color="#186BD5" />
             <SolidColorBrush x:Key="BrandGoldWashBrush" Color="#33FAAC17" />
             <SolidColorBrush x:Key="AccentRedBrush" Color="#E5484D" />
             <SolidColorBrush x:Key="AccentGreenBrush" Color="#22C55E" />

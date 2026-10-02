@@ -6,6 +6,10 @@ namespace AryanEbookLibrary.Services;
 public sealed class AppSettings
 {
     public string Theme { get; set; } = "System";       // System | Light | Dark
+    // The colour theme's accent, "#RRGGBB"; "" is Aryan blue, the classic look (ColorTheme).
+    public string AccentColor { get; set; } = "";
+    // How strongly a colour theme tints the window: 0 none, 1 the usual, up to 2.
+    public double ThemeIntensity { get; set; } = 1.0;
     public bool AutoScanOnStart { get; set; } = true;
     public ViewMode ViewMode { get; set; } = ViewMode.Grid;
     public SortMode SortMode { get; set; } = SortMode.Title;

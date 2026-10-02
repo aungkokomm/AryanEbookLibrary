@@ -94,7 +94,7 @@ internal static class ReaderShortcuts
         {
             ("Alt", "Show the toolbar and move to it; Escape goes back to the page"),
             ("F11", "Full screen; Escape leaves it"),
-            ("Ctrl+W", "Close the book"),
+            ("Ctrl+W", "Close the book and go back to the library"),
             ("F1", "This list"),
         });
         Note(panel, "When the toolbar hides (Settings, Reading), point at the top of the page to bring it back.");

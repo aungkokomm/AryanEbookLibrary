@@ -32,6 +32,11 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         PaintCaptionButtons();
         RootGrid.ActualThemeChanged += (_, _) => PaintCaptionButtons();
+        _plainBackground = RootGrid.Background;
+        ApplySurfaces();
+        RootGrid.ActualThemeChanged += (_, _) => ApplySurfaces();
+        ColorTheme.AccentChanged += OnAccentChanged;
+        ColorTheme.TintChanged += ApplySurfaces;
         AppWindow.Changed += (_, e) => { if (e.DidSizeChange) SyncTitleBar(); };
         AppTitleBar.Loaded += (_, _) => SyncTitleBar();
         Library.PropertyChanged += OnLibraryChanged;
@@ -134,6 +139,40 @@ public sealed partial class MainWindow : Window
     /// Windows draws the minimise, maximise and close buttons itself, over the right of the title bar.
     /// Their colours have to be given to it, or a dark app shows nearly invisible glyphs on light Windows.
     /// </summary>
+    // ---- colour theme ----
+
+    private Brush? _plainBackground;
+
+    /// <summary>
+    /// A colour theme tints the window, as in My Notebook: the title bar and the sidebar (the root, otherwise Mica) carry
+    /// the most colour, the page a touch. Aryan blue puts Mica and the plain page back.
+    /// </summary>
+    private void ApplySurfaces()
+    {
+        if (ColorTheme.Surfaces(RootGrid.ActualTheme == ElementTheme.Dark) is { } tint)
+        {
+            RootGrid.Background = new SolidColorBrush(tint.Chrome);
+            PageTint.Background = new SolidColorBrush(tint.Page);
+        }
+        else
+        {
+            RootGrid.Background = _plainBackground;
+            PageTint.Background = null;
+        }
+    }
+
+    /// <summary>
+    /// A new accent: Fluent's accent brushes were made from the old shades, and a theme flip makes every control in the
+    /// window look them up again. Flyouts and dialogs made from now on use the new ones by themselves.
+    /// </summary>
+    private void OnAccentChanged()
+    {
+        var requested = RootGrid.RequestedTheme;
+        RootGrid.RequestedTheme = RootGrid.ActualTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+        RootGrid.RequestedTheme = requested;
+        ApplySurfaces();
+    }
+
     private void PaintCaptionButtons()
     {
         var bar = AppWindow.TitleBar;

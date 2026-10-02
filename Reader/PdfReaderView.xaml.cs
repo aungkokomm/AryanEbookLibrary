@@ -40,6 +40,10 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     public event Action? Activity { add { } remove { } }
     public event Action? EscapeRequested { add { } remove { } }
     public event Action? CloseRequested { add { } remove { } }
+
+    public event Action? LibraryRequested;
+
+    private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
     public event Action? FullScreenRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
@@ -941,11 +945,13 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         ToolbarFit.Fit(ToolBar, Root.ActualWidth,
             () =>
             {
-                TimeLeftText.Visibility = SearchCountText.Visibility = ZoomGroup.Visibility = ShortcutsButton.Visibility = Visibility.Visible;
+                TimeLeftText.Visibility = SearchCountText.Visibility = ZoomGroup.Visibility = ShortcutsButton.Visibility =
+                    LibraryLabel.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
             },
             () => TimeLeftText.Visibility = Visibility.Collapsed,
             () => SearchBox.Width = 130,
+            () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomGroup.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed);

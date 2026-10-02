@@ -42,6 +42,10 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     public event Action? ShortcutsRequested;
     public event Action? CloseRequested;
 
+    public event Action? LibraryRequested;
+
+    private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
+
     private string _path = "";
     private string _bookUrl = "";
     private ReadingPosition? _pending;
@@ -628,13 +632,14 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () =>
             {
                 TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ZoomButton.Visibility =
-                    ShortcutsButton.Visibility = Visibility.Visible;
+                    ShortcutsButton.Visibility = LibraryLabel.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
                 ChapterText.Width = ChapterRoom;
             },
             () => TimeLeftText.Visibility = Visibility.Collapsed,
             () => ChapterText.Visibility = Visibility.Collapsed,
             () => SearchBox.Width = 130,
+            () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomButton.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed);

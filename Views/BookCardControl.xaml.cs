@@ -149,10 +149,10 @@ public sealed partial class BookCardControl : UserControl
         SelectBadge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         SelectTick.Text = picked ? "✓" : "";
         SelectBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            picked ? Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x18, 0x6B, 0xD5) : Microsoft.UI.ColorHelper.FromArgb(0xCC, 0, 0, 0));
+            picked ? ColorTheme.Accent : Microsoft.UI.ColorHelper.FromArgb(0xCC, 0, 0, 0));
         CardBorder.BorderThickness = new Thickness(picked ? 3 : 1);
         CardBorder.BorderBrush = picked
-            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x18, 0x6B, 0xD5))
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(ColorTheme.Accent)
             : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
     }
 

@@ -1,8 +1,13 @@
 using System.Diagnostics;
 using AryanEbookLibrary.Helpers;
 using AryanEbookLibrary.Services;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -18,6 +23,9 @@ public sealed partial class SettingsPage : Page
         InitializeComponent();
 
         ThemeBox.SelectedIndex = AppServices.Settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
+        BuildSwatches();
+        IntensitySlider.Value = Math.Clamp(AppServices.Settings.ThemeIntensity * 100, 0, 200);
+        ShowIntensity();
         AutoScanSwitch.IsOn = AppServices.Settings.AutoScanOnStart;
         LookupOnlineSwitch.IsOn = AppServices.Settings.LookupOnline;
         GoogleKeyBox.Password = AppServices.Settings.GoogleBooksKey;
@@ -42,6 +50,70 @@ public sealed partial class SettingsPage : Page
         AppServices.Settings.Theme = item.Tag as string ?? "System";
         AppServices.Settings.Save();
         AppServices.ApplyTheme();
+    }
+
+    // Round swatches as in My Notebook; the chosen one has a ring and a tick.
+    private void BuildSwatches()
+    {
+        foreach (var theme in ColorTheme.Themes)
+        {
+            var color = ColorTheme.Parse(theme.Accent) ?? ColorTheme.Brand;
+            var swatch = new Button
+            {
+                Width = 34, Height = 34, CornerRadius = new CornerRadius(17), Padding = new Thickness(0),
+                BorderThickness = new Thickness(2), Tag = theme.Accent,
+                Background = new SolidColorBrush(color),
+                Resources =
+                {
+                    // The swatch keeps its own colour under the pointer and when pressed
+                    ["ButtonBackgroundPointerOver"] = new SolidColorBrush(color),
+                    ["ButtonBackgroundPressed"] = new SolidColorBrush(color),
+                },
+                Content = new FontIcon { Glyph = "", FontSize = 14, Foreground = new SolidColorBrush(Colors.White) },
+            };
+            ToolTipService.SetToolTip(swatch, theme.Name);
+            AutomationProperties.SetName(swatch, theme.Name);
+            swatch.Click += (_, _) =>
+            {
+                AppServices.Settings.AccentColor = theme.Accent;
+                AppServices.Settings.Save();
+                ColorTheme.Changed();
+                ShowSwatches();
+                ShowIntensity();
+            };
+            SwatchPanel.Children.Add(swatch);
+        }
+        ShowSwatches();
+        ActualThemeChanged += (_, _) => ShowSwatches();
+    }
+
+    private void ShowSwatches()
+    {
+        // The ring in the page's own theme: Application resources would give the app's
+        var ring = ActualTheme == ElementTheme.Dark ? Colors.White : Color.FromArgb(255, 0x1A, 0x1A, 0x1A);
+        foreach (var swatch in SwatchPanel.Children.OfType<Button>())
+        {
+            var chosen = (string)swatch.Tag == AppServices.Settings.AccentColor;
+            swatch.BorderBrush = new SolidColorBrush(chosen ? ring : Colors.Transparent);
+            ((FontIcon)swatch.Content).Visibility = chosen ? Visibility.Visible : Visibility.Collapsed;
+            AutomationProperties.SetItemStatus(swatch, chosen ? "Selected" : "");
+        }
+    }
+
+    private void ShowIntensity()
+    {
+        IntensitySlider.IsEnabled = ColorTheme.Tinted;
+        IntensityDescription.Text = ColorTheme.Tinted
+            ? "How strongly the colour tints the window"
+            : "Aryan blue keeps the window untinted; choose another colour to tint it";
+    }
+
+    private void OnIntensityChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        AppServices.Settings.ThemeIntensity = e.NewValue / 100;
+        AppServices.Settings.Save();
+        ColorTheme.IntensityChanged();
     }
 
     private void OnAutoScanToggled(object sender, RoutedEventArgs e)

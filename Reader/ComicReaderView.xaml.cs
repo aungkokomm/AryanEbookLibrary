@@ -41,6 +41,10 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     public event Action? Activity { add { } remove { } }
     public event Action? EscapeRequested { add { } remove { } }
     public event Action? CloseRequested { add { } remove { } }
+
+    public event Action? LibraryRequested;
+
+    private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
     public event Action? FullScreenRequested;
     public event Action? FinishedRequested;
     public event Action? OpenExternallyRequested;
@@ -755,8 +759,9 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e) =>
         ToolbarFit.Fit(ToolBar, Root.ActualWidth,
-            () => TimeLeftText.Visibility = ZoomButton.Visibility = ShortcutsButton.Visibility = Visibility.Visible,
+            () => TimeLeftText.Visibility = ZoomButton.Visibility = ShortcutsButton.Visibility = LibraryLabel.Visibility = Visibility.Visible,
             () => TimeLeftText.Visibility = Visibility.Collapsed,
+            () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => ZoomButton.Visibility = Visibility.Collapsed,
             () => ShortcutsButton.Visibility = Visibility.Collapsed);
 

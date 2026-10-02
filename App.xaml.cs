@@ -39,6 +39,17 @@ public partial class App : Application
         AppServices.Library = new LibraryViewModel();
         BookLauncher.InAppReader = book => Reader.ReaderWindow.Open(book);
 
+        // The colour theme before the first window: every brush made from the accent then starts in its colour.
+        // (Not in the constructor: the app's resources cannot be reached there yet.)
+        try
+        {
+            ColorTheme.Apply();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Colour theme not applied: " + ex.Message);
+        }
+
         MainWindow = new MainWindow();
         AppServices.ApplyTheme();
         MainWindow.Activate();

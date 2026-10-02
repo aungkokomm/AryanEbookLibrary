@@ -6,10 +6,10 @@
     xmlns:models="using:AryanEbookLibrary.Models">
 
     <Page.Resources>
-        <!-- The Select toggle, when on, uses the brand blue, as CineLibrary uses its brand colour -->
-        <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#186BD5" />
-        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#2A7BE0" />
-        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#145CB8" />
+        <!-- The Select toggle, when on, uses the brand blue (or the colour theme's accent), as CineLibrary uses its brand colour -->
+        <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="BrandBlueBrush" />
+        <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="BrandBlueHoverBrush" />
+        <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="BrandBluePressedBrush" />
         <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
         <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
         <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />

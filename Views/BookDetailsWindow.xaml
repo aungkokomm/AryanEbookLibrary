@@ -9,10 +9,10 @@
          subjects. Every change is saved as it is made; there is no OK button. -->
     <Grid x:Name="RootGrid">
         <Grid.Resources>
-            <!-- The Read button in the brand blue, as the Select toggle on the library page -->
-            <SolidColorBrush x:Key="AccentButtonBackground" Color="#186BD5" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#2A7BE0" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#145CB8" />
+            <!-- The Read button in the brand blue (or the colour theme's accent), as the Select toggle on the library page -->
+            <StaticResource x:Key="AccentButtonBackground" ResourceKey="BrandBlueBrush" />
+            <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="BrandBlueHoverBrush" />
+            <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="BrandBluePressedBrush" />
             <SolidColorBrush x:Key="AccentButtonForeground" Color="White" />
             <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="White" />
             <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E6FFFFFF" />

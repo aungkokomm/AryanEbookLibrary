@@ -51,11 +51,22 @@
                     Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                     BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
 
-            <ToggleButton x:Name="ContentsButton" Width="36" Height="32" Padding="0" Click="OnContentsClick"
-                          Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
-                          AutomationProperties.Name="Contents" ToolTipService.ToolTip="Contents">
-                <FontIcon Glyph="&#xE8FD;" FontSize="16" />
-            </ToggleButton>
+            <!-- Back to the library first: a book opens in a window of its own, over the library. -->
+            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <Button x:Name="LibraryButton" Height="32" Padding="8,0,10,0" Background="Transparent" BorderThickness="0"
+                        AllowFocusOnInteraction="False" Click="OnLibraryClick"
+                        AutomationProperties.Name="Back to the library" ToolTipService.ToolTip="Back to the library (Ctrl+W)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                        <TextBlock x:Name="LibraryLabel" Text="Library" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <ToggleButton x:Name="ContentsButton" Width="36" Height="32" Padding="0" Click="OnContentsClick"
+                              Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
+                              AutomationProperties.Name="Contents" ToolTipService.ToolTip="Contents">
+                    <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                </ToggleButton>
+            </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"

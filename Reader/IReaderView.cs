@@ -29,6 +29,9 @@ public interface IReaderView
     /// <summary>Ctrl+W where the window's own key handling cannot hear it.</summary>
     event Action? CloseRequested;
 
+    /// <summary>The toolbar's Library button: the book closes and the library comes to the front.</summary>
+    event Action? LibraryRequested;
+
     int PageCount { get; }
     bool OfferFinish { get; set; }
 
