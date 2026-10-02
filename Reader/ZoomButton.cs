@@ -91,8 +91,19 @@ public sealed class ZoomButton : DropDownButton
     public void Configure(double minimum, double maximum, double step, string smaller, string larger,
         params (string Key, string Text)[] fits)
     {
-        _slider.Minimum = minimum;
-        _slider.Maximum = maximum;
+        // Setting the range moves the value (0 becomes the minimum). That is not the user's doing: as a move it started
+        // the settle timer, which fired after a fast-opening book had shown its fit and made it a custom zoom, so the
+        // page stopped refitting to the window (measured: 150 ms after the reader opened).
+        _showing = true;
+        try
+        {
+            _slider.Minimum = minimum;
+            _slider.Maximum = maximum;
+        }
+        finally
+        {
+            _showing = false;
+        }
         _slider.StepFrequency = _slider.SmallChange = step;
         _slider.LargeChange = step * 5;
         AutomationProperties.SetName(_slider, AutomationProperties.GetName(this));
