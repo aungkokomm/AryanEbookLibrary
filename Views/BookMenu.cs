@@ -16,7 +16,7 @@ internal static class BookMenu
         if (book is null) return;
         var vm = AppServices.Library;
 
-        var open = new MenuFlyoutItem { Text = "Open", Icon = new SymbolIcon(Symbol.OpenFile) };
+        var open = new MenuFlyoutItem { Text = "Open", Icon = new SymbolIcon(Symbol.OpenFile), KeyboardAcceleratorTextOverride = "Enter" };
         open.Click += (_, _) => BookCardControl.RequestOpen(book);
         flyout.Items.Add(open);
 
@@ -27,7 +27,7 @@ internal static class BookMenu
             flyout.Items.Add(external);
         }
 
-        var details = new MenuFlyoutItem { Text = "View details", Icon = new SymbolIcon(Symbol.List) };
+        var details = new MenuFlyoutItem { Text = "View details", Icon = new SymbolIcon(Symbol.List), KeyboardAcceleratorTextOverride = "Alt+Enter" };
         details.Click += (_, _) => BookCardControl.RequestDetails(book);
         flyout.Items.Add(details);
 

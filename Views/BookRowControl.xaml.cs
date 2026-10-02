@@ -67,7 +67,9 @@ public sealed partial class BookRowControl : UserControl
         {
             if (e.Key == Windows.System.VirtualKey.Enter && Book is { } b)
             {
-                BookCardControl.RequestDetails(b);
+                // As on a card: Enter reads, Alt+Enter shows the details.
+                if (e.KeyStatus.IsMenuKeyDown) BookCardControl.RequestDetails(b);
+                else BookCardControl.RequestOpen(b);
                 e.Handled = true;
             }
         };

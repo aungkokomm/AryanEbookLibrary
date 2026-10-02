@@ -75,9 +75,10 @@
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="6,0">
                         <TextBlock x:Name="InfoText" FontSize="11" Foreground="#E0E0E0"
                                    TextAlignment="Center" TextWrapping="Wrap" />
-                        <Button Content="View Details" Click="OnViewDetails"
+                        <!-- Reading is what a book is for: Read is the main button, details second -->
+                        <Button x:Name="ReadBtn" Content="▶ Read" Click="OnOpen"
                                 Style="{StaticResource PillButtonActiveStyle}" HorizontalAlignment="Center" />
-                        <Button Content="Open" Click="OnOpen"
+                        <Button Content="View Details" Click="OnViewDetails"
                                 Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center" />
                         <Button x:Name="FinishedToggleBtn" Click="OnFinishedToggle"
                                 Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center" />

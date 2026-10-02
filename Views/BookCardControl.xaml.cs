@@ -118,11 +118,13 @@ public sealed partial class BookCardControl : UserControl
             _pendingSingleTap = null;
             if (Book is { } b) RequestOpen(b);
         };
+        // Enter reads the book, Alt+Enter shows its details (Alt+Enter is Properties in Windows, as in Ayaan PDF).
         KeyDown += (_, e) =>
         {
             if (e.Key == Windows.System.VirtualKey.Enter && Book is { } b)
             {
-                RequestDetails(b);
+                if (e.KeyStatus.IsMenuKeyDown) RequestDetails(b);
+                else RequestOpen(b);
                 e.Handled = true;
             }
         };
@@ -229,6 +231,7 @@ public sealed partial class BookCardControl : UserControl
         FavBadge.Visibility = b.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         FinishedBadge.Visibility = b.Status == ReadStatus.Finished ? Visibility.Visible : Visibility.Collapsed;
         FinishedToggleBtn.Content = b.Status == ReadStatus.Finished ? "✓ Finished" : "○ Mark Finished";
+        ReadBtn.Content = b.Status != ReadStatus.Finished && (b.Status == ReadStatus.Reading || b.ShowProgress) ? "▶ Continue" : "▶ Read";
 
         ReadingProgress.Value = b.Progress;
         ReadingProgress.Visibility = b.ShowProgress ? Visibility.Visible : Visibility.Collapsed;
