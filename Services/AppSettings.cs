@@ -54,6 +54,8 @@ public sealed class AppSettings
     // What Define shows under the English definition.
     public bool DefineShowsMyanmar { get; set; } = true;
     public bool DefineShowsHindi { get; set; } = true;
+    // The newer version the user dismissed the update bubble for, so it is not offered again. A later one is.
+    public string SkippedUpdateVersion { get; set; } = "";
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

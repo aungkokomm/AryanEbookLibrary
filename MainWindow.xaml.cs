@@ -91,6 +91,55 @@ public sealed partial class MainWindow : Window
         RootGrid.Loaded += (_, _) => NavView.Focus(FocusState.Pointer);
         if (Session.LastEndedBadly) RootGrid.Loaded += async (_, _) => await TellLastSessionEndedBadlyAsync();
         Library.Initialize();
+        // Once per start, and never in the way: see UpdateChecker.
+        _ = CheckForUpdateAsync();
+    }
+
+    // ---- update bubble ----
+
+    /// <summary>The newer release the bubble is offering, until it is answered.</summary>
+    private UpdateInfo? _update;
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (await UpdateChecker.CheckAsync(AppServices.Settings.SkippedUpdateVersion) is not { } update) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _update = update;
+            UpdateText.Text = $"Aryan eBook Library {update.Version} is available";
+            UpdateBubble.Visibility = Visibility.Visible;
+        });
+    }
+
+    private async void OnUpdateDownload(object sender, RoutedEventArgs e)
+    {
+        if (_update is { } update)
+        {
+            try
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri(update.ReleaseUrl));
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"update: could not open the release page ({ex.GetType().Name})");
+            }
+        }
+        // Not remembered as skipped: until it is installed, the next start offers it again.
+        _update = null;
+        UpdateBubble.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>The cross: not this version. A later release is offered as usual.</summary>
+    private void OnUpdateSkip(object sender, RoutedEventArgs e)
+    {
+        if (_update is { } update)
+        {
+            AppServices.Settings.SkippedUpdateVersion = update.Version;
+            AppServices.Settings.Save();
+            Log.Write($"update: the user skipped {update.Version}");
+        }
+        _update = null;
+        UpdateBubble.Visibility = Visibility.Collapsed;
     }
 
     private bool _closedDown;
@@ -133,12 +182,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // ---- title bar ----
-
-    /// <summary>
-    /// Windows draws the minimise, maximise and close buttons itself, over the right of the title bar.
-    /// Their colours have to be given to it, or a dark app shows nearly invisible glyphs on light Windows.
-    /// </summary>
     // ---- colour theme ----
 
     private Brush? _plainBackground;
@@ -173,6 +216,12 @@ public sealed partial class MainWindow : Window
         ApplySurfaces();
     }
 
+    // ---- title bar ----
+
+    /// <summary>
+    /// Windows draws the minimise, maximise and close buttons itself, over the right of the title bar.
+    /// Their colours have to be given to it, or a dark app shows nearly invisible glyphs on light Windows.
+    /// </summary>
     private void PaintCaptionButtons()
     {
         var bar = AppWindow.TitleBar;

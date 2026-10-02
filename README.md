@@ -196,7 +196,7 @@ Aryan runs on **Windows 10 (version 1809 or later) and Windows 11**, on 64-bit P
 
 ## Your books stay yours
 
-No account, no telemetry, and nothing phoning home. Aryan only ever reads your book files: nothing in them is changed, renamed or moved. It goes online only if you turn on online details, and then sends nothing but a title, author or ISBN. Its log, `aryan.log`, stays on your computer.
+No account, no telemetry, and nothing about you or your books ever leaves your PC. Aryan only ever reads your book files: nothing in them is changed, renamed or moved. When it starts, it asks GitHub whether a newer version is out and, if one is, offers it in a small bubble you can dismiss; it never downloads or installs anything by itself. Otherwise it goes online only if you turn on online details, and then sends nothing but a title, author or ISBN. Its log, `aryan.log`, stays on your computer.
 
 ## Handy keys
 

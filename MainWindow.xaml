@@ -178,6 +178,30 @@
                     <Border x:Name="PageTint" Grid.RowSpan="2" CornerRadius="8,0,0,0" />
                     <Frame x:Name="ContentFrame" />
 
+                    <!-- A newer release is out (UpdateChecker, once per start). Bottom right of the page, above the status
+                         bar, until it is answered: Download opens the release page; the cross skips that version. -->
+                    <Border x:Name="UpdateBubble" Visibility="Collapsed"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,16"
+                            Padding="16,8,8,8" Translation="0,0,32"
+                            Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="{StaticResource OverlayCornerRadius}">
+                        <Border.Shadow>
+                            <ThemeShadow />
+                        </Border.Shadow>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <FontIcon Glyph="&#xE896;" FontSize="16" VerticalAlignment="Center"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="UpdateText" VerticalAlignment="Center" />
+                            <Button Content="Download" Style="{StaticResource AccentButtonStyle}" Click="OnUpdateDownload" />
+                            <Button AutomationProperties.Name="Skip this version" ToolTipService.ToolTip="Skip this version"
+                                    Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0"
+                                    Click="OnUpdateSkip">
+                                <FontIcon Glyph="&#xE711;" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Status bar: a quiet line under the page, only while there is something to say. It sits under the page
                          and not under the whole window, so the sidebar never loses height to it. -->
                     <Border x:Name="StatusBar" Grid.Row="1" BorderThickness="0,1,0,0" Visibility="Collapsed"
