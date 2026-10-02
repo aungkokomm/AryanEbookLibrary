@@ -854,6 +854,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         if (_currentPage >= 0 && !ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), PageBox))
             PageBox.Text = (_currentPage + 1).ToString(CultureInfo.CurrentCulture);
         FollowCurrentPage();
+        ShowBookmark();
     }
 
     private void OnPageBoxKeyDown(object sender, KeyRoutedEventArgs e)
@@ -955,7 +956,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             () =>
             {
                 TimeLeftText.Visibility = SearchCountText.Visibility = ZoomGroup.Visibility = ShortcutsButton.Visibility =
-                    LibraryLabel.Visibility = Visibility.Visible;
+                    LibraryLabel.Visibility = BookmarkButton.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
             },
             () => TimeLeftText.Visibility = Visibility.Collapsed,
@@ -963,7 +964,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
             () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomGroup.Visibility = Visibility.Collapsed,
-            () => ShortcutsButton.Visibility = Visibility.Collapsed);
+            () => ShortcutsButton.Visibility = Visibility.Collapsed,
+            () => BookmarkButton.Visibility = Visibility.Collapsed);   // Ctrl+D still marks the page
 
     // ================================================================ contents
 
@@ -1572,6 +1574,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         notes.Drawn += _ => DrawAllMarks();
         notes.Removed += _ => DrawAllMarks();
         notes.Reloaded += DrawAllMarks;
+        notes.ListChanged += ShowBookmark;
         notes.Created += a => _ = MakeClipAsync(a);
         Bar.Closed += OnBarClosed;
         HighlightsList.CountChanged += n => HighlightsTab.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
@@ -1676,6 +1679,35 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     private double PositionOf(int page, double within) =>
         _book is not { PageCount: > 0 } book ? 0 : (page + Math.Clamp(within, 0, 0.999)) / book.PageCount;
+
+    // ---- bookmarks ----
+
+    private bool _showingBookmark;
+
+    /// <summary>The button turned on or off, by a click, Space or a screen reader: the bookmark follows.</summary>
+    private void OnBookmarkToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_showingBookmark) ToggleBookmark();
+    }
+
+    /// <summary>Ctrl+D: the page at the top of the view is bookmarked, or its bookmark taken off.</summary>
+    private void ToggleBookmark()
+    {
+        if (_notes is null || _book is null || _currentPage < 0) return;
+        var page = _currentPage;
+        _notes.ToggleBookmark(page, Annotation.MakeAnchor("mark1", page), PositionOf(page, 0), ChapterOf(page));
+        ShowBookmark();
+    }
+
+    /// <summary>The button is lit while the page being read has a bookmark.</summary>
+    private void ShowBookmark()
+    {
+        var marked = _currentPage >= 0 && _notes?.BookmarkAt(_currentPage) is not null;
+        _showingBookmark = true;
+        BookmarkButton.IsChecked = marked;
+        _showingBookmark = false;
+        ToolTipService.SetToolTip(BookmarkButton, marked ? "Take the bookmark off this page (Ctrl+D)" : "Bookmark this page (Ctrl+D)");
+    }
 
     // ---- the bar ----
 
@@ -2032,6 +2064,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Add(VirtualKey.F3, VirtualKeyModifiers.None, () => OnSearchNext(this, new RoutedEventArgs()));
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => OnSearchPrevious(this, new RoutedEventArgs()));
         Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusPageBox);
+        Add(VirtualKey.D, VirtualKeyModifiers.Control, ToggleBookmark);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, GoBack);
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, GoForward);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;

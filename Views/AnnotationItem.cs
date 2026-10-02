@@ -46,10 +46,11 @@ public sealed class AnnotationItem
     public bool ShowsBook { get; set; } = true;
     public Visibility BookVisibility => ShowsBook ? Visibility.Visible : Visibility.Collapsed;
 
-    public SolidColorBrush ColorBrush => new(IsBookNote || Annotation.Kind == AnnotationKind.PageNote
-        ? Colors.Transparent : HighlightColors.Of(Annotation.Color));
+    /// <summary>A highlight's colour; a bookmark shows in the accent; a note has none.</summary>
+    public SolidColorBrush ColorBrush => new(IsBookNote || Annotation.Kind == AnnotationKind.PageNote ? Colors.Transparent
+        : Annotation.Kind == AnnotationKind.Bookmark ? ColorTheme.Accent : HighlightColors.Of(Annotation.Color));
 
-    public string ColorName => IsBookNote || Annotation.Kind == AnnotationKind.PageNote ? "" : HighlightColors.Name(Annotation.Color);
+    public string ColorName => IsBookNote || !Annotation.IsMark ? "" : HighlightColors.Name(Annotation.Color);
 
     /// <summary>The words, when they are shown as words.</summary>
     public string QuoteText => Annotation.ShowsPicture ? "" : Annotation.Quote.Trim();
@@ -70,6 +71,11 @@ public sealed class AnnotationItem
     public Visibility ClipMissingVisibility =>
         Annotation.ShowsPicture && !ClipStore.Exists(Annotation.Id) ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>A bookmark has no words: the reader's list says where it is in their place, as plain text.</summary>
+    public string BookmarkText => !IsBookNote && Annotation.Kind == AnnotationKind.Bookmark ? Where : "";
+    public Visibility BookmarkVisibility => BookmarkText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility WhereVisibility => BookmarkText.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
+
     public string NoteText => Annotation.Note.Trim();
     public Visibility NoteVisibility => NoteText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -79,7 +85,12 @@ public sealed class AnnotationItem
         get
         {
             if (IsBookNote) return "Note on the book";
-            var page = Annotation.Kind == AnnotationKind.PageNote ? $"Note on page {Annotation.PageNumber:N0}" : $"Page {Annotation.PageNumber:N0}";
+            var page = Annotation.Kind switch
+            {
+                AnnotationKind.PageNote => $"Note on page {Annotation.PageNumber:N0}",
+                AnnotationKind.Bookmark => $"Bookmark on page {Annotation.PageNumber:N0}",
+                _ => $"Page {Annotation.PageNumber:N0}",
+            };
             return Annotation.Chapter.Trim().Length > 0 ? page + Dot + Annotation.Chapter.Trim() : page;
         }
     }
@@ -127,6 +138,7 @@ public sealed class AnnotationItem
             {
                 AnnotationKind.Area => ColorName + " clip",
                 AnnotationKind.PageNote => "Note",
+                AnnotationKind.Bookmark => "Bookmark",
                 _ => ColorName + " highlight",
             };
             var words = QuoteText.Length > 0 ? ": " + QuoteText : "";

@@ -156,11 +156,13 @@ public sealed partial class BookDetailsWindow : Window
         HighlightsCard.Visibility = all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         HighlightsRows.Children.Clear();
         if (all.Count == 0) return;
-        var marks = all.Count(a => a.Kind != AnnotationKind.PageNote);
-        var notes = all.Count - marks;
+        var marks = all.Count(a => a.IsMark);
+        var notes = all.Count(a => a.Kind == AnnotationKind.PageNote);
+        var bookmarks = all.Count(a => a.Kind == AnnotationKind.Bookmark);
         var parts = new List<string>();
         if (marks > 0) parts.Add(marks == 1 ? "1 highlight" : $"{marks:N0} highlights");
         if (notes > 0) parts.Add(notes == 1 ? "1 note on a page" : $"{notes:N0} notes on pages");
+        if (bookmarks > 0) parts.Add(bookmarks == 1 ? "1 bookmark" : $"{bookmarks:N0} bookmarks");
         HighlightsHeader.Text = string.Join(", ", parts);
         HighlightsAllBtn.Visibility = marks > 0 ? Visibility.Visible : Visibility.Collapsed;
         foreach (var a in all.OrderByDescending(a => a.CreatedUtc).Take(3))

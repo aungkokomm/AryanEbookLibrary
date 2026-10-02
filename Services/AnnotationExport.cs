@@ -32,6 +32,7 @@ public static class AnnotationExport
     {
         AnnotationKind.Area => "Clip",
         AnnotationKind.PageNote => "Note on a page",
+        AnnotationKind.Bookmark => "Bookmark",
         _ => "Highlight",
     };
 

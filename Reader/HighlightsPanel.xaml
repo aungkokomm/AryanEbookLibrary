@@ -23,6 +23,8 @@
                         </Grid.ColumnDefinitions>
                         <Rectangle Fill="{x:Bind ColorBrush}" RadiusX="2" RadiusY="2" />
                         <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="{x:Bind BookmarkText}" Visibility="{x:Bind BookmarkVisibility}" FontSize="13"
+                                       TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{x:Bind QuoteText}" Visibility="{x:Bind QuoteVisibility}" TextWrapping="Wrap"
                                        MaxLines="5" TextTrimming="CharacterEllipsis" FontSize="13" />
                             <Image Source="{x:Bind Clip}" Visibility="{x:Bind ClipVisibility}" MaxHeight="110"
@@ -40,7 +42,7 @@
                                            TextTrimming="CharacterEllipsis" FontSize="13"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Grid>
-                            <TextBlock Text="{x:Bind Where}" FontSize="12" TextTrimming="CharacterEllipsis"
+                            <TextBlock Text="{x:Bind Where}" Visibility="{x:Bind WhereVisibility}" FontSize="12" TextTrimming="CharacterEllipsis"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         </StackPanel>
                     </Grid>

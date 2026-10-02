@@ -97,8 +97,7 @@ public sealed class ReaderAnnotations
         _make = null;
         _editing = a;
         _bar?.PlaceNear(box, area);
-        _bar?.Show(a.Kind == AnnotationKind.PageNote ? null : a.Color, canCopy: a.Quote.Length > 0, canDelete: true,
-            colors: a.Kind != AnnotationKind.PageNote);
+        _bar?.Show(a.IsMark ? a.Color : null, canCopy: a.Quote.Length > 0, canDelete: true, colors: a.IsMark);
     }
 
     /// <summary>Straight to the note box: the side panel's "Edit note", or a note on a page.</summary>
@@ -194,6 +193,31 @@ public sealed class ReaderAnnotations
     {
         if (_editing is { } a) Delete(a);
         HideBar();
+    }
+
+    // ---- bookmarks ----
+
+    /// <summary>The bookmark on a page (a PDF or comic page, or the EPUB reader's location), if there is one.</summary>
+    public Annotation? BookmarkAt(int page) =>
+        Items.FirstOrDefault(a => a.Kind == AnnotationKind.Bookmark && a.Page == page);
+
+    /// <summary>Ctrl+D and the bookmark button: marks the page, or takes its mark off. True when it is marked now.</summary>
+    public bool ToggleBookmark(int page, string anchor, double position, string chapter)
+    {
+        if (BookmarkAt(page) is { } mark)
+        {
+            Delete(mark);
+            return false;
+        }
+        Add(new Annotation
+        {
+            Kind = AnnotationKind.Bookmark,
+            Anchor = anchor,
+            Page = page,
+            Position = position,
+            Chapter = chapter,
+        });
+        return true;
     }
 
     // ---- saving ----

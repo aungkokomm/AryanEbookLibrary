@@ -49,7 +49,7 @@ public sealed class AnnotationService
     public (int Highlights, int Notes) Counts()
     {
         var all = _store.All();
-        return (all.Count(r => r.Annotation.Kind != AnnotationKind.PageNote),
+        return (all.Count(r => r.Annotation.IsMark),
                 all.Count(r => r.Annotation.HasNote || r.Annotation.Kind == AnnotationKind.PageNote));
     }
 

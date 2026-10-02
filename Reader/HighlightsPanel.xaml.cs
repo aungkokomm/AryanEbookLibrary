@@ -77,7 +77,7 @@ public sealed partial class HighlightsPanel : UserControl
         note.Click += (_, _) => NoteRequested?.Invoke(a);
         menu.Items.Add(note);
 
-        if (a.Kind != AnnotationKind.PageNote)
+        if (a.IsMark)
         {
             var colours = new MenuFlyoutSubItem { Text = "Colour", Icon = new FontIcon { Glyph = ((char)0xE790).ToString() } };
             for (var i = 1; i <= HighlightColors.Count; i++)

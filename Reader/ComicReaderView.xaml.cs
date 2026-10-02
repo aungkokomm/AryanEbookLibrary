@@ -664,6 +664,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         Add(VirtualKey.Subtract, () => ZoomBy(0.8f));
         Add((VirtualKey)189, () => ZoomBy(0.8f));      // the - key
         Add(VirtualKey.Number0, () => ZoomTo(1));
+        Add(VirtualKey.D, ToggleBookmark);
         Add(VirtualKey.G, () =>
         {
             PageBox.Focus(FocusState.Keyboard);
@@ -693,6 +694,35 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     {
         if (_page < 0 || XamlRoot is not null && ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), PageBox)) return;
         PageBox.Text = (_page + 1).ToString(CultureInfo.CurrentCulture);
+        ShowBookmark();
+    }
+
+    // ---- bookmarks ----
+
+    private bool _showingBookmark;
+
+    /// <summary>The button turned on or off, by a click, Space or a screen reader: the bookmark follows.</summary>
+    private void OnBookmarkToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_showingBookmark) ToggleBookmark();
+    }
+
+    /// <summary>Ctrl+D: the page being read is bookmarked, or its bookmark taken off.</summary>
+    private void ToggleBookmark()
+    {
+        if (_notes is null || _book is null || _page < 0) return;
+        _notes.ToggleBookmark(_page, Annotation.MakeAnchor("mark1", _page), _page / (double)Math.Max(1, _book.PageCount), "");
+        ShowBookmark();
+    }
+
+    /// <summary>The button is lit while the page being read has a bookmark.</summary>
+    private void ShowBookmark()
+    {
+        var marked = _page >= 0 && _notes?.BookmarkAt(_page) is not null;
+        _showingBookmark = true;
+        BookmarkButton.IsChecked = marked;
+        _showingBookmark = false;
+        ToolTipService.SetToolTip(BookmarkButton, marked ? "Take the bookmark off this page (Ctrl+D)" : "Bookmark this page (Ctrl+D)");
     }
 
     private void OnPageBoxKeyDown(object sender, KeyRoutedEventArgs e)
@@ -759,11 +789,13 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
 
     private void OnToolBarSizeChanged(object sender, SizeChangedEventArgs e) =>
         ToolbarFit.Fit(ToolBar, Root.ActualWidth,
-            () => TimeLeftText.Visibility = ZoomButton.Visibility = ShortcutsButton.Visibility = LibraryLabel.Visibility = Visibility.Visible,
+            () => TimeLeftText.Visibility = ZoomButton.Visibility = ShortcutsButton.Visibility = LibraryLabel.Visibility =
+                BookmarkButton.Visibility = Visibility.Visible,
             () => TimeLeftText.Visibility = Visibility.Collapsed,
             () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => ZoomButton.Visibility = Visibility.Collapsed,
-            () => ShortcutsButton.Visibility = Visibility.Collapsed);
+            () => ShortcutsButton.Visibility = Visibility.Collapsed,
+            () => BookmarkButton.Visibility = Visibility.Collapsed);   // Ctrl+D still marks the page
 
     private void ShowMessage(string title, string text, bool ring, bool external = false)
     {
@@ -807,6 +839,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         notes.Drawn += _ => DrawMarks();
         notes.Removed += _ => DrawMarks();
         notes.Reloaded += DrawMarks;
+        notes.ListChanged += ShowBookmark;
         notes.Created += a => _ = MakeClipAsync(a);
         Bar.Closed += () =>
         {

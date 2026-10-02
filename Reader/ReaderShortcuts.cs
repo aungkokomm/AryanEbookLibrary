@@ -88,6 +88,7 @@ internal static class ReaderShortcuts
             if (pdf) find.Add(("Ctrl+C", "Copy the selected text"));
             AddGroup(panel, "Finding", find);
         }
+        AddGroup(panel, "Marking", new[] { ("Ctrl+D", "Bookmark this page, or take its bookmark off") });
         AddGroup(panel, "View", view);
         AddGroup(panel, "Mouse", mouse);
         AddGroup(panel, "Window", new[]

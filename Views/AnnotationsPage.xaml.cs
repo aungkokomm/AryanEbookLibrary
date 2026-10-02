@@ -135,7 +135,8 @@ public sealed partial class AnnotationsPage : Page
         foreach (var row in AppServices.Annotations.All())
         {
             var a = row.Annotation;
-            var wanted = NotesMode ? a.HasNote || a.Kind == AnnotationKind.PageNote : a.Kind != AnnotationKind.PageNote;
+            // Bookmarks are the reader's own places to come back to: shown here only when they carry a note.
+            var wanted = NotesMode ? a.HasNote || a.Kind == AnnotationKind.PageNote : a.IsMark;
             if (!wanted) continue;
             var book = books.GetValueOrDefault(row.BookKey);
             if (book is null) _orphans[a.Id] = row;
@@ -351,7 +352,7 @@ public sealed partial class AnnotationsPage : Page
             Add(a.HasNote ? "Edit note..." : "Add a note...", 0xE70B, () => _ = EditNoteAsync(item));
         }
 
-        if (book is not null && !item.IsBookNote && a.Kind != AnnotationKind.PageNote)
+        if (book is not null && !item.IsBookNote && a.IsMark)
         {
             var colours = new MenuFlyoutSubItem { Text = "Colour", Icon = new FontIcon { Glyph = ((char)0xE790).ToString() } };
             for (var i = 1; i <= HighlightColors.Count; i++)
@@ -465,7 +466,7 @@ public sealed partial class AnnotationsPage : Page
     {
         var a = item.Annotation;
         var what = item.IsBookNote || a.Kind == AnnotationKind.PageNote ? "note"
-            : a.Kind == AnnotationKind.Area ? "clip" : "highlight";
+            : a.Kind == AnnotationKind.Area ? "clip" : a.Kind == AnnotationKind.Bookmark ? "bookmark" : "highlight";
         var answer = await new ContentDialog
         {
             Title = $"Delete this {what}?",

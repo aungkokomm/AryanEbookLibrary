@@ -3,12 +3,16 @@ using System.Text.Json.Serialization;
 
 namespace AryanEbookLibrary.Models;
 
-/// <summary>What an annotation marks: a passage of text, a picture of part of a page, or a page with only a note.</summary>
+/// <summary>
+/// What an annotation marks: a passage of text, a picture of part of a page, a page with only a note, or a page kept to
+/// come back to (a bookmark, which may have a note too).
+/// </summary>
 public enum AnnotationKind
 {
     Highlight = 0,
     Area = 1,
     PageNote = 2,
+    Bookmark = 3,
 }
 
 /// <summary>
@@ -30,7 +34,8 @@ public sealed class Annotation
     /// <summary>
     /// The exact place, by the reader that made it: "epub1:" and a CFI; "pdf1:page:index:page:index" (the first and
     /// last character, both counted); "pdfarea1:page:x:y:w:h" and "comicarea1:page:x:y:w:h" (fractions of the page);
-    /// "page1:page" for a note on a page of a PDF or a comic.
+    /// "page1:page" for a note on a page of a PDF or a comic; "mark1:page" for a bookmark in a PDF or a comic, and
+    /// "epubmark1:" and the CFI of the place for one in an EPUB.
     /// </summary>
     public string Anchor { get; set; } = "";
 
@@ -56,6 +61,9 @@ public sealed class Annotation
     public bool Deleted { get; set; }
 
     [JsonIgnore] public bool HasNote => Note.Trim().Length > 0;
+
+    /// <summary>A highlight or a clipped area: the kinds with a colour, counted and listed as highlights.</summary>
+    [JsonIgnore] public bool IsMark => Kind is AnnotationKind.Highlight or AnnotationKind.Area;
 
     /// <summary>The page as people count it, from 1.</summary>
     [JsonIgnore] public int PageNumber => Page + 1;

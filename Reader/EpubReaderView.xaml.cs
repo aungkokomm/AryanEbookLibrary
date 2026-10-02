@@ -360,6 +360,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             ? $"Page {current + 1:N0} of {_total:N0}. Type a percentage to go there (Ctrl+G)"
             : "Type a percentage to go there (Ctrl+G)");
         var chapter = Str(m, "chapter");
+        _chapter = chapter;
+        ShowBookmark();
         ChapterText.Text = chapter;
         ToolTipService.SetToolTip(ChapterText, chapter.Length > 0 ? chapter : null);
 
@@ -391,6 +393,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "f" or "F": FocusSearch(); break;
             case "g" or "G": FocusProgress(); break;
             case "w" or "W": CloseRequested?.Invoke(); break;
+            case "d" or "D": ToggleBookmark(); break;
             case "=" or "+": SetFontSize(_fontSize + FontStep); break;
             case "-": SetFontSize(_fontSize - FontStep); break;
             case "0": SetFontSize(100); break;
@@ -667,7 +670,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () =>
             {
                 TimeLeftText.Visibility = ChapterText.Visibility = SearchCountText.Visibility = ZoomButton.Visibility =
-                    ShortcutsButton.Visibility = LibraryLabel.Visibility = Visibility.Visible;
+                    ShortcutsButton.Visibility = LibraryLabel.Visibility = BookmarkButton.Visibility = Visibility.Visible;
                 SearchBox.Width = 200;
                 ChapterText.Width = ChapterRoom;
             },
@@ -677,7 +680,8 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             () => LibraryLabel.Visibility = Visibility.Collapsed,
             () => SearchCountText.Visibility = Visibility.Collapsed,
             () => ZoomButton.Visibility = Visibility.Collapsed,
-            () => ShortcutsButton.Visibility = Visibility.Collapsed);
+            () => ShortcutsButton.Visibility = Visibility.Collapsed,
+            () => BookmarkButton.Visibility = Visibility.Collapsed);   // Ctrl+D still marks the page
         ChapterText.Width = double.NaN;
     }
 
@@ -744,6 +748,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Add(VirtualKey.F3, VirtualKeyModifiers.None, () => StepSearch(1));
         Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => StepSearch(-1));
         Add(VirtualKey.G, VirtualKeyModifiers.Control, FocusProgress);
+        Add(VirtualKey.D, VirtualKeyModifiers.Control, ToggleBookmark);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "back" }));
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "forward" }));
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -763,6 +768,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         notes.Drawn += _ => SendMarks();
         notes.Removed += _ => SendMarks();
         notes.Reloaded += SendMarks;
+        notes.ListChanged += ShowBookmark;
         HighlightsList.CountChanged += n => HighlightsTab.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
         HighlightsList.OpenRequested += a =>
         {
@@ -781,6 +787,36 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private Size SurfaceSize => new(Surface.ActualWidth, Surface.ActualHeight);
 
     private const string AnchorTag = "epub1:";
+    private const string BookmarkTag = "epubmark1:";
+    private string _chapter = "";
+
+    // ---- bookmarks ----
+
+    private bool _showingBookmark;
+
+    /// <summary>The button turned on or off, by a click, Space or a screen reader: the bookmark follows.</summary>
+    private void OnBookmarkToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_showingBookmark) ToggleBookmark();
+    }
+
+    /// <summary>Ctrl+D: the place being read (the reader's location) is bookmarked, or its bookmark taken off.</summary>
+    private void ToggleBookmark()
+    {
+        if (_notes is null || _current < 0 || _cfi.Length == 0) return;
+        _notes.ToggleBookmark(_current, BookmarkTag + _cfi, _fraction, _chapter);
+        ShowBookmark();
+    }
+
+    /// <summary>The button is lit while the place being read has a bookmark.</summary>
+    private void ShowBookmark()
+    {
+        var marked = _current >= 0 && _notes?.BookmarkAt(_current) is not null;
+        _showingBookmark = true;
+        BookmarkButton.IsChecked = marked;
+        _showingBookmark = false;
+        ToolTipService.SetToolTip(BookmarkButton, marked ? "Take the bookmark off this page (Ctrl+D)" : "Bookmark this page (Ctrl+D)");
+    }
 
     /// <summary>The highlights for the page to draw: where each is and its colour.</summary>
     private JsonArray Marks()
@@ -848,13 +884,16 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     /// <summary>Goes to it (a jump, which Back returns from), outlined for a moment; waits for the book to open.</summary>
     public void Reveal(Annotation a)
     {
-        if (!a.Anchor.StartsWith(AnchorTag, StringComparison.Ordinal)) return;
+        var mark = a.Anchor.StartsWith(BookmarkTag, StringComparison.Ordinal);
+        if (!mark && !a.Anchor.StartsWith(AnchorTag, StringComparison.Ordinal)) return;
         if (_current < 0)
         {
             _pendingReveal = a;
             return;
         }
-        Post(new JsonObject { ["type"] = "reveal", ["cfi"] = a.Anchor[AnchorTag.Length..] });
+        // A bookmark is a place, not words: the page is turned to, with nothing outlined.
+        if (mark) Post(new JsonObject { ["type"] = "goTo", ["href"] = a.Anchor[BookmarkTag.Length..] });
+        else Post(new JsonObject { ["type"] = "reveal", ["cfi"] = a.Anchor[AnchorTag.Length..] });
     }
 
     private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => ShowPaneTab();

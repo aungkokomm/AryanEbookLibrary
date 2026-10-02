@@ -181,7 +181,7 @@ const activity = force => {
 
 // Keys the app itself answers: the page has the keyboard, so they come from here.
 const APP_KEYS = ['F1', 'F3', 'F11', 'Escape']
-const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', '=', '+', '-', '0']
+const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', 'd', 'D', '=', '+', '-', '0']
 
 // A fixed-layout book (a Kindle comic) is always shown a page at a time, whatever the layout setting.
 const scrolled = () => prefs.flow === 'scrolled' && !view?.isFixedLayout
