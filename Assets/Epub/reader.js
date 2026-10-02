@@ -15,7 +15,16 @@ const THEMES = {
 }
 
 let view = null
-let prefs = { theme: 'paper', fontSize: 100, flow: 'paginated' }
+let prefs = { theme: 'paper', fontSize: 100, flow: 'paginated', font: 'book', spacing: 'normal', width: 'medium', justify: false }
+
+// The text choices. Each one's first choice is the look books always had: the book's own font and spacing, 720 wide.
+// Windows finds Burmese and Hindi letters in its own fonts (Myanmar Text, Nirmala UI) under either of these.
+const FONTS = {
+    serif: `Georgia, Cambria, 'Times New Roman', serif`,
+    sans: `'Segoe UI', 'Noto Sans', Arial, sans-serif`,
+}
+const SPACING = { tight: 1.25, wide: 1.85, extra: 2.2 }
+const WIDTHS = { narrow: '560px', medium: '720px', wide: '960px' }
 let searchHits = []
 let searchIndex = -1
 let searchRun = 0
@@ -38,15 +47,20 @@ const css = () => {
     ` : `
         html { background: ${t.bg}; }
     `
+    const font = FONTS[prefs.font]
+    const spacing = SPACING[prefs.spacing]
     return `
         @namespace epub "http://www.idpf.org/2007/ops";
         html { font-size: ${prefs.fontSize}% !important; }
         p, li, blockquote, dd {
             line-height: 1.5;
-            text-align: start;
+            text-align: ${prefs.justify ? 'justify' : 'start'};
+            ${prefs.justify ? 'hyphens: auto;' : ''}
             hanging-punctuation: allow-end last;
             widows: 2;
         }
+        ${font ? `body, body *:not(code):not(pre):not(kbd):not(samp):not(tt) { font-family: ${font} !important; }` : ''}
+        ${spacing ? `body, p, li, blockquote, dd, div { line-height: ${spacing} !important; }` : ''}
         [align="left"] { text-align: left; }
         [align="right"] { text-align: right; }
         [align="center"] { text-align: center; }
@@ -69,7 +83,7 @@ const applyPrefs = () => {
     if (!view?.renderer) return
     view.renderer.setAttribute('flow', prefs.flow === 'scrolled' ? 'scrolled' : 'paginated')
     view.renderer.setAttribute('max-column-count', '2')
-    view.renderer.setAttribute('max-inline-size', '720px')
+    view.renderer.setAttribute('max-inline-size', WIDTHS[prefs.width] ?? WIDTHS.medium)
     view.renderer.setAttribute('margin', '40px')
     view.renderer.setStyles?.(css())
 }

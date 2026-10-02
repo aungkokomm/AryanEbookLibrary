@@ -58,6 +58,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     private string _theme;
     private int _fontSize;
     private string _flow;
+    private bool _settingUp = true;   // the text choices are being shown, not made
     private string _searchQuery = "";
     private double _fraction;
     private readonly ToolbarReveal _reveal;
@@ -77,6 +78,11 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         ShowFontSize();
         _flow = settings.ReaderFlow == "scrolled" ? "scrolled" : "paginated";
         (_flow == "scrolled" ? ScrollRadio : PagesRadio).IsChecked = true;
+        Select(FontBox, settings.ReaderFont, "book");
+        Select(SpacingBox, settings.ReaderLineSpacing, "normal");
+        Select(WidthBox, settings.ReaderTextWidth, "medium");
+        JustifySwitch.IsOn = settings.ReaderJustify;
+        _settingUp = false;
         Web.DefaultBackgroundColor = PageColor();
         SetContentsOpen(settings.ReaderContentsOpen, remember: false);
         _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, ContentsPane, FocusPages);
@@ -291,7 +297,15 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     private void Post(JsonObject message) => Web.CoreWebView2?.PostWebMessageAsJson(message.ToJsonString());
 
-    private JsonObject Prefs() => new() { ["theme"] = _theme.ToLowerInvariant(), ["fontSize"] = _fontSize, ["flow"] = _flow };
+    private JsonObject Prefs()
+    {
+        var s = AppServices.Settings;
+        return new()
+        {
+            ["theme"] = _theme.ToLowerInvariant(), ["fontSize"] = _fontSize, ["flow"] = _flow,
+            ["font"] = s.ReaderFont, ["spacing"] = s.ReaderLineSpacing, ["width"] = s.ReaderTextWidth, ["justify"] = s.ReaderJustify,
+        };
+    }
 
     private static string Str(JsonElement m, string name) =>
         m.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
@@ -581,6 +595,27 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     }
 
     private void ShowFontSize() => ZoomButton.Show(_fontSize == 100 ? "Usual size" : $"Text {_fontSize}%", _fontSize);
+
+    /// <summary>Font, line spacing, text width or justify: kept for every book, and the open one follows at once.</summary>
+    private void OnTextStyleChanged(object sender, RoutedEventArgs e)
+    {
+        if (_settingUp) return;
+        var s = AppServices.Settings;
+        s.ReaderFont = Picked(FontBox, "book");
+        s.ReaderLineSpacing = Picked(SpacingBox, "normal");
+        s.ReaderTextWidth = Picked(WidthBox, "medium");
+        s.ReaderJustify = JustifySwitch.IsOn;
+        s.Save();
+        Post(new JsonObject { ["type"] = "prefs", ["prefs"] = Prefs() });
+    }
+
+    private static void Select(ComboBox box, string value, string fallback)
+    {
+        var items = box.Items.OfType<ComboBoxItem>().ToList();
+        box.SelectedItem = items.FirstOrDefault(i => (string)i.Tag == value) ?? items.First(i => (string)i.Tag == fallback);
+    }
+
+    private static string Picked(ComboBox box, string fallback) => (box.SelectedItem as ComboBoxItem)?.Tag as string ?? fallback;
 
     private void OnFlowClick(object sender, RoutedEventArgs e)
     {

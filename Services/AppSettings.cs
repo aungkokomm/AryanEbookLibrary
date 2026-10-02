@@ -39,6 +39,11 @@ public sealed class AppSettings
     public bool ReadEpubInApp { get; set; } = true;
     public int ReaderFontSize { get; set; } = 100;             // percent of the book's own size
     public string ReaderFlow { get; set; } = "scrolled";       // paginated | scrolled
+    // The book reader's text: each starts at the look books always had.
+    public string ReaderFont { get; set; } = "book";           // book | serif | sans
+    public string ReaderLineSpacing { get; set; } = "normal";  // tight | normal | wide | extra
+    public string ReaderTextWidth { get; set; } = "medium";    // narrow | medium | wide
+    public bool ReaderJustify { get; set; }
     // And for CBZ and CBR comics.
     public bool ReadComicsInApp { get; set; } = true;
     public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width

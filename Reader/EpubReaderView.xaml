@@ -99,14 +99,35 @@
                 <!-- A book's zoom is its text size. -->
                 <reader:ZoomButton x:Name="ZoomButton" AutomationProperties.Name="Text size" ToolTipService.ToolTip="Text size" />
                 <DropDownButton x:Name="TextButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
-                                AutomationProperties.Name="Layout" ToolTipService.ToolTip="Layout">
+                                AutomationProperties.Name="Text and layout" ToolTipService.ToolTip="Text and layout">
                     <FontIcon Glyph="&#xE8D2;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight">
-                            <StackPanel Spacing="10" Width="220">
+                            <!-- Each one starts at the look books always had: the book's font, its spacing, 720 wide -->
+                            <StackPanel Spacing="12" Width="250">
                                 <TextBlock Text="Layout" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <RadioButton x:Name="PagesRadio" Content="Pages" GroupName="Flow" Click="OnFlowClick" Tag="paginated" />
-                                <RadioButton x:Name="ScrollRadio" Content="Scroll" GroupName="Flow" Click="OnFlowClick" Tag="scrolled" />
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <RadioButton x:Name="PagesRadio" Content="Pages" GroupName="Flow" Click="OnFlowClick" Tag="paginated" MinWidth="0" />
+                                    <RadioButton x:Name="ScrollRadio" Content="Scroll" GroupName="Flow" Click="OnFlowClick" Tag="scrolled" MinWidth="0" />
+                                </StackPanel>
+                                <ComboBox x:Name="FontBox" Header="Font" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
+                                    <ComboBoxItem Content="The book's own" Tag="book" />
+                                    <ComboBoxItem Content="Serif" Tag="serif" />
+                                    <ComboBoxItem Content="Sans-serif" Tag="sans" />
+                                </ComboBox>
+                                <ComboBox x:Name="SpacingBox" Header="Line spacing" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
+                                    <ComboBoxItem Content="Tight" Tag="tight" />
+                                    <ComboBoxItem Content="Normal" Tag="normal" />
+                                    <ComboBoxItem Content="Wide" Tag="wide" />
+                                    <ComboBoxItem Content="Extra wide" Tag="extra" />
+                                </ComboBox>
+                                <ComboBox x:Name="WidthBox" Header="Text width" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
+                                    <ComboBoxItem Content="Narrow" Tag="narrow" />
+                                    <ComboBoxItem Content="Medium" Tag="medium" />
+                                    <ComboBoxItem Content="Wide" Tag="wide" />
+                                </ComboBox>
+                                <ToggleSwitch x:Name="JustifySwitch" Header="Justify text" Toggled="OnTextStyleChanged"
+                                              OnContent="" OffContent="" />
                             </StackPanel>
                         </Flyout>
                     </DropDownButton.Flyout>
