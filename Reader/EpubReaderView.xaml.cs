@@ -85,6 +85,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         _settingUp = false;
         Web.DefaultBackgroundColor = PageColor();
         SetContentsOpen(settings.ReaderContentsOpen, remember: false);
+        ChooseTab(TabNamed(settings.ReaderPaneTab));
         _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, ContentsPane, FocusPages);
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
@@ -397,6 +398,18 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "w" or "W": CloseRequested?.Invoke(); break;
             case "d" or "D": ToggleBookmark(); break;
             case "u" or "U" when Flag(m, "shift"): ToggleReading(); break;
+            case "F2": StepBookmark(Flag(m, "shift") ? -1 : 1); break;
+            case "h" or "H" when !Flag(m, "shift"): _notes?.KeepOffered(); break;
+            case "c" or "C": TogglePaneTab("Contents"); break;
+            case "p" or "P": TogglePaneTab("Pages"); break;
+            case "h" or "H": TogglePaneTab("Highlights"); break;
+            case "t" or "T": NextPageTheme(); break;
+            case "l" or "L" when !Flag(m, "shift"): ToggleFlow(); break;
+            case "ArrowRight" or "ArrowLeft":
+                var step = Str(m, "key") == "ArrowRight" ? 1 : -1;
+                if (!Flag(m, "shift")) StepChapter(step);
+                else SkipReading(step);
+                break;
             case "=" or "+": SetFontSize(_fontSize + FontStep); break;
             case "-": SetFontSize(_fontSize - FontStep); break;
             case "0": SetFontSize(100); break;
@@ -625,7 +638,20 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     private void OnFlowClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as RadioButton)?.Tag is not string flow || flow == _flow) return;
+        if ((sender as RadioButton)?.Tag is string flow) SetFlow(flow);
+    }
+
+    /// <summary>Ctrl+L: Pages or Scroll, whichever is not being used.</summary>
+    private void ToggleFlow()
+    {
+        var radio = _flow == "scrolled" ? PagesRadio : ScrollRadio;
+        radio.IsChecked = true;
+        SetFlow((string)radio.Tag);
+    }
+
+    private void SetFlow(string flow)
+    {
+        if (flow == _flow) return;
         _flow = flow;
         AppServices.Settings.ReaderFlow = flow;
         AppServices.Settings.Save();
@@ -634,7 +660,20 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
 
     private void OnPageTheme(object sender, RoutedEventArgs e)
     {
-        if ((sender as RadioMenuFlyoutItem)?.Tag is not string tag || tag == _theme) return;
+        if ((sender as RadioMenuFlyoutItem)?.Tag is string tag) SetPageTheme(tag);
+    }
+
+    /// <summary>Ctrl+Shift+T: Paper, Sepia, Night, and round again.</summary>
+    private void NextPageTheme()
+    {
+        var item = _theme switch { "Paper" => SepiaItem, "Sepia" => NightItem, _ => PaperItem };
+        item.IsChecked = true;
+        SetPageTheme((string)item.Tag);
+    }
+
+    private void SetPageTheme(string tag)
+    {
+        if (tag == _theme) return;
         _theme = tag;
         AppServices.Settings.ReaderPageTheme = tag;
         AppServices.Settings.Save();
@@ -708,6 +747,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         FocusPages();
     }
 
+    /// <summary>Ctrl+Right and Ctrl+Left: the next chapter, or the one before the chapter being read.</summary>
+    private void StepChapter(int step) => Post(new JsonObject { ["type"] = "chapter", ["step"] = step });
+
     private void OnOpenExternally(object sender, RoutedEventArgs e) => OpenExternallyRequested?.Invoke();
 
     private void ShowMessage(string title, string text, bool ring, bool external = false)
@@ -733,15 +775,25 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     /// <summary>For when the toolbar or the search box has the keyboard; on the page, reader.js sends these.</summary>
     private void AddAccelerators()
     {
-        void Add(VirtualKey key, VirtualKeyModifiers modifiers, Action action)
+        void Add(VirtualKey key, VirtualKeyModifiers modifiers, Action action) => AddIf(key, modifiers, () =>
+        {
+            action();
+            return true;
+        });
+
+        void AddIf(VirtualKey key, VirtualKeyModifiers modifiers, Func<bool> action)
         {
             var accelerator = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
-            accelerator.Invoked += (_, e) =>
-            {
-                action();
-                e.Handled = true;
-            };
+            accelerator.Invoked += (_, e) => e.Handled = action();
             Root.KeyboardAccelerators.Add(accelerator);
+        }
+
+        // In a text box these move and select by words: they are the box's there.
+        bool OffText(Action action)
+        {
+            if (XamlRoot is not null && FocusManager.GetFocusedElement(XamlRoot) is TextBox) return false;
+            action();
+            return true;
         }
 
         Add(VirtualKey.F, VirtualKeyModifiers.Control, FocusSearch);
@@ -757,6 +809,18 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Add(VirtualKey.U, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, ToggleReading);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "back" }));
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, () => Post(new JsonObject { ["type"] = "forward" }));
+        AddIf(VirtualKey.Right, VirtualKeyModifiers.Control, () => OffText(() => StepChapter(1)));
+        AddIf(VirtualKey.Left, VirtualKeyModifiers.Control, () => OffText(() => StepChapter(-1)));
+        AddIf(VirtualKey.Right, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => _reading && OffText(() => SkipReading(1)));
+        AddIf(VirtualKey.Left, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => _reading && OffText(() => SkipReading(-1)));
+        Add(VirtualKey.F2, VirtualKeyModifiers.None, () => StepBookmark(1));
+        Add(VirtualKey.F2, VirtualKeyModifiers.Shift, () => StepBookmark(-1));
+        AddIf(VirtualKey.H, VirtualKeyModifiers.Control, () => _notes?.KeepOffered() == true);
+        Add(VirtualKey.C, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Contents"));
+        Add(VirtualKey.P, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Pages"));
+        Add(VirtualKey.H, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Highlights"));
+        Add(VirtualKey.T, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, NextPageTheme);
+        AddIf(VirtualKey.L, VirtualKeyModifiers.Control, () => OffText(ToggleFlow));
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
@@ -848,6 +912,14 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         Post(new JsonObject { ["type"] = "readStop" });
     }
 
+    /// <summary>Ctrl+Shift+Right and Left while reading aloud: on to the next paragraph, or back to the one before.</summary>
+    private void SkipReading(int step)
+    {
+        if (!_reading || _speech is null) return;
+        _speech.Stop();
+        Post(new JsonObject { ["type"] = step > 0 ? "readNext" : "readPrevious" });
+    }
+
     private void ShowReading(bool on)
     {
         _reading = on;
@@ -906,6 +978,12 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     }
 
     /// <summary>The button is lit while the place being read has a bookmark.</summary>
+    /// <summary>F2 and Shift+F2: the next bookmark after the place being read, or the one before it.</summary>
+    private void StepBookmark(int step)
+    {
+        if (_current >= 0 && _notes?.NextBookmark(_current, step) is { } mark) Reveal(mark);
+    }
+
     private void ShowBookmark()
     {
         var marked = _current >= 0 && _notes?.BookmarkAt(_current) is not null;
@@ -993,7 +1071,41 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         else Post(new JsonObject { ["type"] = "reveal", ["cfi"] = a.Anchor[AnchorTag.Length..] });
     }
 
-    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => ShowPaneTab();
+    private bool _choosingTab;
+
+    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        ShowPaneTab();
+        // Picked by hand: the next book opens on it too.
+        if (_choosingTab || PaneTabs.SelectedItem?.Tag is not string name) return;
+        AppServices.Settings.ReaderPaneTab = name;
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>A tab picked for the reader, not by them: not remembered.</summary>
+    private void ChooseTab(SelectorBarItem tab)
+    {
+        _choosingTab = true;
+        PaneTabs.SelectedItem = tab;
+        _choosingTab = false;
+    }
+
+    /// <summary>The tab by its name. A book's pages are made by the window, so its way round is the contents.</summary>
+    private SelectorBarItem TabNamed(string name) => name == "Highlights" ? HighlightsTab : ContentsTab;
+
+    /// <summary>Ctrl+Shift+C, P and H: the side pane open on that tab, or put away when it is showing it already.</summary>
+    private void TogglePaneTab(string name)
+    {
+        var tab = TabNamed(name);
+        if (ContentsPane.Visibility == Visibility.Visible && ReferenceEquals(PaneTabs.SelectedItem, tab))
+        {
+            SetContentsOpen(false, remember: true);
+            return;
+        }
+        if (Equals(tab.Tag, name)) PaneTabs.SelectedItem = tab;   // remembered, as a click on it is
+        else ChooseTab(tab);
+        SetContentsOpen(true, remember: true);
+    }
 
     private void ShowPaneTab()
     {

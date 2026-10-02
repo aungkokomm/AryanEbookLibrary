@@ -95,6 +95,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _theme = AppServices.Settings.ReaderPageTheme switch { "Sepia" => 1, "Night" => 2, _ => 0 };
         (_theme switch { 1 => SepiaItem, 2 => NightItem, _ => PaperItem }).IsChecked = true;
         SetContentsOpen(AppServices.Settings.ReaderContentsOpen, remember: false);
+        ChooseTab(TabNamed(AppServices.Settings.ReaderPaneTab));
         ZoomButton.Configure(25, 400, 5, "Zoom out", "Zoom in", ("width", "Fit width"), ("page", "Fit page"));
         ZoomButton.Stepped += StepZoom;
         ZoomButton.SliderMoved += percent =>
@@ -300,7 +301,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         // (Removed, not collapsed: a SelectorBar whose selected item is collapsed showed no tabs at all.)
         if (outline.Count == 0)
         {
-            if (!ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab)) PaneTabs.SelectedItem = PagesTab;
+            if (!ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab)) ChooseTab(PagesTab);
             PaneTabs.Items.Remove(ContentsTab);
         }
         ShowPaneTab();
@@ -828,7 +829,19 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     private void OnPageTheme(object sender, RoutedEventArgs e)
     {
-        if ((sender as RadioMenuFlyoutItem)?.Tag is not string tag) return;
+        if ((sender as RadioMenuFlyoutItem)?.Tag is string tag) SetPageTheme(tag);
+    }
+
+    /// <summary>Ctrl+Shift+T: Paper, Sepia, Night, and round again.</summary>
+    private void NextPageTheme()
+    {
+        var item = _theme switch { 0 => SepiaItem, 1 => NightItem, _ => PaperItem };
+        item.IsChecked = true;
+        SetPageTheme((string)item.Tag);
+    }
+
+    private void SetPageTheme(string tag)
+    {
         var theme = tag switch { "Sepia" => 1, "Night" => 2, _ => 0 };
         if (theme == _theme) return;
         _theme = theme;
@@ -986,6 +999,20 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     {
         if (e.ClickedItem is OutlineRow { Page: >= 0 } row) JumpTo(row.Page);
         FocusPages();
+    }
+
+    /// <summary>Ctrl+Right and Ctrl+Left: the next entry in the contents, or the one before the entry being read.</summary>
+    private void StepChapter(int step)
+    {
+        if (_currentPage < 0) return;
+        var starts = _outline.Where(e => e.Page >= 0).Select(e => e.Page).Distinct().Order().ToList();
+        if (step > 0)
+        {
+            if (starts.FirstOrDefault(p => p > _currentPage, -1) is var next and >= 0) JumpTo(next);
+            return;
+        }
+        var here = starts.LastOrDefault(p => p <= _currentPage, -1);
+        if (starts.LastOrDefault(p => p < here, -1) is var previous and >= 0) JumpTo(previous);
     }
 
     // ================================================================ links
@@ -1731,6 +1758,15 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         _speech?.Stop();
     }
 
+    /// <summary>Ctrl+Shift+Right and Left while reading aloud: on to the next page, or back to the one before.</summary>
+    private bool SkipReading(int step)
+    {
+        if (!_reading || _speech is null) return false;
+        _speech.Stop();
+        _ = ReadPageAsync(Math.Max(0, _readPage + step));
+        return true;
+    }
+
     private void ShowReading(bool on)
     {
         _reading = on;
@@ -1803,6 +1839,12 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         var page = _currentPage;
         _notes.ToggleBookmark(page, Annotation.MakeAnchor("mark1", page), PositionOf(page, 0), ChapterOf(page));
         ShowBookmark();
+    }
+
+    /// <summary>F2 and Shift+F2: the next bookmark after the page being read, or the one before it.</summary>
+    private void StepBookmark(int step)
+    {
+        if (_currentPage >= 0 && _notes?.NextBookmark(_currentPage, step) is { } mark) JumpTo(mark.Page);
     }
 
     /// <summary>The button is lit while the page being read has a bookmark.</summary>
@@ -2017,7 +2059,46 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
     // ---- the side pane's tabs ----
 
-    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) => ShowPaneTab();
+    private bool _choosingTab;
+
+    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        ShowPaneTab();
+        // Picked by hand: the next book opens on it too.
+        if (_choosingTab || PaneTabs.SelectedItem?.Tag is not string name) return;
+        AppServices.Settings.ReaderPaneTab = name;
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>A tab picked for the reader, not by them: not remembered.</summary>
+    private void ChooseTab(SelectorBarItem tab)
+    {
+        _choosingTab = true;
+        PaneTabs.SelectedItem = tab;
+        _choosingTab = false;
+    }
+
+    /// <summary>The tab by its name; a book with no contents of its own has its pages instead.</summary>
+    private SelectorBarItem TabNamed(string name) => name switch
+    {
+        "Pages" => PagesTab,
+        "Highlights" => HighlightsTab,
+        _ => PaneTabs.Items.Contains(ContentsTab) ? ContentsTab : PagesTab,
+    };
+
+    /// <summary>Ctrl+Shift+C, P and H: the side pane open on that tab, or put away when it is showing it already.</summary>
+    private void TogglePaneTab(string name)
+    {
+        var tab = TabNamed(name);
+        if (ContentsPane.Visibility == Visibility.Visible && ReferenceEquals(PaneTabs.SelectedItem, tab))
+        {
+            SetContentsOpen(false, remember: true);
+            return;
+        }
+        if (Equals(tab.Tag, name)) PaneTabs.SelectedItem = tab;   // remembered, as a click on it is
+        else ChooseTab(tab);
+        SetContentsOpen(true, remember: true);
+    }
 
     private void ShowPaneTab()
     {
@@ -2174,7 +2255,27 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         Add(VirtualKey.U, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, ToggleReading);
         Add(VirtualKey.Left, VirtualKeyModifiers.Menu, GoBack);
         Add(VirtualKey.Right, VirtualKeyModifiers.Menu, GoForward);
+        // In a text box these move and select by words: they are the box's there.
+        AddIf(VirtualKey.Right, VirtualKeyModifiers.Control, () => !Typing() && Did(() => StepChapter(1)));
+        AddIf(VirtualKey.Left, VirtualKeyModifiers.Control, () => !Typing() && Did(() => StepChapter(-1)));
+        AddIf(VirtualKey.Right, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => !Typing() && SkipReading(1));
+        AddIf(VirtualKey.Left, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => !Typing() && SkipReading(-1));
+        Add(VirtualKey.F2, VirtualKeyModifiers.None, () => StepBookmark(1));
+        Add(VirtualKey.F2, VirtualKeyModifiers.Shift, () => StepBookmark(-1));
+        AddIf(VirtualKey.H, VirtualKeyModifiers.Control, () => _notes?.KeepOffered() == true);
+        Add(VirtualKey.C, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Contents"));
+        Add(VirtualKey.P, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Pages"));
+        Add(VirtualKey.H, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => TogglePaneTab("Highlights"));
+        Add(VirtualKey.T, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, NextPageTheme);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+    }
+
+    private bool Typing() => XamlRoot is not null && FocusManager.GetFocusedElement(XamlRoot) is TextBox;
+
+    private static bool Did(Action action)
+    {
+        action();
+        return true;
     }
 
     /// <summary>

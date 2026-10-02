@@ -120,7 +120,8 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         };
         ShowZoom();
         Scroller.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnWheel), true);
-        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, HighlightsPane, FocusPages);
+        _reveal = new ToolbarReveal(Root, ToolBar, ToolBarBack, SidePane, FocusPages);
+        ChooseTab(TabNamed(AppServices.Settings.ReaderPaneTab));
         Root.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSideButton), true);
         AddAccelerators();
     }
@@ -163,6 +164,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         }
 
         _book = book;
+        ShowPaneTab();
         Log.Write($"reader: opened {Path.GetFileName(path)}, {book.PageCount} pages, in {clock.ElapsedMilliseconds} ms");
         PageCountText.Text = $"of {book.PageCount:N0}";
         _reveal.Show(ToolbarReveal.Glimpse);
@@ -204,6 +206,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     {
         _page = page;
         ShowPageNumber();
+        FollowCurrentPage();
         PageChanged?.Invoke(page, page);
         if (OfferFinish && !_endOffered && page == _book!.PageCount - 1)
         {
@@ -672,6 +675,12 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         });
         Add(VirtualKey.Left, GoBack, VirtualKeyModifiers.Menu);
         Add(VirtualKey.Right, GoForward, VirtualKeyModifiers.Menu);
+        Add(VirtualKey.F2, () => StepBookmark(1), VirtualKeyModifiers.None);
+        Add(VirtualKey.F2, () => StepBookmark(-1), VirtualKeyModifiers.Shift);
+        Add(VirtualKey.H, () => _notes?.KeepOffered());
+        Add(VirtualKey.C, () => TogglePaneTab("Contents"), VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift);
+        Add(VirtualKey.P, () => TogglePaneTab("Pages"), VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift);
+        Add(VirtualKey.H, () => TogglePaneTab("Highlights"), VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift);
         Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
     }
 
@@ -713,6 +722,12 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         if (_notes is null || _book is null || _page < 0) return;
         _notes.ToggleBookmark(_page, Annotation.MakeAnchor("mark1", _page), _page / (double)Math.Max(1, _book.PageCount), "");
         ShowBookmark();
+    }
+
+    /// <summary>F2 and Shift+F2: the next bookmark after the page being read, or the one before it.</summary>
+    private void StepBookmark(int step)
+    {
+        if (_page >= 0 && _notes?.NextBookmark(_page, step) is { } mark) JumpTo(mark.Page);
     }
 
     /// <summary>The button is lit while the page being read has a bookmark.</summary>
@@ -849,7 +864,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         };
         HighlightsList.EmptyMessage =
             "Drag a box round a panel to keep it. Right-click a page to highlight all of it or add a note to it. They all show here.";
-        HighlightsList.CountChanged += n => PaneTitle.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
+        HighlightsList.CountChanged += n => HighlightsTab.Text = n > 0 ? $"Highlights ({n:N0})" : "Highlights";
         HighlightsList.OpenRequested += a =>
         {
             Reveal(a);
@@ -1161,16 +1176,155 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
         DrawMarksSoon();
     }
 
-    private void OnHighlightsClick(object sender, RoutedEventArgs e)
+    private void OnPaneClick(object sender, RoutedEventArgs e)
     {
-        SetPaneOpen(HighlightsButton.IsChecked == true);
+        SetPaneOpen(PaneButton.IsChecked == true);
         FocusPages();
     }
 
     private void SetPaneOpen(bool open)
     {
-        HighlightsButton.IsChecked = open;
-        HighlightsPane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        PaneButton.IsChecked = open;
+        SidePane.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (open) FollowCurrentPage();
+    }
+
+    // ---- the side pane's tabs ----
+
+    private bool _choosingTab;
+
+    private void OnPaneTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        ShowPaneTab();
+        // Picked by hand: the next book opens on it too.
+        if (_choosingTab || PaneTabs.SelectedItem?.Tag is not string name) return;
+        AppServices.Settings.ReaderPaneTab = name;
+        AppServices.Settings.Save();
+    }
+
+    /// <summary>A tab picked for the reader, not by them: not remembered.</summary>
+    private void ChooseTab(SelectorBarItem tab)
+    {
+        _choosingTab = true;
+        PaneTabs.SelectedItem = tab;
+        _choosingTab = false;
+    }
+
+    /// <summary>The tab by its name. A comic has no contents of its own: its pages are its way round.</summary>
+    private SelectorBarItem TabNamed(string name) => name == "Highlights" ? HighlightsTab : PagesTab;
+
+    /// <summary>Ctrl+Shift+P and H (C too): the side pane open on that tab, or put away when it is showing it already.</summary>
+    private void TogglePaneTab(string name)
+    {
+        var tab = TabNamed(name);
+        if (SidePane.Visibility == Visibility.Visible && ReferenceEquals(PaneTabs.SelectedItem, tab))
+        {
+            SetPaneOpen(false);
+            return;
+        }
+        if (Equals(tab.Tag, name)) PaneTabs.SelectedItem = tab;   // remembered, as a click on it is
+        else ChooseTab(tab);
+        SetPaneOpen(true);
+    }
+
+    private void ShowPaneTab()
+    {
+        var pages = !ReferenceEquals(PaneTabs.SelectedItem, HighlightsTab);
+        PagesList.Visibility = pages ? Visibility.Visible : Visibility.Collapsed;
+        HighlightsList.Visibility = pages ? Visibility.Collapsed : Visibility.Visible;
+        if (pages) ShowThumbs();
+    }
+
+    // ---- the Pages tab: every page as a small picture ----
+
+    private const double PageThumbWidth = 108;   // as in the XAML
+    private const int ThumbsKept = 120;          // pictures kept for scrolling back
+    private readonly Dictionary<int, BitmapImage> _thumbs = new();
+    private readonly Queue<int> _thumbOrder = new();
+    // One picture at a time, and none for one already scrolled away: a fast fling through a long comic must not stand
+    // in front of the pages being read.
+    private readonly SemaphoreSlim _thumbGate = new(1, 1);
+
+    /// <summary>The pictures, listed the first time the tab is shown, with the page being read selected and in view.</summary>
+    private void ShowThumbs()
+    {
+        if (_book is not { } book) return;
+        if (PagesList.ItemsSource is not List<int> pages || pages.Count != book.PageCount)
+            PagesList.ItemsSource = Enumerable.Range(0, book.PageCount).ToList();
+        FollowCurrentPage();
+    }
+
+    private void FollowCurrentPage()
+    {
+        if (SidePane.Visibility != Visibility.Visible || PagesList.Visibility != Visibility.Visible || _page < 0
+            || PagesList.ItemsSource is not List<int> pages || _page >= pages.Count || PagesList.SelectedIndex == _page) return;
+        PagesList.SelectedIndex = _page;
+        PagesList.ScrollIntoView(_page);
+    }
+
+    private void OnPageThumbChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.ItemContainer.ContentTemplateRoot is not StackPanel { Children: [Border { Child: Image image }, TextBlock label] })
+            return;
+        if (args.InRecycleQueue)
+        {
+            image.Source = null;
+            image.Tag = null;
+            return;
+        }
+        var page = (int)args.Item;
+        label.Text = (page + 1).ToString(CultureInfo.CurrentCulture);
+        AutomationProperties.SetName(args.ItemContainer, $"Page {page + 1}");
+        image.Tag = page;
+        args.Handled = true;
+        if (_thumbs.TryGetValue(page, out var made))
+        {
+            image.Source = made;
+            return;
+        }
+        image.Source = null;
+        _ = MakeThumbAsync(page, image);
+    }
+
+    /// <summary>The page's picture, decoded small by the image decoder itself (DecodePixelWidth).</summary>
+    private async Task MakeThumbAsync(int page, Image image)
+    {
+        var book = _book;
+        if (book is null) return;
+        var width = (int)Math.Ceiling(PageThumbWidth * (XamlRoot?.RasterizationScale ?? 1));
+        await _thumbGate.WaitAsync();
+        try
+        {
+            // Scrolled away (or closed) while waiting its turn: nothing to draw.
+            if (_closed || image.Tag is not int wanted || wanted != page) return;
+            var bytes = await Task.Run(() => book.ReadPage(page));
+            if (_closed || bytes is null) return;
+            using var stream = new InMemoryRandomAccessStream();
+            await stream.WriteAsync(bytes.AsBuffer());
+            stream.Seek(0);
+            var bitmap = new BitmapImage { DecodePixelWidth = width, DecodePixelType = DecodePixelType.Physical };
+            await bitmap.SetSourceAsync(stream);
+            if (_closed) return;
+            _thumbs[page] = bitmap;
+            _thumbOrder.Enqueue(page);
+            while (_thumbOrder.Count > ThumbsKept) _thumbs.Remove(_thumbOrder.Dequeue());
+            if (image.Tag is int now && now == page) image.Source = bitmap;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"reader: the picture of page {page + 1} could not be made: {ex.Message}");
+        }
+        finally
+        {
+            _thumbGate.Release();
+        }
+    }
+
+    private void OnPageThumbClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not int page) return;
+        JumpTo(page);
+        FocusPages();
     }
 
     // ---- pictures ----

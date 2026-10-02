@@ -14,6 +14,9 @@
                     <SolidColorBrush x:Key="ReaderSurfaceBrush" Color="#FF1A1A1C" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+            <!-- Two page pictures side by side in the 290 wide pane (PageThumbWidth in code too), as in the PDF reader -->
+            <x:Double x:Key="PageThumbWidth">108</x:Double>
+            <x:Double x:Key="PageThumbHeight">146</x:Double>
             <Style x:Key="ToolButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="Width" Value="36" />
                 <Setter Property="Height" Value="32" />
@@ -56,10 +59,10 @@
                         <TextBlock x:Name="LibraryLabel" Text="Library" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <ToggleButton x:Name="HighlightsButton" Width="36" Height="32" Padding="0" Click="OnHighlightsClick"
+                <ToggleButton x:Name="PaneButton" Width="36" Height="32" Padding="0" Click="OnPaneClick"
                               Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
-                              AutomationProperties.Name="Highlights and notes" ToolTipService.ToolTip="Highlights and notes">
-                    <FontIcon Glyph="&#xE7E6;" FontSize="16" />
+                              AutomationProperties.Name="Pages and highlights" ToolTipService.ToolTip="Pages and highlights (Ctrl+Shift+P)">
+                    <FontIcon Glyph="&#xE8FD;" FontSize="16" />
                 </ToggleButton>
                 <Button Style="{StaticResource ToolButtonStyle}" Click="OnPreviousPage"
                         AutomationProperties.Name="Previous page" ToolTipService.ToolTip="Previous page (Left arrow)">
@@ -115,11 +118,39 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ═══ the side pane: the comic's clipped panels and notes ═══ -->
-            <Grid x:Name="HighlightsPane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
+            <!-- ═══ the side pane: every page as a small picture, and the comic's clipped panels and notes ═══ -->
+            <Grid x:Name="SidePane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
                   BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
-                <TextBlock x:Name="PaneTitle" Text="Highlights" Margin="16,12,16,8" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" />
+                <SelectorBar x:Name="PaneTabs" Margin="4,4,4,0" SelectionChanged="OnPaneTabChanged">
+                    <!-- The tab last picked is picked again (ChooseTab, in code) -->
+                    <SelectorBarItem x:Name="PagesTab" Text="Pages" Tag="Pages" />
+                    <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" Tag="Highlights" />
+                </SelectorBar>
+                <!-- Drawn as they scroll into view (OnPageThumbChanging). The page being read is the selected one. -->
+                <GridView x:Name="PagesList" Grid.Row="1" Visibility="Collapsed" SelectionMode="Single"
+                          IsItemClickEnabled="True" ItemClick="OnPageThumbClick"
+                          ContainerContentChanging="OnPageThumbChanging" Padding="10,8,4,12">
+                    <GridView.ItemContainerStyle>
+                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+                            <Setter Property="Margin" Value="2" />
+                            <Setter Property="Padding" Value="6" />
+                        </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="{StaticResource PageThumbWidth}" Spacing="4">
+                                <Border Height="{StaticResource PageThumbHeight}" BorderThickness="1"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                                    <Image Stretch="Uniform" />
+                                </Border>
+                                <TextBlock HorizontalAlignment="Center" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+                <reader:HighlightsPanel x:Name="HighlightsList" Grid.Row="1" Visibility="Collapsed" />
             </Grid>
 
             <!-- ═══ the page ═══ -->

@@ -50,6 +50,7 @@ public sealed class AppSettings
     public string ReaderComicView { get; set; } = "Continuous"; // Continuous | Page | Width
     public string ReaderPageTheme { get; set; } = "Paper";     // Paper | Sepia | Night
     public bool ReaderContentsOpen { get; set; }
+    public string ReaderPaneTab { get; set; } = "Contents";   // Contents | Pages | Highlights: the side pane's tab last picked
     public int LastHighlightColor { get; set; } = 1;   // the colour the Note button and "Highlight" use
     public string ReaderToolbar { get; set; } = "Always";     // Always | Hide (until the pointer goes to the top)
     public int ReaderWidth { get; set; } = 1100;

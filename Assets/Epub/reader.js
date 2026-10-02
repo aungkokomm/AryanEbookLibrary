@@ -158,6 +158,7 @@ const open = async (url, lastLocation, p, list) => {
 const onRelocate = detail => {
     const { fraction, location, tocItem, pageItem, cfi } = detail
     lastRange = detail.range ?? null
+    lastTocItem = tocItem ?? null
     post({
         type: 'relocate',
         fraction: fraction ?? 0,
@@ -177,6 +178,25 @@ const onRelocate = detail => {
 
 const SPOKEN = 'p, li, h1, h2, h3, h4, h5, h6, blockquote, dd, dt, figcaption, td, th, pre, div'
 let lastRange = null
+let lastTocItem = null   // the contents entry being read
+
+const flatToc = (items, out = []) => {
+    for (const item of items ?? []) {
+        out.push(item)
+        flatToc(item.subitems, out)
+    }
+    return out
+}
+
+// Ctrl+Right and Ctrl+Left: the next entry in the contents, or the one before the entry being read. A book without
+// contents goes a section at a time.
+const stepChapter = async step => {
+    const toc = flatToc(view?.book?.toc).filter(item => item.href)
+    if (!toc.length) return step > 0 ? view?.renderer.nextSection?.() : view?.renderer.prevSection?.()
+    const i = toc.findIndex(item => item.href === lastTocItem?.href)
+    const to = i < 0 ? (step > 0 ? toc[0] : null) : toc[i + step]
+    if (to) await view.goTo(to.href)
+}
 let reading = null   // { index, blocks, i }
 
 // The innermost blocks with words: a quote or a div holding paragraphs is read through its paragraphs.
@@ -258,6 +278,14 @@ const readNext = async () => {
     await speakBlock()
 }
 
+// Back a paragraph: to the one before the one being spoken (the first of the section stays the first).
+const readPrevious = async () => {
+    if (!reading) return
+    unmarkReading()
+    reading.i = Math.max(-1, reading.i - 2)
+    await readNext()
+}
+
 const readStop = () => {
     unmarkReading()
     reading = null
@@ -275,8 +303,11 @@ const activity = force => {
 }
 
 // Keys the app itself answers: the page has the keyboard, so they come from here.
-const APP_KEYS = ['F1', 'F3', 'F11', 'Escape']
-const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', 'd', 'D', 'u', 'U', '=', '+', '-', '0']
+const APP_KEYS = ['F1', 'F2', 'F3', 'F11', 'Escape']
+const APP_CTRL_KEYS = ['f', 'F', 'g', 'G', 'w', 'W', 'd', 'D', 'u', 'U', 'h', 'H', 'l', 'L', 'ArrowLeft', 'ArrowRight',
+    '=', '+', '-', '0']
+// Only with Shift too: Ctrl+C and Ctrl+P alone stay the page's own.
+const APP_CTRL_SHIFT_KEYS = ['c', 'C', 'p', 'P', 't', 'T']
 
 // A fixed-layout book (a Kindle comic) is always shown a page at a time, whatever the layout setting.
 const scrolled = () => prefs.flow === 'scrolled' && !view?.isFixedLayout
@@ -289,7 +320,7 @@ const onKey = e => {
     const k = e.key
     const ctrl = e.ctrlKey || e.metaKey
     altAlone = k === 'Alt' && !ctrl && !e.shiftKey
-    if (APP_KEYS.includes(k) || (ctrl && APP_CTRL_KEYS.includes(k))) {
+    if (APP_KEYS.includes(k) || (ctrl && (APP_CTRL_KEYS.includes(k) || (e.shiftKey && APP_CTRL_SHIFT_KEYS.includes(k))))) {
         e.preventDefault()
         post({ type: 'key', key: k, ctrl, shift: e.shiftKey })
         return
@@ -695,6 +726,8 @@ window.chrome.webview.addEventListener('message', async e => {
             case 'readStart': await readStart(); break
             case 'readNext': await readNext(); break
             case 'readWord': await readWord(m.at, m.length); break
+            case 'readPrevious': await readPrevious(); break
+            case 'chapter': await stepChapter(m.step); break
             case 'readStop': readStop(); break
         }
     } catch (err) {

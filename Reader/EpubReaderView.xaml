@@ -52,7 +52,7 @@
                 </Button>
                 <ToggleButton x:Name="ContentsButton" Width="36" Height="32" Padding="0" Click="OnContentsClick"
                               Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False"
-                              AutomationProperties.Name="Contents" ToolTipService.ToolTip="Contents">
+                              AutomationProperties.Name="Contents" ToolTipService.ToolTip="Contents (Ctrl+Shift+C)">
                     <FontIcon Glyph="&#xE8FD;" FontSize="16" />
                 </ToggleButton>
             </StackPanel>
@@ -146,7 +146,7 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton x:Name="PageThemeButton" Height="32" Padding="8,0" AllowFocusOnInteraction="False"
-                                AutomationProperties.Name="Page colour" ToolTipService.ToolTip="Page colour">
+                                AutomationProperties.Name="Page colour" ToolTipService.ToolTip="Page colour (Ctrl+Shift+T)">
                     <FontIcon Glyph="&#xE790;" FontSize="15" />
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -177,8 +177,9 @@
             <Grid x:Name="ContentsPane" Width="290" Visibility="Collapsed" RowDefinitions="Auto,*"
                   BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,1,0">
                 <SelectorBar x:Name="PaneTabs" Margin="4,4,4,0" SelectionChanged="OnPaneTabChanged">
-                    <SelectorBarItem x:Name="ContentsTab" Text="Contents" IsSelected="True" />
-                    <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" />
+                    <!-- The tab last picked is picked again (ChooseTab, in code) -->
+                    <SelectorBarItem x:Name="ContentsTab" Text="Contents" Tag="Contents" />
+                    <SelectorBarItem x:Name="HighlightsTab" Text="Highlights" Tag="Highlights" />
                 </SelectorBar>
                 <ListView x:Name="TocList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
                           ItemClick="OnTocClick" Padding="0,0,0,12">

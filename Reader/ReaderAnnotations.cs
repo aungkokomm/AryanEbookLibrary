@@ -16,6 +16,7 @@ public sealed class ReaderAnnotations
     private Func<Annotation?>? _make;     // words or an area waiting for a colour or a note
     private string _words = "";
     private Annotation? _editing;         // the one the bar is about
+    private bool _offered;                // the bar offers words or a box just marked out, to keep in a colour
     private bool _saving;
 
     public ReaderAnnotations(Book book)
@@ -87,8 +88,17 @@ public sealed class ReaderAnnotations
         _make = make;
         _words = words;
         _editing = null;
+        _offered = true;
         _bar?.PlaceNear(box, area);
         _bar?.Show(null, canCopy: words.Length > 0, canDelete: false);
+    }
+
+    /// <summary>Ctrl+H: what the bar offers (words just selected, a box just drawn) is kept in the last colour used.</summary>
+    public bool KeepOffered()
+    {
+        if (!BarOpen || !_offered || _make is null) return false;
+        Choose(LastColor);
+        return true;
     }
 
     /// <summary>A highlight or a clipped area was clicked: its colour, note, copy and delete.</summary>
@@ -96,6 +106,7 @@ public sealed class ReaderAnnotations
     {
         _make = null;
         _editing = a;
+        _offered = false;
         _bar?.PlaceNear(box, area);
         _bar?.Show(a.IsMark ? a.Color : null, canCopy: a.Quote.Length > 0, canDelete: true, colors: a.IsMark);
     }
@@ -113,6 +124,7 @@ public sealed class ReaderAnnotations
         _make = make;
         _words = "";
         _editing = null;
+        _offered = false;
         _bar?.PlaceNear(box, area);
         _bar?.Show(null, canCopy: false, canDelete: false, colors: false);
         _bar?.EditNote("");
@@ -125,6 +137,7 @@ public sealed class ReaderAnnotations
         _bar?.Hide();
         _make = null;
         _editing = null;
+        _offered = false;
     }
 
     /// <summary>A colour for what the bar is about: what was offered is kept in it, or the highlight takes it.</summary>
@@ -200,6 +213,13 @@ public sealed class ReaderAnnotations
     /// <summary>The bookmark on a page (a PDF or comic page, or the EPUB reader's location), if there is one.</summary>
     public Annotation? BookmarkAt(int page) =>
         Items.FirstOrDefault(a => a.Kind == AnnotationKind.Bookmark && a.Page == page);
+
+    /// <summary>F2 and Shift+F2: the nearest bookmark after the page, or before it. Null when there is none that way.</summary>
+    public Annotation? NextBookmark(int page, int step)
+    {
+        var marks = Items.Where(a => a.Kind == AnnotationKind.Bookmark);
+        return step > 0 ? marks.Where(a => a.Page > page).MinBy(a => a.Page) : marks.Where(a => a.Page < page).MaxBy(a => a.Page);
+    }
 
     /// <summary>Ctrl+D and the bookmark button: marks the page, or takes its mark off. True when it is marked now.</summary>
     public bool ToggleBookmark(int page, string anchor, double position, string chapter)

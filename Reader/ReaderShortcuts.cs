@@ -25,6 +25,7 @@ internal static class ReaderShortcuts
                 ("Down, Up", "Scroll a little"),
                 ("Right, Left", "Next or previous page"),
                 ("Home, End", "First or last page"),
+                ("Ctrl+Right, Ctrl+Left", "Next or previous entry in the contents"),
                 ("Ctrl+G", "Go to a page"),
                 ("Alt+Left, Alt+Right", "Back or forward after a link or a jump"),
             }
@@ -44,6 +45,7 @@ internal static class ReaderShortcuts
                     ("Right, Down, Space, Page Down", "Next page"),
                     ("Left, Up, Shift+Space, Page Up", "Previous page"),
                     ("Home, End", "Start or end of the book"),
+                    ("Ctrl+Right, Ctrl+Left", "Next or previous chapter"),
                     ("Ctrl+G", "Go to a place in the book, as a percentage"),
                     ("Alt+Left, Alt+Right", "Back or forward after a link or a jump"),
                 };
@@ -74,10 +76,22 @@ internal static class ReaderShortcuts
                 };
 
         var view = pdf
-            ? new[] { ("Ctrl+plus, Ctrl+minus", "Zoom in or out"), ("Ctrl+0", "Fit the width") }
+            ? new[] { ("Ctrl+plus, Ctrl+minus", "Zoom in or out"), ("Ctrl+0", "Fit the width"), ("Ctrl+Shift+T", "Page colour: Paper, Sepia, Night") }
             : comic
                 ? new[] { ("Ctrl+plus, Ctrl+minus", "Zoom in or out"), ("Ctrl+0", "Back to the fitted page") }
-                : new[] { ("Ctrl+plus, Ctrl+minus", "Larger or smaller text"), ("Ctrl+0", "The usual text size") };
+                : new[]
+                {
+                    ("Ctrl+plus, Ctrl+minus", "Larger or smaller text"),
+                    ("Ctrl+0", "The usual text size"),
+                    ("Ctrl+Shift+T", "Page colour: Paper, Sepia, Night"),
+                    ("Ctrl+L", "Pages or Scroll layout"),
+                };
+
+        var pane = pdf
+            ? new[] { ("Ctrl+Shift+C", "Contents"), ("Ctrl+Shift+P", "Pages"), ("Ctrl+Shift+H", "Highlights") }
+            : comic
+                ? new[] { ("Ctrl+Shift+P", "Pages"), ("Ctrl+Shift+H", "Highlights") }
+                : new[] { ("Ctrl+Shift+C", "Contents"), ("Ctrl+Shift+H", "Highlights") };
 
         var panel = new StackPanel { Spacing = 4, MinWidth = 440 };
         AddGroup(panel, "Moving", moving);
@@ -88,8 +102,21 @@ internal static class ReaderShortcuts
             if (pdf) find.Add(("Ctrl+C", "Copy the selected text"));
             AddGroup(panel, "Finding", find);
         }
-        AddGroup(panel, "Marking", new[] { ("Ctrl+D", "Bookmark this page, or take its bookmark off") });
-        if (!comic) AddGroup(panel, "Listening", new[] { ("Ctrl+Shift+U", "Read aloud from here, or stop; Escape stops too") });
+        AddGroup(panel, "Marking", new[]
+        {
+            ("Ctrl+D", "Bookmark this page, or take its bookmark off"),
+            ("F2, Shift+F2", "Next or previous bookmark"),
+            comic ? ("Ctrl+H", "Keep a box just drawn round a panel, in the colour used last")
+                  : ("Ctrl+H", "Highlight the words selected, in the colour used last"),
+        });
+        AddGroup(panel, "Side pane", pane);
+        Note(panel, "The same keys again put the pane away. It opens on the tab picked last.");
+        if (!comic)
+            AddGroup(panel, "Listening", new[]
+            {
+                ("Ctrl+Shift+U", "Read aloud from here, or stop; Escape stops too"),
+                ("Ctrl+Shift+Right, Ctrl+Shift+Left", pdf ? "While reading aloud, the next or previous page" : "While reading aloud, the next or previous paragraph"),
+            });
         AddGroup(panel, "View", view);
         AddGroup(panel, "Mouse", mouse);
         AddGroup(panel, "Window", new[]
