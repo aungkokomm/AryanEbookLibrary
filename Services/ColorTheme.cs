@@ -13,19 +13,20 @@ namespace AryanEbookLibrary.Services;
 /// </summary>
 public static class ColorTheme
 {
-    public sealed record Theme(string Name, string Accent);
+    /// <param name="Page">The light theme's page: a pale colour of the accent's family, which the chrome is mixed from.</param>
+    public sealed record Theme(string Name, string Accent, string Page = "");
 
-    // Dark enough for white text on every one of them (5:1 and better), in both app themes.
+    // Dark enough for white text on every one of them (5:1 and better), in both app themes. The pages are My Notebook's.
     public static readonly Theme[] Themes =
     {
         new("Aryan blue", ""),
-        new("Dark blue", "#1E4D8B"),
-        new("Teal", "#0F6E63"),
-        new("Dark green", "#2A6048"),
-        new("Plum", "#6A4A8F"),
-        new("Rose", "#B0436A"),
-        new("Coffee brown", "#6B4A33"),
-        new("Slate", "#45556B"),
+        new("Dark blue", "#1E4D8B", "#EAF1FB"),
+        new("Teal", "#0F6E63", "#E4F3F0"),
+        new("Dark green", "#2A6048", "#E8F3EC"),
+        new("Plum", "#6A4A8F", "#F2ECFA"),
+        new("Rose", "#B0436A", "#FBEEF3"),
+        new("Coffee brown", "#6B4A33", "#F4EDE3"),
+        new("Slate", "#45556B", "#EDF0F3"),
     };
 
     public static readonly Color Brand = Color.FromArgb(255, 0x18, 0x6B, 0xD5);
@@ -186,19 +187,21 @@ public static class ColorTheme
 
     private static readonly Color White = Color.FromArgb(255, 255, 255, 255);
     private static readonly Color DarkChrome = Color.FromArgb(255, 28, 28, 28);
-    private static readonly Color DarkPage = Color.FromArgb(255, 40, 40, 40);
 
     /// <summary>
-    /// The window's two tinted surfaces, null for Aryan blue: the chrome (title bar and sidebar) carries the most colour
-    /// and the page a touch, light or dark to match the app's theme, scaled by the intensity (0 to 2, 1 by default).
+    /// The window's two tinted surfaces, null for Aryan blue, made as My Notebook makes them. Light: the theme's own pale
+    /// page, and the chrome (title bar and sidebar) mixed from it toward the accent, so the chrome carries the hue rather
+    /// than turning grey. Dark: both mixed from near-black toward the accent, the page a little more. The intensity
+    /// (0 to 2, 1 by default) scales the accent's share.
     /// </summary>
     public static (Color Chrome, Color Page)? Surfaces(bool darkTheme)
     {
         if (Parse(AppServices.Settings.AccentColor) is not { } a) return null;
         var m = Math.Clamp(AppServices.Settings.ThemeIntensity, 0, 2);
-        return darkTheme
-            ? (Mix(DarkChrome, a, 0.10 * m), Mix(DarkPage, a, 0.12 * m))
-            : (Mix(White, a, 0.15 * m), Mix(White, a, 0.05 * m));
+        if (darkTheme) return (Mix(DarkChrome, a, 0.10 * m), Mix(DarkChrome, a, 0.18 * m));
+        var page = Parse(Themes.FirstOrDefault(t => t.Accent.Equals(AppServices.Settings.AccentColor, StringComparison.OrdinalIgnoreCase))?.Page)
+            ?? Mix(White, a, 0.08);
+        return (Mix(page, a, 0.15 * m), page);
     }
 
     public static Color? Parse(string? hex)
