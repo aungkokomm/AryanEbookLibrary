@@ -53,6 +53,7 @@ internal sealed class ToolbarReveal
         _timer = root.DispatcherQueue.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(250);
         _timer.Tick += (_, _) => Tick();
+        bar.SizeChanged += (_, _) => FitPane();
 
         root.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
         root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
@@ -103,10 +104,20 @@ internal sealed class ToolbarReveal
         Grid.SetRow(_bar, hides ? 1 : 0);
         Canvas.SetZIndex(_bar, hides ? 1 : 0);
         _backdrop.Visibility = hides ? Visibility.Visible : Visibility.Collapsed;
+        FitPane();
         _shown = false;
         Appear();
         if (hides) Show(Glimpse);
         else _timer.Stop();
+    }
+
+    /// <summary>
+    /// Floating, the toolbar lies over the top of the contents pane, where its tabs are: the pane starts below it, so
+    /// reaching for a tab (past the top edge, which brings the toolbar out) never finds the toolbar on it.
+    /// </summary>
+    private void FitPane()
+    {
+        if (_pane is Grid pane) pane.Padding = new Thickness(0, _hides ? _bar.ActualHeight : 0, 0, 0);
     }
 
     /// <summary>Brings a hiding toolbar out, for at least <paramref name="hold"/> or as long as it is in use.</summary>
