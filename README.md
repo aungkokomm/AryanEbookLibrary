@@ -84,7 +84,7 @@ PDFs are drawn by PDFium and stay sharp at any zoom. EPUB, MOBI, AZW3 and KFX bo
 <tr>
 <td valign="top">
 
-### 🌏 Made for Myanmar and Hindi readers
+### 🌏 Exclusive Support for Myanmar and Hindi readers
 Right-click an English word for its meaning, with the Myanmar and Hindi translations right underneath. Burmese titles stored in Zawgyi or typed in visual order are shown as proper Unicode, and Myanmar and Hindi file names are read as titles and authors.
 
 </td>
