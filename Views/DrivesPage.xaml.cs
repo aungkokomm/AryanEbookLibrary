@@ -4,8 +4,8 @@ using AryanEbookLibrary.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
+using AryanEbookLibrary.Helpers;
+using Microsoft.Windows.Storage.Pickers;
 
 namespace AryanEbookLibrary.Views;
 
@@ -65,7 +65,7 @@ public sealed partial class DrivesPage : Page
     private async void OnAddDrive(object sender, RoutedEventArgs e)
     {
         try { await DoAddDriveAsync(); }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     private async Task DoAddDriveAsync()
@@ -135,13 +135,13 @@ public sealed partial class DrivesPage : Page
 
             // Picked a folder on another drive (easy to do from the picker): say where it really is and offer
             // to add it there, instead of only refusing.
-            if (DriveRegistry.Identify(folder.Path) is { } owner && !string.Equals(owner.Id, driveId, StringComparison.OrdinalIgnoreCase))
+            if (DriveRegistry.Identify(folder) is { } owner && !string.Equals(owner.Id, driveId, StringComparison.OrdinalIgnoreCase))
             {
-                await OfferOtherDriveAsync(folder.Path, owner, driveId);
+                await OfferOtherDriveAsync(folder, owner, driveId);
                 return;
             }
 
-            var problem = Library.CheckNewFolder(driveId, folder.Path, out var relPath);
+            var problem = Library.CheckNewFolder(driveId, folder, out var relPath);
             if (problem is not null)
             {
                 await ShowInfoDialog("Cannot add this folder", problem);
@@ -151,16 +151,11 @@ public sealed partial class DrivesPage : Page
             var scope = relPath.Length == 0 ? DriveLabel(driveId) : "…\\" + Path.GetFileName(relPath);
             await RunScanAsync(scope, p => Library.AddFolderAsync(driveId, relPath, p));
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
-    private static async Task<Windows.Storage.StorageFolder?> PickFolderAsync()
-    {
-        var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
-        picker.FileTypeFilter.Add("*");
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-        return await picker.PickSingleFolderAsync();
-    }
+    private static Task<string?> PickFolderAsync() =>
+        Pickers.FolderAsync(App.MainWindow!, PickerLocationId.ComputerFolder);
 
     // ── Add a folder anywhere: its drive comes in with it when it is new (the way a new library starts) ──
 
@@ -171,9 +166,9 @@ public sealed partial class DrivesPage : Page
             if (await BlockedByScan()) return;
             var folder = await PickFolderAsync();
             if (folder is null) return;
-            if (DriveRegistry.Identify(folder.Path) is not { } owner)
+            if (DriveRegistry.Identify(folder) is not { } owner)
             {
-                await ShowInfoDialog("Cannot add this folder", $"Aryan could not tell which drive '{folder.Path}' is on.");
+                await ShowInfoDialog("Cannot add this folder", $"Aryan could not tell which drive '{folder}' is on.");
                 return;
             }
 
@@ -184,7 +179,7 @@ public sealed partial class DrivesPage : Page
                 Refresh();
             }
 
-            var problem = Library.CheckNewFolder(owner.Id, folder.Path, out var relPath);
+            var problem = Library.CheckNewFolder(owner.Id, folder, out var relPath);
             if (problem is not null)
             {
                 await ShowInfoDialog("Cannot add this folder", problem);
@@ -196,7 +191,7 @@ public sealed partial class DrivesPage : Page
             // A library's first books: show them, which is what the button was pressed for.
             if (firstBooks && Library.TotalCount > 0) App.MainWindow?.ShowAllBooks();
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     private async Task OfferOtherDriveAsync(string path, (string Id, string Root, string Label) owner, string pickedOnDriveId)
@@ -255,7 +250,7 @@ public sealed partial class DrivesPage : Page
             Library.RemoveFolder(item.Folder.Id);
             Refresh();
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     // ── Update (rescan this drive's folders) / Refresh changes (every connected drive) ──
@@ -279,7 +274,7 @@ public sealed partial class DrivesPage : Page
 
             await RunScanAsync(DriveLabel(driveId), p => Library.UpdateDriveAsync(driveId, p));
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     private async void OnRefreshChanges(object sender, RoutedEventArgs e)
@@ -300,7 +295,7 @@ public sealed partial class DrivesPage : Page
             var scope = online.Count == 1 ? online[0].Label : $"{online.Count} drives";
             await RunScanAsync(scope, Library.RefreshChangesAsync);
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     // ── Scan (shared overlay) ────────────────────────────────────────────
@@ -410,7 +405,7 @@ public sealed partial class DrivesPage : Page
             Library.RemoveMissing(boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Id).ToList());
             Refresh();
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     // ── Rename / remove drive ────────────────────────────────────────────
@@ -453,7 +448,7 @@ public sealed partial class DrivesPage : Page
             Library.RenameDrive(driveId, name);
             Refresh();
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     private async void OnRemoveDrive(object sender, RoutedEventArgs e)
@@ -480,7 +475,7 @@ public sealed partial class DrivesPage : Page
             Library.RemoveDrive(driveId);
             Refresh();
         }
-        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+        catch (Exception ex) { await ShowError(ex); }
     }
 
     // ── Hover effects ────────────────────────────────────────────────────
@@ -512,6 +507,21 @@ public sealed partial class DrivesPage : Page
         if (!Library.IsScanning) return false;
         await ShowInfoDialog("Scan in progress", "A scan is already running (see the status bar). Wait for it to finish, then try again.");
         return true;
+    }
+
+    /// <summary>
+    /// Says what went wrong, and writes it to the log.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ A FAILURE CAN COME WITH NO MESSAGE AT ALL. A reader on Windows 10 got an "Error" box with nothing in it
+    /// when Windows could not open its folder window (issue #1), which told nobody anything. The code is shown then.
+    /// </remarks>
+    private async Task ShowError(Exception ex)
+    {
+        Log.Write($"Drives page: 0x{ex.HResult:X8} {ex}");
+        await ShowInfoDialog("Error", string.IsNullOrWhiteSpace(ex.Message)
+            ? $"Something went wrong (error 0x{ex.HResult:X8}). Please try again, and if it keeps happening, report it with this code."
+            : ex.Message);
     }
 
     private async Task ShowInfoDialog(string title, string message)
