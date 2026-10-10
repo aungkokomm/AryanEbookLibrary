@@ -8,8 +8,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace AryanEbookLibrary.Views;
 
@@ -266,18 +264,15 @@ public sealed partial class SettingsPage : Page
 
     private async void OnExportCatalog(object sender, RoutedEventArgs e)
     {
-        var picker = new FileSavePicker { SuggestedFileName = $"Aryan-library-{DateTime.Now:yyyyMMdd}" };
-        picker.FileTypeChoices.Add("Spreadsheet", new List<string> { ".csv" });
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-
-        var file = await picker.PickSaveFileAsync();
+        var file = await ListActions.PickAsync(XamlRoot, () =>
+            Pickers.SaveAsync(App.MainWindow!, $"Aryan-library-{DateTime.Now:yyyyMMdd}", "Spreadsheet", ".csv"));
         if (file is null) return;
 
         try
         {
             var books = AppServices.Library.AllBooks;
-            var count = await Task.Run(() => CatalogExport.Csv(file.Path, books));
-            CatalogResult.Text = $"{Fn.Count(count, "book")} written to {file.Name}.";
+            var count = await Task.Run(() => CatalogExport.Csv(file, books));
+            CatalogResult.Text = $"{Fn.Count(count, "book")} written to {Path.GetFileName(file)}.";
         }
         catch (Exception ex)
         {
@@ -287,17 +282,14 @@ public sealed partial class SettingsPage : Page
 
     private async void OnExport(object sender, RoutedEventArgs e)
     {
-        var picker = new FileSavePicker { SuggestedFileName = $"AryanLibrary-backup-{DateTime.Now:yyyyMMdd}" };
-        picker.FileTypeChoices.Add("Backup file", new List<string> { ".json" });
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-
-        var file = await picker.PickSaveFileAsync();
+        var file = await ListActions.PickAsync(XamlRoot, () =>
+            Pickers.SaveAsync(App.MainWindow!, $"AryanLibrary-backup-{DateTime.Now:yyyyMMdd}", "Backup file", ".json"));
         if (file is null) return;
 
         try
         {
-            var count = await Task.Run(() => BackupService.Export(file.Path, AppServices.Repo, AppServices.AnnotationStore));
-            BackupResult.Text = $"Exported {count} entries to {file.Name}.";
+            var count = await Task.Run(() => BackupService.Export(file, AppServices.Repo, AppServices.AnnotationStore));
+            BackupResult.Text = $"Exported {count} entries to {Path.GetFileName(file)}.";
         }
         catch (Exception ex)
         {
@@ -307,17 +299,13 @@ public sealed partial class SettingsPage : Page
 
     private async void OnRestore(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        picker.FileTypeFilter.Add(".json");
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-
-        var file = await picker.PickSingleFileAsync();
+        var file = await ListActions.PickAsync(XamlRoot, () => Pickers.OpenAsync(App.MainWindow!, ".json"));
         if (file is null) return;
 
         try
         {
-            await AppServices.Library.RestoreFromBackupAsync(file.Path);
-            BackupResult.Text = "Backup restored from " + file.Name + ".";
+            await AppServices.Library.RestoreFromBackupAsync(file);
+            BackupResult.Text = "Backup restored from " + Path.GetFileName(file) + ".";
         }
         catch (Exception ex)
         {

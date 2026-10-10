@@ -502,16 +502,11 @@ public sealed partial class AnnotationsPage : Page
 
         var name = NotesMode ? "My Notes" : "Highlights";
         var only = _bookKey.Length > 0 ? _shown[0].BookTitle : "";
-        var picker = new Windows.Storage.Pickers.FileSavePicker
-        {
-            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
-            SuggestedFileName = SafeName(only.Length > 0 ? $"{only} - {name}" : $"{name} {DateTime.Now:yyyy-MM-dd}"),
-        };
-        if (markdown) picker.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
-        else picker.FileTypeChoices.Add("CSV (comma separated)", new List<string> { ".csv" });
         if (App.MainWindow is not { } owner) return;
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(owner));
-        var file = await ListActions.PickAsync(XamlRoot, picker.PickSaveFileAsync);
+        var suggested = SafeName(only.Length > 0 ? $"{only} - {name}" : $"{name} {DateTime.Now:yyyy-MM-dd}");
+        var file = await ListActions.PickAsync(XamlRoot, () => markdown
+            ? Helpers.Pickers.SaveAsync(owner, suggested, "Markdown", ".md", Microsoft.Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary)
+            : Helpers.Pickers.SaveAsync(owner, suggested, "CSV (comma separated)", ".csv", Microsoft.Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary));
         if (file is null) return;
 
         try
@@ -519,14 +514,14 @@ public sealed partial class AnnotationsPage : Page
             var copied = 0;
             if (markdown)
             {
-                var folderName = Path.GetFileNameWithoutExtension(file.Path) + " pictures";
+                var folderName = Path.GetFileNameWithoutExtension(file) + " pictures";
                 var pictures = new List<string>();
                 var heading = only.Length > 0 ? $"{only}: {name}" : name;
                 var text = AnnotationExport.Markdown(rows, heading, folderName, pictures);
-                await File.WriteAllTextAsync(file.Path, text, new UTF8Encoding(false));
+                await File.WriteAllTextAsync(file, text, new UTF8Encoding(false));
                 if (pictures.Count > 0)
                 {
-                    var folder = Path.Combine(Path.GetDirectoryName(file.Path)!, folderName);
+                    var folder = Path.Combine(Path.GetDirectoryName(file)!, folderName);
                     copied = await Task.Run(() =>
                     {
                         Directory.CreateDirectory(folder);
@@ -542,15 +537,15 @@ public sealed partial class AnnotationsPage : Page
                 }
             }
             // With a BOM, so a spreadsheet reads Burmese and Hindi as they are.
-            else await File.WriteAllTextAsync(file.Path, AnnotationExport.Csv(rows), new UTF8Encoding(true));
+            else await File.WriteAllTextAsync(file, AnnotationExport.Csv(rows), new UTF8Encoding(true));
 
-            var said = $"Saved {Count(rows.Count, What)} as {file.Name}";
+            var said = $"Saved {Count(rows.Count, What)} as {Path.GetFileName(file)}";
             if (copied > 0) said += copied == 1 ? ", with its picture beside it" : $", with {copied:N0} pictures beside it";
             AppServices.Library.Tell(said);
         }
         catch (Exception ex)
         {
-            Log.Write($"annotations: export to {file.Path} failed: {ex.Message}");
+            Log.Write($"annotations: export to {file} failed: {ex.Message}");
             await ListActions.Say(XamlRoot, "Could not save", "The file could not be written: " + ex.Message);
         }
     }

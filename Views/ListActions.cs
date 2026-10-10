@@ -31,15 +31,9 @@ internal static class ListActions
             return;
         }
 
-        var picker = new Windows.Storage.Pickers.FolderPicker
-        {
-            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
-        };
-        picker.FileTypeFilter.Add("*");
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(owner));
-        var folder = await PickAsync(root, picker.PickSingleFolderAsync);
-        if (folder is null) return;
-        var destination = folder.Path;
+        var destination = await PickAsync(root, () =>
+            Helpers.Pickers.FolderAsync(owner, Microsoft.Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary));
+        if (destination is null) return;
 
         var plan = await Task.Run(() => ListCopy.Plan(books, destination));
         if (plan.Items.Count == 0)
@@ -167,19 +161,14 @@ internal static class ListActions
             return;
         }
 
-        var picker = new Windows.Storage.Pickers.FileSavePicker
-        {
-            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary,
-            SuggestedFileName = $"{SafeName(list)}-{DateTime.Now:yyyyMMdd}"
-        };
-        picker.FileTypeChoices.Add("PNG image", new List<string> { ".png" });
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(owner));
-        var file = await PickAsync(root, picker.PickSaveFileAsync);
+        var file = await PickAsync(root, () => Helpers.Pickers.SaveAsync(
+            owner, $"{SafeName(list)}-{DateTime.Now:yyyyMMdd}", "PNG image", ".png",
+            Microsoft.Windows.Storage.Pickers.PickerLocationId.PicturesLibrary));
         if (file is null) return;
 
         vm.Tell($"Making the picture of “{list}”…");
-        var ok = await RenderAsync(root, list, books, file.Path);
-        vm.Tell(ok ? $"Saved the picture of “{list}” as {file.Name}" : $"Could not make the picture of “{list}” (see the log)");
+        var ok = await RenderAsync(root, list, books, file);
+        vm.Tell(ok ? $"Saved the picture of “{list}” as {Path.GetFileName(file)}" : $"Could not make the picture of “{list}” (see the log)");
     }
 
     /// <summary>
@@ -334,7 +323,7 @@ internal static class ListActions
     /// answering; then the user is told, rather than the click seeming to do nothing (it had reached the app's
     /// last-resort handler, which only logs).
     /// </summary>
-    internal static async Task<T?> PickAsync<T>(XamlRoot root, Func<Windows.Foundation.IAsyncOperation<T>> pick) where T : class
+    internal static async Task<string?> PickAsync(XamlRoot root, Func<Task<string?>> pick)
     {
         try
         {
@@ -343,7 +332,7 @@ internal static class ListActions
         catch (Exception ex)
         {
             Log.Write($"Picker failed: 0x{ex.HResult:X8} {ex.Message}");
-            await Say(root, "Please try again", "Windows' window for choosing where the files go ran into a problem, so nothing was saved.");
+            await Say(root, "Please try again", $"Windows' window for choosing a file or folder ran into a problem (error 0x{ex.HResult:X8}), so nothing was done.");
             return null;
         }
     }

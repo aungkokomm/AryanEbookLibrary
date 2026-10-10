@@ -7,18 +7,6 @@ if (Test-Path (Join-Path $App 'AryanLibrary-Data')) { throw "not a new library: 
 New-Item -ItemType Directory -Force $Out | Out-Null
 $fails = 0
 function Check([bool]$ok, [string]$what) { if ($ok) { "PASS $what" } else { "FAIL $what"; $script:fails++ } }
-$root = [Windows.Automation.AutomationElement]::RootElement
-function FindAnywhere([string]$name, [Windows.Automation.ControlType]$type) {
-    $cond = [Windows.Automation.AndCondition]::new(
-        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $name),
-        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, $type))
-    foreach ($w in $root.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)) {
-        $hit = $w.FindFirst([Windows.Automation.TreeScope]::Descendants, $cond)
-        if ($hit) { return $hit }
-    }
-    return $null
-}
-
 $proc = Start-Process (Join-Path $App 'AryanEbookLibrary.exe') -WorkingDirectory $App -PassThru
 $h = [IntPtr]::Zero
 for ($i = 0; $i -lt 80 -and $h -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 250; $proc.Refresh(); $h = $proc.MainWindowHandle }
@@ -29,18 +17,24 @@ try {
     Check ($null -ne (Find $h 'Add a folder with books' 'Button')) "the empty library offers a button to add a folder"
     [void](Act $h 'Add a folder with books' 'Button')
 
-    $select = $null
-    for ($i = 0; $i -lt 20 -and -not $select; $i++) { Start-Sleep -Milliseconds 500; $select = FindAnywhere 'Select Folder' ([Windows.Automation.ControlType]::Button) }
-    Check ($null -ne $select) "the button opens the folder picker"
-    if ($select) {
-        $dialog = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($select)
-        while ($dialog -and $dialog.Current.ControlType -ne [Windows.Automation.ControlType]::Window) { $dialog = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($dialog) }
-        $box = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.AndCondition]::new(
-            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Folder:'),
-            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)))
-        $box.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($Books)
+    # The Windows App SDK's folder picker is an ordinary dialog inside the app (issue #1). It opens at the top left of
+    # the screen whatever the owner's position, so it is parked the moment it appears; off screen, UI Automation does
+    # not see its lower half, so the folder goes into its box and Select Folder is pressed by window messages.
+    $dialog = [IntPtr]::Zero
+    for ($i = 0; $i -lt 500 -and $dialog -eq [IntPtr]::Zero; $i++) {
+        foreach ($w in [W7]::Windows([uint32]$proc.Id)) { if ([W7]::Class($w) -eq '#32770') { $dialog = $w } }
+        if ($dialog -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 20 }
+    }
+    Check ($dialog -ne [IntPtr]::Zero) "the button opens the folder picker"
+    if ($dialog -ne [IntPtr]::Zero) {
+        [void][W7]::SetWindowPos($dialog, [IntPtr]::Zero, $script:VS.Left - 2600, 1100, 0, 0, 0x0015)
+        Start-Sleep -Seconds 2
+        $box = [W7]::FindWindowEx($dialog, [IntPtr]::Zero, 'Edit', $null)
+        $select = [W7]::FindWindowEx($dialog, [IntPtr]::Zero, 'Button', 'Select Folder')
+        Check ($box -ne [IntPtr]::Zero -and $select -ne [IntPtr]::Zero) "the picker has its folder box and Select Folder"
+        [void][W7]::SendMessage($box, 0x000C, [IntPtr]::Zero, $Books)       # WM_SETTEXT
         Start-Sleep -Milliseconds 500
-        $select.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+        [void][W7]::SendMessage($select, 0x00F5, [IntPtr]::Zero, $null)     # BM_CLICK
         "picked $Books"
     }
 
