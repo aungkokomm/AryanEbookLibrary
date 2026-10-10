@@ -302,3 +302,7 @@ KFX books are turned into EPUB by [boko](https://github.com/zacharydenton/boko),
 ## Thanks
 
 To John Factotum for foliate-js; to Zach Denton for boko; to the people behind PDFium, pdfium-binaries, pdfium-render, SharpCompress, PdfPig and SQLite; to Princeton University for WordNet; to Open Library, Wikidata and Wikipedia for the details they share with everyone; and to Project Gutenberg for the books in the screenshots.
+
+---
+
+<p align="center"><sub>© 2026 Aung Ko Ko · <a href="https://aungkokomm.github.io/">more of my apps</a></sub></p>
