@@ -305,4 +305,4 @@ To John Factotum for foliate-js; to Zach Denton for boko; to the people behind P
 
 ---
 
-<p align="center"><sub>© 2026 Aung Ko Ko · <a href="https://aungkokomm.github.io/">more of my apps</a></sub></p>
+<p align="center"><sub>MIT licensed · © 2026 Aung Ko Ko · <a href="https://aungkokomm.github.io/">more of my apps</a></sub></p>
