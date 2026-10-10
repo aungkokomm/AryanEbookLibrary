@@ -97,6 +97,10 @@ var
   InstalledDirLabel: String;
   InstalledBrowseLabel: String;
   DirOnCommandLine: Boolean;
+  // A portable copy of Aryan already on this PC, which an update goes back to.
+  FoundDir: String;
+
+function GetDriveType(Root: String): Cardinal; external 'GetDriveTypeW@kernel32.dll stdcall';
 
 function PortableOnCommandLine: Boolean;
 var
@@ -115,28 +119,131 @@ end;
 
 function PortableDir: String;
 begin
-  // Not Documents: that is often a OneDrive folder, and syncing the library's database and covers would fight the app.
-  Result := ExpandConstant('{%USERPROFILE}\{#AppName}');
+  if FoundDir <> '' then
+    Result := FoundDir
+  else
+    // Not Documents: that is often a OneDrive folder, and syncing the library's database and covers would fight the app.
+    Result := ExpandConstant('{%USERPROFILE}\{#AppName}');
+end;
+
+// ---- Finding the copy an update belongs to ----
+//
+// A portable copy writes nothing to Windows, so Windows cannot say where it is, and every update offered
+// "Install for me" and a new folder: Next, Next put a second Aryan, with an empty library, beside the reader's
+// own. Setup looks for it instead: the copy that is running, or else the copy whose library was used last,
+// in the places people keep one.
+
+// The folder Aryan runs from, if it is running now.
+function RunningCopy: String;
+var
+  Locator, Service, Found: Variant;
+  I: Integer;
+begin
+  Result := '';
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Found := Service.ExecQuery('SELECT ExecutablePath FROM Win32_Process WHERE Name = ''{#ExeName}''');
+    for I := 0 to Found.Count - 1 do
+      try
+        Result := ExtractFileDir(Found.ItemIndex(I).ExecutablePath);
+      except
+      end;
+  except
+    Result := '';
+  end;
+end;
+
+// Keeps Dir when it holds Aryan and a library used more recently than the best so far.
+procedure Consider(Dir: String; var Best: String; var BestTime: Int64);
+var
+  R: TFindRec;
+  T: Int64;
+begin
+  Dir := RemoveBackslashUnlessRoot(Dir);
+  if not FileExists(AddBackslash(Dir) + '{#ExeName}') then
+    exit;
+  if not FindFirst(AddBackslash(Dir) + 'AryanLibrary-Data\library.db', R) then
+    exit;
+  T := (Int64(R.LastWriteTime.dwHighDateTime) shl 32) or R.LastWriteTime.dwLowDateTime;
+  FindClose(R);
+  if (Best = '') or (T > BestTime) then
+  begin
+    Best := Dir;
+    BestTime := T;
+  end;
+end;
+
+// Parent itself and every folder directly inside it.
+procedure ConsiderInside(Parent: String; var Best: String; var BestTime: Int64);
+var
+  R: TFindRec;
+begin
+  Consider(Parent, Best, BestTime);
+  if FindFirst(AddBackslash(Parent) + '*', R) then
+  try
+    repeat
+      if ((R.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and (R.Name <> '.') and (R.Name <> '..') then
+        Consider(AddBackslash(Parent) + R.Name, Best, BestTime);
+    until not FindNext(R);
+  finally
+    FindClose(R);
+  end;
+end;
+
+function ExistingCopy: String;
+var
+  BestTime: Int64;
+  I: Integer;
+  D: String;
+begin
+  Result := RunningCopy;
+  if Result <> '' then
+    exit;
+  BestTime := 0;
+  Consider(InstalledDir, Result, BestTime);
+  ConsiderInside(ExpandConstant('{%USERPROFILE}'), Result, BestTime);
+  ConsiderInside(ExpandConstant('{userdesktop}'), Result, BestTime);
+  ConsiderInside(ExpandConstant('{userdocs}'), Result, BestTime);
+  // Every fixed or removable drive (2 and 3), never a network or CD drive.
+  for I := Ord('C') to Ord('Z') do
+  begin
+    D := Chr(I) + ':\';
+    if (GetDriveType(D) = 2) or (GetDriveType(D) = 3) then
+      ConsiderInside(D, Result, BestTime);
+  end;
 end;
 
 procedure InitializeWizard;
+var
+  Choice: String;
 begin
-  ModePage := CreateInputOptionPage(wpWelcome,
-    'How do you want to use Aryan?',
-    'Install it on this computer, or keep it portable.',
-    'Aryan is portable either way: your library (books found, covers, notes, highlights and settings) is kept in ' +
-    'a folder called AryanLibrary-Data beside the app, so the whole folder can be copied to another drive or PC.',
-    True, False);
-  ModePage.Add('Install for me. Aryan gets a Start menu entry and can be removed from Settings > Apps.');
-  ModePage.Add('Portable. Copy Aryan into a folder you choose, such as a USB drive. Nothing is written to Windows.');
-  ModePage.Values[0] := not PortableOnCommandLine;
-  ModePage.Values[1] := PortableOnCommandLine;
   InstalledDir := WizardForm.DirEdit.Text;
   InstalledDirLabel := WizardForm.SelectDirLabel.Caption;
   InstalledBrowseLabel := WizardForm.SelectDirBrowseLabel.Caption;
-  // A folder given with /DIR is never swapped for a default.
+  // A folder given with /DIR is never swapped for a default, and a silent Setup does as it is told.
   DirOnCommandLine := ExpandConstant('{param:DIR|}') <> '';
-  if PortableOnCommandLine and not DirOnCommandLine then
+  if not WizardSilent and not DirOnCommandLine then
+  begin
+    FoundDir := ExistingCopy;
+    // The installed copy is the one Windows already remembers, and Inno offers it already.
+    if CompareText(FoundDir, RemoveBackslashUnlessRoot(InstalledDir)) = 0 then
+      FoundDir := '';
+  end;
+
+  Choice := 'Aryan is portable either way: your library (books found, covers, notes, highlights and settings) is kept in ' +
+    'a folder called AryanLibrary-Data beside the app, so the whole folder can be copied to another drive or PC.';
+  if FoundDir <> '' then
+    Choice := 'Aryan is already in ' + FoundDir + ', so Portable is chosen: the app is updated there and its library is kept.';
+  ModePage := CreateInputOptionPage(wpWelcome,
+    'How do you want to use Aryan?',
+    'Install it on this computer, or keep it portable.',
+    Choice, True, False);
+  ModePage.Add('Install for me. Aryan gets a Start menu entry and can be removed from Settings > Apps.');
+  ModePage.Add('Portable. Copy Aryan into a folder you choose, such as a USB drive. Nothing is written to Windows.');
+  ModePage.Values[0] := not PortableOnCommandLine and (FoundDir = '');
+  ModePage.Values[1] := PortableOnCommandLine or (FoundDir <> '');
+  if (PortableOnCommandLine or (FoundDir <> '')) and not DirOnCommandLine then
     WizardForm.DirEdit.Text := PortableDir;
 end;
 
