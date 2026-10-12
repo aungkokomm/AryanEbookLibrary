@@ -312,7 +312,8 @@ public sealed partial class MainWindow : Window
         if (e.Handled || ContentFrame.Content is not LibraryPage page) return;
         var focused = FocusManager.GetFocusedElement(RootGrid.XamlRoot);
         if (focused is ComboBox || focused is TextBox && e.Key is Windows.System.VirtualKey.Home or Windows.System.VirtualKey.End) return;
-        if (page.ScrollByKey(e.Key)) e.Handled = true;
+        if (focused is not TextBox && (page.SelectByKey(e.Key, focused) || page.MarkByKey(e.Key, focused)) || page.ScrollByKey(e.Key))
+            e.Handled = true;
     }
 
     private bool _shortcutsOpen;
@@ -321,6 +322,11 @@ public sealed partial class MainWindow : Window
     private async void OnShortcutsAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         args.Handled = true;
+        await ShowShortcutsAsync();
+    }
+
+    private async Task ShowShortcutsAsync()
+    {
         if (_shortcutsOpen || RootGrid.XamlRoot is null) return;
         _shortcutsOpen = true;
         try
@@ -334,6 +340,102 @@ public sealed partial class MainWindow : Window
         finally
         {
             _shortcutsOpen = false;
+        }
+    }
+
+    private bool _commandOpen;
+
+    /// <summary>Ctrl+K: the command box, with every place, shelf, list, tag, series, author and book in it.</summary>
+    private async void OnCommandAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (_commandOpen || RootGrid.XamlRoot is null) return;
+        _commandOpen = true;
+        try
+        {
+            var box = new CommandBox(Commands()) { XamlRoot = RootGrid.XamlRoot };
+            await box.ShowThemedAsync();
+            box.Chosen?.Run();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("library: the command box could not open: " + ex.Message);   // another dialog is open
+        }
+        finally
+        {
+            _commandOpen = false;
+        }
+    }
+
+    private List<CommandItem> Commands()
+    {
+        var items = new List<CommandItem>();
+
+        // The pane's own places, by the names it shows (an item with a count keeps its name for screen readers).
+        static IEnumerable<NavigationViewItem> Pane(IEnumerable<object> level) =>
+            level.OfType<NavigationViewItem>().SelectMany(i => Pane(i.MenuItems).Prepend(i));
+        foreach (var item in Pane(NavView.MenuItems).Concat(Pane(NavView.FooterMenuItems)))
+        {
+            if (item.Tag is not string tag || tag is "shelves" or "lists" or NewListTag || tag.StartsWith(ShelfTag) || tag.StartsWith(UserListTag))
+                continue;
+            var label = item.Content as string ?? Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(item);
+            if (string.IsNullOrEmpty(label)) continue;
+            var place = item;
+            items.Add(new(label, "Page", CommandBox.PlaceRank, () => { NavView.SelectedItem = place; GoTo(tag); }));
+        }
+        items.Add(new("Settings", "Page", CommandBox.PlaceRank, () =>
+        {
+            NavView.SelectedItem = NavView.SettingsItem;
+            Navigate(typeof(SettingsPage));
+        }));
+
+        items.Add(new("Scan connected drives for changes", "Action", CommandBox.PlaceRank, () => _ = RescanAsync()));
+        items.Add(new("Select books", "Action", CommandBox.PlaceRank, () =>
+        {
+            if (ContentFrame.Content is not LibraryPage) ShowAllBooks();
+            Library.SelectionMode = true;
+        }));
+        items.Add(new("New list...", "Action", CommandBox.PlaceRank, () => _ = NewListAsync()));
+        items.Add(new("Clear filters and search", "Action", CommandBox.PlaceRank, () =>
+        {
+            Library.ClearFilters();
+            ShowAllBooks();
+        }));
+        items.Add(new("Keyboard shortcuts", "Action", CommandBox.PlaceRank, () => _ = ShowShortcutsAsync()));
+
+        foreach (var shelf in Library.Shelves)
+        {
+            var s = shelf;
+            items.Add(new(s.Name, "Shelf", CommandBox.GroupRank, () =>
+            {
+                Library.ShowShelf(s);
+                Navigate(typeof(LibraryPage));
+            }));
+        }
+        foreach (var list in Library.UserLists)
+            items.Add(new(list, "List", CommandBox.GroupRank, () => ShowList(list)));
+        foreach (var tag in Library.GetTags())
+            items.Add(new(tag.Name, "Tag · " + tag.CountText, CommandBox.NameRank, () => ShowTag(tag.Name)));
+        foreach (var series in Library.GetSeries())
+            items.Add(new(series.Name, "Series", CommandBox.NameRank, () => ShowSeries(series.Name)));
+        foreach (var author in Library.GetAuthors())
+            items.Add(new(author.Name, "Author", CommandBox.NameRank, () => ShowBooksBy(author.Name)));
+        foreach (var book in Library.AllBooks)
+            items.Add(new(book.Title, book.Author.Length > 0 ? "Book · " + book.Author : "Book", CommandBox.BookRank,
+                () => BookCardControl.RequestOpen(book), book.Author));
+        return items;
+    }
+
+    private async Task RescanAsync()
+    {
+        if (Library.IsScanning) return;
+        try
+        {
+            await Library.RefreshChangesAsync(null);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("library: the scan from the command box failed: " + ex.Message);
         }
     }
 
@@ -366,7 +468,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        switch (invoked)
+        GoTo(invoked);
+    }
+
+    /// <summary>One of the pane's own places, by its tag (from the pane, or the command box).</summary>
+    private void GoTo(string tag)
+    {
+        switch (tag)
         {
             case "all": ShowLibrary(LibraryFilter.All); break;
             case "continue": ShowLibrary(LibraryFilter.ContinueReading); break;

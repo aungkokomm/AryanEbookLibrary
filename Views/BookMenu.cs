@@ -10,11 +10,24 @@ namespace AryanEbookLibrary.Views;
 /// </summary>
 internal static class BookMenu
 {
+    /// <summary>What the menu of several ticked books asks the library page to do (it shows how it went).</summary>
+    public enum Many { Edit, FinishedToday, FinishedEarlier, Reading, Unread, Favorite, NotFavorite, Online, AddToList, NewList, CopyTo }
+
+    /// <summary>An action on every ticked book; the list's name comes with AddToList.</summary>
+    public static event Action<Many, string?>? ManyRequested;
+
     public static void Build(MenuFlyout flyout, Book? book)
     {
         flyout.Items.Clear();
         if (book is null) return;
         var vm = AppServices.Library;
+
+        // Right-click one of several ticked books: the menu works on all of them, as in File Explorer.
+        if (book.IsSelected && vm.SelectedCount > 1)
+        {
+            BuildMany(flyout.Items);
+            return;
+        }
 
         var open = new MenuFlyoutItem { Text = "Open", Icon = new SymbolIcon(Symbol.OpenFile), KeyboardAcceleratorTextOverride = "Enter" };
         open.Click += (_, _) => BookCardControl.RequestOpen(book);
@@ -62,6 +75,62 @@ internal static class BookMenu
         };
         folder.Click += (_, _) => BookLauncher.ShowInFolder(book);
         flyout.Items.Add(folder);
+    }
+
+    private static void BuildMany(IList<MenuFlyoutItemBase> items)
+    {
+        var vm = AppServices.Library;
+        items.Add(new MenuFlyoutItem { Text = vm.SelectedText, IsEnabled = false });
+        items.Add(new MenuFlyoutSeparator());
+
+        var mark = new MenuFlyoutSubItem { Text = "Mark", Icon = new SymbolIcon(Symbol.Accept) };
+        mark.Items.Add(Item("Finished today", Many.FinishedToday));
+        mark.Items.Add(Item("Finished earlier (no date)", Many.FinishedEarlier));
+        mark.Items.Add(Item("Reading", Many.Reading));
+        mark.Items.Add(Item("Unread", Many.Unread));
+        items.Add(mark);
+        items.Add(Item("Favorite", Many.Favorite));
+        items.Add(Item("Not favorite", Many.NotFavorite));
+
+        items.Add(new MenuFlyoutSeparator());
+        var lists = new MenuFlyoutSubItem { Text = "Add to list", Icon = new FontIcon { Glyph = ((char)0xE8FD).ToString() } };
+        FillListsForMany(lists.Items);
+        items.Add(lists);
+        var edit = Item("Edit...", Many.Edit);
+        edit.Icon = new SymbolIcon(Symbol.Edit);
+        items.Add(edit);
+        var online = Item("Find details online", Many.Online);
+        online.Icon = new SymbolIcon(Symbol.World);
+        items.Add(online);
+        var copy = Item("Copy files to a folder...", Many.CopyTo);
+        copy.Icon = new SymbolIcon(Symbol.Copy);
+        items.Add(copy);
+
+        items.Add(new MenuFlyoutSeparator());
+        var clear = new MenuFlyoutItem { Text = "Clear the ticks", Icon = new SymbolIcon(Symbol.Clear) };
+        clear.Click += (_, _) => vm.ClearSelection();
+        items.Add(clear);
+    }
+
+    private static MenuFlyoutItem Item(string text, Many action, string? list = null)
+    {
+        var item = new MenuFlyoutItem { Text = text };
+        item.Click += (_, _) => ManyRequested?.Invoke(action, list);
+        return item;
+    }
+
+    /// <summary>Every one of My lists, and "New list", for putting all the ticked books on one.</summary>
+    public static void FillListsForMany(IList<MenuFlyoutItemBase> items)
+    {
+        var vm = AppServices.Library;
+        items.Clear();
+        if (vm.UserLists.Count == 0)
+            items.Add(new MenuFlyoutItem { Text = "No lists yet", IsEnabled = false });
+        foreach (var name in vm.UserLists) items.Add(Item(name, Many.AddToList, name));
+        items.Add(new MenuFlyoutSeparator());
+        var add = Item("New list...", Many.NewList);
+        add.Icon = new SymbolIcon(Symbol.Add);
+        items.Add(add);
     }
 
     /// <summary>

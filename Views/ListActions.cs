@@ -23,14 +23,22 @@ internal static class ListActions
 
     public static async Task CopyToFolderAsync(Window owner, XamlRoot root, string list)
     {
-        var vm = AppServices.Library;
-        var books = vm.BooksInList(list);
+        var books = AppServices.Library.BooksInList(list);
         if (books.Count == 0)
         {
             await Say(root, "Nothing to copy", $"“{list}” has no books on it yet.");
             return;
         }
+        await CopyBooksAsync(owner, root, books, $"“{list}”");
+    }
 
+    /// <summary>
+    /// Copies the books' files to a folder the user picks (a list's books, or the ticked ones): the originals stay
+    /// where they are. <paramref name="what"/> names them in the dialogs and the status bar.
+    /// </summary>
+    public static async Task CopyBooksAsync(Window owner, XamlRoot root, List<Book> books, string what)
+    {
+        var vm = AppServices.Library;
         var destination = await PickAsync(root, () =>
             Helpers.Pickers.FolderAsync(owner, Microsoft.Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary));
         if (destination is null) return;
@@ -39,7 +47,7 @@ internal static class ListActions
         if (plan.Items.Count == 0)
         {
             await Say(root, "Cannot copy yet", plan.OfflineDrives.Count > 0
-                ? "Every book on the list is on a drive that is not plugged in:\n• " + string.Join("\n• ", plan.OfflineDrives) + "\n\nPlug it in and try again."
+                ? "Every one of these books is on a drive that is not plugged in:\n• " + string.Join("\n• ", plan.OfflineDrives) + "\n\nPlug it in and try again."
                 : "The files of these books are not where the last scan found them. Refresh the drive and try again.");
             return;
         }
@@ -50,7 +58,7 @@ internal static class ListActions
             var go = await new ContentDialog
             {
                 Title = plan.OfflineDrives.Count == 1 ? "A drive is not plugged in" : $"{plan.OfflineDrives.Count} drives are not plugged in",
-                Content = $"{Books(plan.OfflineBooks)} on this list cannot be copied until these are plugged in:\n• " +
+                Content = $"{Books(plan.OfflineBooks)} of these cannot be copied until these are plugged in:\n• " +
                           string.Join("\n• ", plan.OfflineDrives) + $"\n\nPlug them in first, or copy the {Books(plan.Items.Count)} that are here.",
                 PrimaryButtonText = $"Copy {Books(plan.Items.Count)}",
                 CloseButtonText = "Cancel",
@@ -88,7 +96,7 @@ internal static class ListActions
             return;
         }
 
-        var result = await RunWithProgressAsync(root, plan, overwrite, destination, list);
+        var result = await RunWithProgressAsync(root, plan, overwrite, destination, what);
         var parts = new List<string>();
         if (result.Copied > 0) parts.Add($"{Books(result.Copied)} copied");
         if (result.Skipped > 0) parts.Add($"{result.Skipped} already there");
@@ -98,11 +106,11 @@ internal static class ListActions
         // The folder's name, not its whole path, which ran the status bar to three lines.
         var place = Path.GetFileName(destination.TrimEnd('\\', '/'));
         if (place.Length == 0) place = destination;
-        vm.Tell((result.Cancelled ? "Copy stopped: " : $"“{list}” to “{place}”: ") + (parts.Count == 0 ? "nothing copied" : string.Join(", ", parts)));
+        vm.Tell((result.Cancelled ? "Copy stopped: " : $"{what} to “{place}”: ") + (parts.Count == 0 ? "nothing copied" : string.Join(", ", parts)));
     }
 
     /// <summary>A dialog with a bar while the files copy; its button stops the copy, and it closes itself when done.</summary>
-    private static async Task<ListCopy.Result> RunWithProgressAsync(XamlRoot root, ListCopy plan, bool overwrite, string destination, string list)
+    private static async Task<ListCopy.Result> RunWithProgressAsync(XamlRoot root, ListCopy plan, bool overwrite, string destination, string what)
     {
         var bar = new ProgressBar { Minimum = 0, Maximum = Math.Max(1, plan.BytesToCopy(overwrite)), Height = 6 };
         var bookText = new TextBlock();
@@ -110,7 +118,7 @@ internal static class ListActions
         var fileText = new TextBlock { Style = (Style)Application.Current.Resources["PageHintStyle"], TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
         var dialog = new ContentDialog
         {
-            Title = $"Copying “{list}”",
+            Title = $"Copying {what}",
             Content = new StackPanel { Spacing = 10, Width = 460, Children = { bookText, bar, bytesText, fileText } },
             CloseButtonText = "Stop",
             XamlRoot = root

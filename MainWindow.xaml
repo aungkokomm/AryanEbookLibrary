@@ -12,6 +12,7 @@
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAccelerator" />
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnFindAccelerator" />
             <KeyboardAccelerator Key="F1" Invoked="OnShortcutsAccelerator" />
+            <KeyboardAccelerator Modifiers="Control" Key="K" Invoked="OnCommandAccelerator" />
         </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

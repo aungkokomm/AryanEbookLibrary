@@ -55,13 +55,22 @@ public sealed partial class BookRowControl : UserControl
             Watch(Book);
             AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
             AppServices.Library.SelectionModeChanged += OnSelectionModeChanged;
+            ColumnsChanged -= ApplyColumns;
+            ColumnsChanged += ApplyColumns;
             ShowSelection();
+            ApplyColumns();
         };
         Unloaded += (_, _) =>
         {
             Watch(null);
             AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
+            ColumnsChanged -= ApplyColumns;
             HoverFill.Opacity = 0;
+            _hover = false;
+        };
+        SizeChanged += (_, e) =>
+        {
+            if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) ApplyColumns();
         };
         KeyDown += (_, e) =>
         {
@@ -73,6 +82,40 @@ public sealed partial class BookRowControl : UserControl
                 e.Handled = true;
             }
         };
+    }
+
+    /// <summary>The View menu changed which columns the list shows (Settings.ListColumns): every row follows.</summary>
+    public static event Action? ColumnsChanged;
+
+    public static void RaiseColumnsChanged() => ColumnsChanged?.Invoke();
+
+    private bool _statusShown = true;
+
+    public static bool ShowsColumn(string name) =>
+        Tags.Split(AppServices.Settings.ListColumns).Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The chosen columns, left to right, as many as leave the title its room: in a narrow window the ones at the
+    /// right wait until it is wider, rather than the titles shrinking to a few letters.
+    /// </summary>
+    private void ApplyColumns()
+    {
+        const double TitleRoom = 260, Fixed = 48 + 80 + 24 + 24;   // thumbnail, toggles, the row's padding, the title's margin
+        var room = ActualWidth > 0 ? ActualWidth - Fixed - TitleRoom : double.MaxValue;
+        bool Show(ColumnDefinition column, FrameworkElement? cell, string name, double width)
+        {
+            var on = ShowsColumn(name) && room >= width;
+            if (on) room -= width;
+            column.Width = new GridLength(on ? width : 0);
+            if (cell is not null) cell.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            return on;
+        }
+        Show(RatingColumn, RowRating, "rating", 90);
+        _statusShown = Show(StatusColumn, null, "status", 110);   // Populate shows the badge only for a book being read or finished
+        Show(SizeColumn, SizeText, "size", 80);
+        Show(AddedColumn, AddedCell, "added", 100);
+        Show(OpenedColumn, OpenedCell, "opened", 100);
+        if (Book is { } b) Populate(b);
     }
 
     private static void OnBookChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -119,20 +162,24 @@ public sealed partial class BookRowControl : UserControl
         DriveDot.Fill = b.IsOffline ? OfflineGrey : Green;
 
         RowRating.Text = Fn.Stars(b.Rating);
+        SizeText.Text = b.FileSize > 0 ? Models.Book.FormatSize(b.FileSize) : "";
+        AddedText.Text = b.AddedUtc.ToLocalTime().ToString("d MMM yyyy");
+        OpenedText.Text = b.LastOpenedUtc is { } opened ? opened.ToLocalTime().ToString("d MMM yyyy") : "Never";
 
+        var statusShown = _statusShown ? Visibility.Visible : Visibility.Collapsed;
         switch (b.Status)
         {
             case ReadStatus.Reading:
                 StatusBadge.Background = BlueWash;
                 StatusText.Foreground = Blue;
                 StatusText.Text = b.Progress > 0 ? $"READING {b.Progress}%" : "READING";
-                StatusBadge.Visibility = Visibility.Visible;
+                StatusBadge.Visibility = statusShown;
                 break;
             case ReadStatus.Finished:
                 StatusBadge.Background = GreenWash;
                 StatusText.Foreground = Green;
                 StatusText.Text = "FINISHED";
-                StatusBadge.Visibility = Visibility.Visible;
+                StatusBadge.Visibility = statusShown;
                 break;
             default:
                 StatusBadge.Visibility = Visibility.Collapsed;   // "unread" on every row would be noise
@@ -166,25 +213,42 @@ public sealed partial class BookRowControl : UserControl
 
     private void OnSelectionModeChanged(object? sender, EventArgs e) => ShowSelection();
 
-    /// <summary>The tick takes the thumbnail's place while several books are being worked on at once.</summary>
+    private static readonly SolidColorBrush TickOverCover = new(Color.FromArgb(0xCC, 0, 0, 0));
+    private static readonly SolidColorBrush White = new(Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+    private static readonly SolidColorBrush Clear = new(Color.FromArgb(0, 0, 0, 0));
+
+    private bool _hover;
+
+    /// <summary>
+    /// The tick takes the thumbnail's place while books are being ticked; on the row under the pointer it sits over
+    /// the thumbnail, dark so it shows on any cover.
+    /// </summary>
     private void ShowSelection()
     {
         var on = AppServices.Library.SelectionMode;
         var picked = on && Book is { IsSelected: true };
-        SelectBadge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        SelectBadge.Visibility = on || _hover ? Visibility.Visible : Visibility.Collapsed;
         Thumb.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         SelectTick.Text = picked ? "✓" : "";
         SelectTick.Foreground = Blue;
-        SelectBadge.BorderBrush = picked ? Blue : Grey;
+        SelectBadge.Background = on ? Clear : TickOverCover;
+        SelectBadge.BorderBrush = picked ? Blue : on ? Grey : White;
     }
+
+    private void OnTickTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (Book is { } b) BookCardControl.PickByTap(b, onTick: true);
+    }
+
+    private void OnTickDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
 
     private void OnTapped(object sender, TappedRoutedEventArgs e)
     {
         if (BookCardControl.TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
         if (Book is not { } book) return;
-        if (AppServices.Library.SelectionMode)
+        if (BookCardControl.PickByTap(book, onTick: false))
         {
-            AppServices.Library.ToggleSelect(book);
             e.Handled = true;
             return;
         }
@@ -213,9 +277,19 @@ public sealed partial class BookRowControl : UserControl
         if (Book is { } b) BookCardControl.RequestOpen(b);
     }
 
-    private void OnPointerEntered(object sender, PointerRoutedEventArgs e) => HoverFill.Opacity = 1;
+    private void OnPointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        HoverFill.Opacity = 1;
+        _hover = true;
+        ShowSelection();
+    }
 
-    private void OnPointerExited(object sender, PointerRoutedEventArgs e) => HoverFill.Opacity = 0;
+    private void OnPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        HoverFill.Opacity = 0;
+        _hover = false;
+        ShowSelection();
+    }
 
     private void OnToggleFinished(object sender, RoutedEventArgs e)
     {

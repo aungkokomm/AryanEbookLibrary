@@ -631,6 +631,10 @@ public sealed class LibraryViewModel : ObservableObject
             SortMode.DateAdded => Order(b => b.AddedUtc),
             SortMode.LastOpened => Order(b => b.LastOpenedUtc ?? DateTime.MinValue),
             SortMode.Rating => Order(b => b.Rating).ThenBy(b => b.SortTitle, titleCmp),
+            // A finished book is all the way through, whatever page it was closed on.
+            SortMode.Progress => Order(b => b.Status == ReadStatus.Finished ? 100 : b.Progress).ThenBy(b => b.SortTitle, titleCmp),
+            SortMode.FileSize => Order(b => b.FileSize),
+            SortMode.Format => Order(b => b.FormatLabel, titleCmp).ThenBy(b => b.SortTitle, titleCmp),
             _ => Order(b => b.SortTitle, titleCmp)
         };
     }
@@ -1052,7 +1056,38 @@ public sealed class LibraryViewModel : ObservableObject
         SelectedCount += selected ? 1 : -1;
     }
 
-    public void ToggleSelect(Book book) => Select(book, !book.IsSelected);
+    /// <summary>The book last ticked or unticked by itself: where a Shift range starts.</summary>
+    private Book? _anchor;
+
+    public void ToggleSelect(Book book)
+    {
+        Select(book, !book.IsSelected);
+        _anchor = book;
+    }
+
+    /// <summary>
+    /// Ticks every shown book from the anchor to <paramref name="to"/>, as Shift+click does in File Explorer. With no
+    /// anchor yet (or one the filter now hides), the range starts at <paramref name="from"/>, or at the book itself.
+    /// </summary>
+    public void SelectRange(Book to, Book? from = null)
+    {
+        var end = IndexOfShown(to);
+        if (end < 0) return;
+        var start = _anchor is null ? -1 : IndexOfShown(_anchor);
+        if (start < 0)
+        {
+            _anchor = from ?? to;
+            start = Math.Max(0, IndexOfShown(_anchor));
+        }
+        for (var i = Math.Min(start, end); i <= Math.Max(start, end); i++) Select(Books[i], true);
+    }
+
+    public int IndexOfShown(Book book)
+    {
+        for (var i = 0; i < Books.Count; i++)
+            if (ReferenceEquals(Books[i], book)) return i;
+        return -1;
+    }
 
     /// <summary>Ticks every book the current filter and search show, not the whole catalogue.</summary>
     public void SelectAllShown()
@@ -1065,6 +1100,7 @@ public sealed class LibraryViewModel : ObservableObject
     {
         foreach (var b in _all.Where(b => b.IsSelected)) b.IsSelected = false;
         SelectedCount = 0;
+        _anchor = null;
     }
 
     /// <summary>
@@ -1103,16 +1139,32 @@ public sealed class LibraryViewModel : ObservableObject
         return books.Count;
     }
 
-    public int SetFavoriteForSelected(bool favorite)
+    public int SetFavoriteForSelected(bool favorite) => SetFavorite(Selected, favorite);
+
+    public int SetFavorite(IEnumerable<Book> books, bool favorite)
     {
-        var books = Selected.Where(b => b.IsFavorite != favorite).ToList();
-        foreach (var book in books)
+        var changing = books.Where(b => b.IsFavorite != favorite).ToList();
+        foreach (var book in changing)
         {
             book.IsFavorite = favorite;
             SaveState(book);
         }
         if (Filter == LibraryFilter.Favorites) ApplyFilter();
-        return books.Count;
+        return changing.Count;
+    }
+
+    /// <summary>Stars from 1 to 5, or 0 for none. Returns how many books changed.</summary>
+    public int SetRating(IEnumerable<Book> books, int stars)
+    {
+        stars = Math.Clamp(stars, 0, 5);
+        var changing = books.Where(b => b.Rating != stars).ToList();
+        foreach (var book in changing)
+        {
+            book.Rating = stars;
+            SaveState(book);
+        }
+        if (changing.Count > 0 && MinRating > 0) ApplyFilter();
+        return changing.Count;
     }
 
     /// <summary>Looks the selected books up online now, whether or not the background fill is switched on.</summary>

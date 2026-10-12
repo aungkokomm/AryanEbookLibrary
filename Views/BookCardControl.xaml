@@ -61,14 +61,6 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
 
-                <!-- Tick, shown only while several books are being worked on at once -->
-                <Border x:Name="SelectBadge" Width="26" Height="26" CornerRadius="13" Margin="8"
-                        VerticalAlignment="Top" HorizontalAlignment="Left" Visibility="Collapsed"
-                        Background="#CC000000" BorderBrush="White" BorderThickness="1.5">
-                    <TextBlock x:Name="SelectTick" Text="" FontSize="14" FontWeight="Bold" Foreground="White"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-
                 <!-- Hover overlay -->
                 <Border x:Name="HoverOverlay" CornerRadius="10" Background="#CC000000"
                         Opacity="0" Visibility="Collapsed">
@@ -83,6 +75,16 @@
                         <Button x:Name="FinishedToggleBtn" Click="OnFinishedToggle"
                                 Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center" />
                     </StackPanel>
+                </Border>
+
+                <!-- Tick: on every card while books are being ticked, and on the one under the pointer, where a click on
+                     it starts ticking. Over the hover overlay, so it can be clicked. -->
+                <Border x:Name="SelectBadge" Width="26" Height="26" CornerRadius="13" Margin="8"
+                        VerticalAlignment="Top" HorizontalAlignment="Left" Visibility="Collapsed"
+                        Background="#CC000000" BorderBrush="White" BorderThickness="1.5"
+                        Tapped="OnTickTapped" DoubleTapped="OnTickDoubleTapped" AutomationProperties.Name="Tick">
+                    <TextBlock x:Name="SelectTick" Text="" FontSize="14" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
 
                 <!-- Info strip: strong dark gradient so the white title is always readable -->

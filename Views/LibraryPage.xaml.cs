@@ -40,6 +40,104 @@ public sealed partial class LibraryPage : Page
     }
 
     /// <summary>
+    /// Keys for ticking books, as in File Explorer: Ctrl+A ticks every book shown and Escape puts the ticks away; with
+    /// the keyboard on a book, Space ticks it, the arrow keys move to the next book, and Shift+arrows tick the books on
+    /// the way. False for any other key. The window sends the keys nothing else wanted, never a text box's.
+    /// </summary>
+    public bool SelectByKey(VirtualKey key, object? focused)
+    {
+        var vm = ViewModel;
+        var shift = BookCardControl.IsDown(VirtualKey.Shift);
+        if (key == VirtualKey.A && BookCardControl.IsDown(VirtualKey.Control))
+        {
+            if (vm.Books.Count == 0) return false;
+            vm.SelectionMode = true;
+            vm.SelectAllShown();
+            return true;
+        }
+        if (key == VirtualKey.Escape && vm.SelectionMode)
+        {
+            vm.SelectionMode = false;
+            return true;
+        }
+
+        var book = focused switch { BookCardControl c => c.Book, BookRowControl r => r.Book, _ => null };
+        if (book is null) return false;
+        if (key == VirtualKey.Space)
+        {
+            vm.SelectionMode = true;
+            if (shift) vm.SelectRange(book);
+            else vm.ToggleSelect(book);
+            return true;
+        }
+
+        var across = vm.IsGridView ? _columns : 1;
+        var step = key switch
+        {
+            VirtualKey.Right when vm.IsGridView => 1,
+            VirtualKey.Left when vm.IsGridView => -1,
+            VirtualKey.Down => across,
+            VirtualKey.Up => -across,
+            _ => 0
+        };
+        if (step == 0) return false;
+        var at = vm.IndexOfShown(book);
+        var to = Math.Clamp(at + step, 0, vm.Books.Count - 1);
+        if (at < 0 || to == at) return true;
+        if (shift)
+        {
+            vm.SelectionMode = true;
+            vm.SelectRange(vm.Books[to], from: book);
+        }
+        FocusBook(to);
+        return true;
+    }
+
+    /// <summary>
+    /// Sorting a big library from the keyboard, as photo apps rate pictures: with the keyboard on a book, 1 to 5 give
+    /// it stars and 0 takes them away, F makes it a favorite, R marks it being read and D done (each again undoes it).
+    /// On a ticked book they act on every ticked book. False for any other key.
+    /// </summary>
+    public bool MarkByKey(VirtualKey key, object? focused)
+    {
+        if (BookCardControl.IsDown(VirtualKey.Control) || BookCardControl.IsDown(VirtualKey.Menu) || BookCardControl.IsDown(VirtualKey.Shift))
+            return false;
+        var book = focused switch { BookCardControl c => c.Book, BookRowControl r => r.Book, _ => null };
+        if (book is null) return false;
+        var vm = ViewModel;
+        var books = book.IsSelected && vm.SelectedCount > 1 ? vm.Selected : new List<Book> { book };
+        var which = books.Count == 1 ? $"“{book.Title}”" : $"{books.Count:N0} books";
+
+        int? stars = key switch
+        {
+            >= VirtualKey.Number0 and <= VirtualKey.Number5 => key - VirtualKey.Number0,
+            >= VirtualKey.NumberPad0 and <= VirtualKey.NumberPad5 => key - VirtualKey.NumberPad0,
+            _ => null
+        };
+        if (stars is { } n)
+        {
+            vm.SetRating(books, n);
+            vm.Tell(n == 0 ? $"{which}: no stars" : $"{which}: {n} star{(n == 1 ? "" : "s")}");
+            return true;
+        }
+        switch (key)
+        {
+            case VirtualKey.F:
+                var favorite = !book.IsFavorite;
+                vm.SetFavorite(books, favorite);
+                vm.Tell(favorite ? $"{which}: favorite" : $"{which}: not a favorite");
+                return true;
+            case VirtualKey.R or VirtualKey.D:
+                var wanted = key == VirtualKey.R ? ReadStatus.Reading : ReadStatus.Finished;
+                var status = book.Status == wanted ? ReadStatus.Unread : wanted;
+                foreach (var b in books) vm.SetStatus(b, status);
+                vm.Tell($"{which}: " + status switch { ReadStatus.Reading => "reading", ReadStatus.Finished => "finished today", _ => "unread" });
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// The book takes the keyboard once the scroll has landed: asked for before, the repeater handed back a card it
     /// then gave to another book.
     /// </summary>
@@ -92,6 +190,12 @@ public sealed partial class LibraryPage : Page
         ("Last opened ↑", SortMode.LastOpened, false),
         ("Rating ↓", SortMode.Rating, true),
         ("Rating ↑", SortMode.Rating, false),
+        ("Progress ↓", SortMode.Progress, true),
+        ("Progress ↑", SortMode.Progress, false),
+        ("Size ↓", SortMode.FileSize, true),
+        ("Size ↑", SortMode.FileSize, false),
+        ("Format ↑", SortMode.Format, false),
+        ("Format ↓", SortMode.Format, true),
     };
 
     private bool _ready;
@@ -119,6 +223,13 @@ public sealed partial class LibraryPage : Page
         BookCardControl.DetailsRequested += b => BookDetailsWindow.Show(b);
         BookCardControl.OpenRequested += (b, defaultApp) => _ = OpenAsync(b, defaultApp);
         BookCardControl.FindOnlineRequested += b => _ = FindOnlineAsync(b);
+        BookMenu.ManyRequested += OnMany;
+        // Ctrl+click, a cover's tick or a key can start ticking as well as the Select button.
+        ViewModel.SelectionModeChanged += (_, _) =>
+        {
+            SelectionBar.Visibility = ViewModel.SelectionMode ? Visibility.Visible : Visibility.Collapsed;
+            SelectButton.IsChecked = ViewModel.SelectionMode;
+        };
         ViewModel.PropertyChanged += OnViewModelChanged;
         _ready = true;
     }
@@ -248,8 +359,75 @@ public sealed partial class LibraryPage : Page
     private void OnSelectMode(object sender, RoutedEventArgs e)
     {
         ViewModel.SelectionMode = !ViewModel.SelectionMode;
-        SelectionBar.Visibility = ViewModel.SelectionMode ? Visibility.Visible : Visibility.Collapsed;
-        SelectButton.IsChecked = ViewModel.SelectionMode;
+        SelectButton.IsChecked = ViewModel.SelectionMode;   // the button's own click flipped it even if nothing changed
+    }
+
+    /// <summary>The menu of several ticked books, and the bar's Add to list.</summary>
+    private void OnMany(BookMenu.Many action, string? list)
+    {
+        var none = new RoutedEventArgs();
+        switch (action)
+        {
+            case BookMenu.Many.Edit: OnBulkEdit(this, none); break;
+            case BookMenu.Many.FinishedToday: OnBulkFinished(this, none); break;
+            case BookMenu.Many.FinishedEarlier: OnBulkFinishedEarlier(this, none); break;
+            case BookMenu.Many.Reading: OnBulkReading(this, none); break;
+            case BookMenu.Many.Unread: OnBulkUnread(this, none); break;
+            case BookMenu.Many.Favorite: OnBulkFavorite(this, none); break;
+            case BookMenu.Many.NotFavorite: OnBulkUnfavorite(this, none); break;
+            case BookMenu.Many.Online: OnBulkOnline(this, none); break;
+            case BookMenu.Many.AddToList when list is not null: _ = AddToListAsync(list); break;
+            case BookMenu.Many.NewList: _ = AddToNewListAsync(); break;
+            case BookMenu.Many.CopyTo: OnBulkCopy(this, none); break;
+        }
+    }
+
+    /// <summary>The ticked books' files copied to a folder (an e-reader, a USB stick); the originals stay where they are.</summary>
+    private async void OnBulkCopy(object sender, RoutedEventArgs e)
+    {
+        if (!await HaveSelection() || _dialogOpen || XamlRoot is null || App.MainWindow is not { } window) return;
+        var books = ViewModel.Selected;
+        _dialogOpen = true;
+        try
+        {
+            await ListActions.CopyBooksAsync(window, XamlRoot, books, books.Count == 1 ? "1 ticked book" : $"{books.Count:N0} ticked books");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Copying the ticked books failed: " + ex);
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+
+    private void OnBulkListsOpening(object? sender, object e)
+    {
+        if (sender is MenuFlyout flyout) BookMenu.FillListsForMany(flyout.Items);
+    }
+
+    private async Task AddToListAsync(string list)
+    {
+        if (!await HaveSelection()) return;
+        var added = ViewModel.AddToList(ViewModel.Selected, list);
+        await Say("Added to list", added == 0 ? $"Every ticked book is on {list} already." : $"{added} book(s) added to {list}.");
+    }
+
+    private async Task AddToNewListAsync()
+    {
+        if (!await HaveSelection() || _dialogOpen || XamlRoot is null) return;
+        string? name;
+        _dialogOpen = true;
+        try
+        {
+            name = await ListDialogs.AskNameAsync(XamlRoot, "New list", "Create", "");
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+        if (name is not null && ViewModel.CreateList(name)) await AddToListAsync(name.Trim());
     }
 
     private void OnSelectAll(object sender, RoutedEventArgs e) => ViewModel.SelectAllShown();
@@ -497,6 +675,18 @@ public sealed partial class LibraryPage : Page
         var item = ViewModel.IsListView ? ViewList
             : density switch { "S" => ViewS, "L" => ViewL, "XL" => ViewXL, _ => ViewM };
         item.IsChecked = true;
+        foreach (var column in ColumnsMenu.Items.OfType<ToggleMenuFlyoutItem>())
+            column.IsChecked = BookRowControl.ShowsColumn((string)column.Tag);
+    }
+
+    /// <summary>A column of the list view on or off; it switches to the list, where the columns are.</summary>
+    private void OnColumnToggle(object sender, RoutedEventArgs e)
+    {
+        var shown = ColumnsMenu.Items.OfType<ToggleMenuFlyoutItem>().Where(c => c.IsChecked).Select(c => (string)c.Tag);
+        AppServices.Settings.ListColumns = string.Join(",", shown);
+        ViewModel.ViewMode = ViewMode.List;
+        BookRowControl.RaiseColumnsChanged();
+        SyncViewMenu();
     }
 
     /// <summary>Base card sizes. Close to a book cover's 2:3, a little taller so the title strip hides less of it.</summary>
@@ -513,6 +703,7 @@ public sealed partial class LibraryPage : Page
     }
 
     private double _baseWidth = 150, _baseHeight = 240;
+    private int _columns = 1;   // books in a row of the grid, for the Up and Down keys
 
     private void OnGridAreaSizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -534,6 +725,7 @@ public sealed partial class LibraryPage : Page
             var columns = Math.Max(1, Math.Round((available + gap) / (_baseWidth + gap), MidpointRounding.AwayFromZero));
             width = Math.Floor((available - (columns - 1) * gap) / columns);
             height = Math.Round(width * _baseHeight / _baseWidth);
+            _columns = (int)columns;
         }
         BookCardControl.SetGlobalSize(width, height, _baseWidth);
         GridLayout.MinItemWidth = width;

@@ -68,11 +68,8 @@ public static class ShelfFilter
         if (v.ConnectedOnly)
             q = q.Where(b => b.IsAvailable);
 
-        foreach (var token in v.Search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var t = token;
-            q = q.Where(b => b.SearchBlob.Contains(t, StringComparison.OrdinalIgnoreCase));
-        }
+        var search = SearchQuery.Parse(v.Search);
+        if (!search.IsEmpty) q = q.Where(search.Matches);
         return q;
     }
 

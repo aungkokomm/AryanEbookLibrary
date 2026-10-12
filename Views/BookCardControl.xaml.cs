@@ -82,29 +82,36 @@ public sealed partial class BookCardControl : UserControl
             else e.Cancel = true;
         };
 
+        // While books are being ticked the Read and View details buttons stay away, so a click anywhere ticks.
         PointerEntered += (_, _) =>
         {
-            HoverOverlay.Visibility = Visibility.Visible;
-            AnimateOverlay(HoverOverlay.Opacity, 1, 200);
+            _hover = true;
+            ShowSelection();
+            if (!AppServices.Library.SelectionMode)
+            {
+                HoverOverlay.Visibility = Visibility.Visible;
+                AnimateOverlay(HoverOverlay.Opacity, 1, 200);
+            }
             CardLift.Y = -4;
             CardScale.ScaleX = CardScale.ScaleY = 1.025;
         };
         PointerExited += (_, _) =>
         {
+            _hover = false;
+            ShowSelection();
             AnimateOverlay(HoverOverlay.Opacity, 0, 160);
             CardLift.Y = 0;
             CardScale.ScaleX = CardScale.ScaleY = 1;
         };
 
         // Single tap opens details after a short delay, so a double tap can cancel it and open the book.
-        // While several books are being worked on at once, a tap ticks the book instead.
+        // With Ctrl or Shift, or while books are being ticked, a tap ticks the book instead.
         Tapped += (_, e) =>
         {
             if (TapOriginatedInButton(e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
             if (Book is not { } book) return;
-            if (AppServices.Library.SelectionMode)
+            if (PickByTap(book, onTick: false))
             {
-                AppServices.Library.ToggleSelect(book);
                 e.Handled = true;
                 return;
             }
@@ -141,14 +148,24 @@ public sealed partial class BookCardControl : UserControl
         ShowSelection();
     }
 
-    private void OnSelectionModeChanged(object? sender, EventArgs e) => ShowSelection();
+    private void OnSelectionModeChanged(object? sender, EventArgs e)
+    {
+        if (AppServices.Library.SelectionMode)
+        {
+            HoverOverlay.Opacity = 0;
+            HoverOverlay.Visibility = Visibility.Collapsed;
+        }
+        ShowSelection();
+    }
 
-    /// <summary>The tick and the highlight follow both the mode and this book's own state.</summary>
+    private bool _hover;
+
+    /// <summary>The tick and the highlight follow the mode, the pointer and this book's own state.</summary>
     private void ShowSelection()
     {
         var on = AppServices.Library.SelectionMode;
         var picked = on && Book is { IsSelected: true };
-        SelectBadge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        SelectBadge.Visibility = on || _hover ? Visibility.Visible : Visibility.Collapsed;
         SelectTick.Text = picked ? "✓" : "";
         SelectBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             picked ? ColorTheme.Accent : Microsoft.UI.ColorHelper.FromArgb(0xCC, 0, 0, 0));
@@ -164,6 +181,7 @@ public sealed partial class BookCardControl : UserControl
         AppServices.Library.SelectionModeChanged -= OnSelectionModeChanged;
         Watch(null);
         // A card recycled mid-hover would otherwise come back lifted with the overlay showing.
+        _hover = false;
         HoverOverlay.Opacity = 0;
         HoverOverlay.Visibility = Visibility.Collapsed;
         CardLift.Y = 0;
@@ -309,6 +327,32 @@ public sealed partial class BookCardControl : UserControl
             });
         });
     }
+
+    private void OnTickTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (Book is { } b) PickByTap(b, onTick: true);
+    }
+
+    private void OnTickDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
+
+    /// <summary>
+    /// A click that ticks the book rather than showing it: on its tick, with Ctrl or Shift held, or while books are
+    /// being ticked. Shift ticks every book from the last one ticked to this one. False for an ordinary click.
+    /// </summary>
+    internal static bool PickByTap(Book book, bool onTick)
+    {
+        var vm = AppServices.Library;
+        var shift = IsDown(Windows.System.VirtualKey.Shift);
+        if (!onTick && !shift && !IsDown(Windows.System.VirtualKey.Control) && !vm.SelectionMode) return false;
+        vm.SelectionMode = true;
+        if (shift) vm.SelectRange(book);
+        else vm.ToggleSelect(book);
+        return true;
+    }
+
+    internal static bool IsDown(Windows.System.VirtualKey key) =>
+        Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
     internal static bool TapOriginatedInButton(DependencyObject? src)
     {

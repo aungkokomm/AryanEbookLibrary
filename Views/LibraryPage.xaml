@@ -140,7 +140,7 @@
 
                 <ToggleButton x:Name="SelectButton" Width="36" Height="32" Padding="0" Background="Transparent"
                               BorderThickness="0" Click="OnSelectMode" AutomationProperties.Name="Select books"
-                              ToolTipService.ToolTip="Select books to work on several at once">
+                              ToolTipService.ToolTip="Select books to work on several at once (or Ctrl+click a book)">
                     <FontIcon Glyph="&#xE762;" FontSize="16" />
                 </ToggleButton>
 
@@ -156,6 +156,13 @@
                             <RadioMenuFlyoutItem x:Name="ViewS" Text="Small covers" GroupName="View" Tag="S" Click="OnViewChoice" />
                             <MenuFlyoutSeparator />
                             <RadioMenuFlyoutItem x:Name="ViewList" Text="List" GroupName="View" Tag="List" Click="OnViewChoice" />
+                            <MenuFlyoutSubItem x:Name="ColumnsMenu" Text="List columns">
+                                <ToggleMenuFlyoutItem Text="Rating" Tag="rating" Click="OnColumnToggle" />
+                                <ToggleMenuFlyoutItem Text="Reading status" Tag="status" Click="OnColumnToggle" />
+                                <ToggleMenuFlyoutItem Text="File size" Tag="size" Click="OnColumnToggle" />
+                                <ToggleMenuFlyoutItem Text="Date added" Tag="added" Click="OnColumnToggle" />
+                                <ToggleMenuFlyoutItem Text="Last opened" Tag="opened" Click="OnColumnToggle" />
+                            </MenuFlyoutSubItem>
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
@@ -195,6 +202,14 @@
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
+                        <Button x:Name="BulkListButton" Content="Add to list"
+                                ToolTipService.ToolTip="Put every ticked book on one of your lists">
+                            <Button.Flyout>
+                                <MenuFlyout Opening="OnBulkListsOpening" />
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="BulkCopyButton" Content="Copy to folder..." Click="OnBulkCopy"
+                                ToolTipService.ToolTip="Copy the ticked books' files to a folder or drive, such as an e-reader. The originals stay where they are." />
                         <Button x:Name="BulkOnlineButton" Content="Find online" Click="OnBulkOnline"
                                 ToolTipService.ToolTip="Look the ticked books up on Open Library, Wikidata and Wikipedia" />
                     </StackPanel>

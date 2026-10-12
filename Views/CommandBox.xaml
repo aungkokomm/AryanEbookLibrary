@@ -1,0 +1,39 @@
+<ContentDialog
+    x:Class="AryanEbookLibrary.Views.CommandBox"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AryanEbookLibrary.Views">
+
+    <!-- Ctrl+K: type a few letters to go to any book, author, series, tag, list, shelf or page, or to do something.
+         No buttons: Enter goes, Escape closes. -->
+    <StackPanel Width="520" Spacing="10">
+        <TextBox x:Name="QueryBox" PlaceholderText="Go to a book, author, series, tag, list, shelf, page or action"
+                 TextChanged="OnQueryChanged" PreviewKeyDown="OnQueryKeyDown"
+                 AutomationProperties.Name="Go to" />
+        <ListView x:Name="Results" Height="380" SelectionMode="Single" IsItemClickEnabled="True"
+                  ItemClick="OnResultClick" AutomationProperties.Name="Results">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:CommandItem">
+                    <!-- Clear of the scroll bar, which otherwise covers the kind at the right -->
+                    <Grid ColumnSpacing="12" Margin="0,0,12,0" AutomationProperties.Name="{x:Bind Text}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{x:Bind Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind Kind}" MaxWidth="200" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <TextBlock x:Name="Hint" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                   Text="Up and Down to choose, Enter to go, Esc to close" />
+    </StackPanel>
+</ContentDialog>

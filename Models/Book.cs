@@ -433,7 +433,7 @@ public sealed class Book : ObservableObject
         return t;
     }
 
-    private static string FormatSize(long bytes)
+    public static string FormatSize(long bytes)
     {
         if (bytes >= 1L << 30) return $"{bytes / (double)(1L << 30):0.0} GB";
         if (bytes >= 1L << 20) return $"{bytes / (double)(1L << 20):0.0} MB";

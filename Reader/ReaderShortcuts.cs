@@ -144,11 +144,42 @@ internal static class ReaderShortcuts
             ("Alt+Enter", "The book's details"),
             ("Shift+F10, Menu key", "The book's menu"),
         });
+        AddGroup(panel, "Ticking books", new[]
+        {
+            ("Arrow keys", "Move between the books"),
+            ("Space", "Tick or untick the book"),
+            ("Shift+arrow keys", "Tick the books on the way"),
+            ("Ctrl+A", "Tick every book shown"),
+            ("Escape", "Put the ticks away"),
+            ("Ctrl+click", "Tick or untick a book"),
+            ("Shift+click", "Tick every book from the last one ticked"),
+            ("Point at a cover", "Its tick appears: click it to start ticking"),
+            ("Right-click a ticked book", "Mark, list, copy or edit all the ticked books"),
+        });
+        AddGroup(panel, "Rating and marking", new[]
+        {
+            ("1 to 5, 0", "Stars for the book, or none"),
+            ("F", "Favorite, or not"),
+            ("R", "Reading, or unread again"),
+            ("D", "Finished today, or unread again"),
+        });
+        Note(panel, "On a ticked book they change every ticked book.");
         AddGroup(panel, "Finding", new[]
         {
+            ("Ctrl+K", "Go to any book, author, series, tag, list, shelf or page"),
             ("Ctrl+F, Ctrl+E", "Search the library"),
             ("Escape", "Clear the search, in the search box"),
         });
+        AddGroup(panel, "Searching by field", new[]
+        {
+            ("author:  title:  series:", "author:tolstoy  title:\"war and peace\""),
+            ("tag:  list:  publisher:", "tag:history  list:\"to lend\""),
+            ("year:  rating:", "year:1990-2000  year:2000+  rating:4+"),
+            ("format:  lang:", "format:pdf  format:kindle  lang:my  lang:hindi"),
+            ("is:", "unread, reading, finished, favorite, rated, unrated, offline, notes"),
+            ("A minus in front", "Leaves them out: -tag:lent  -is:finished"),
+        });
+        Note(panel, "Save as shelf keeps any search, fields and all, in the pane.");
         AddGroup(panel, "Mouse", new[]
         {
             ("Click a book", "The book's details"),

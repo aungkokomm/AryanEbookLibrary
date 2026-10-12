@@ -17,21 +17,17 @@
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}" />
 
             <Grid Padding="12,10">
+                <!-- The middle columns are the ones chosen in the View menu (ApplyColumns): a hidden one is 0 wide -->
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="48" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition x:Name="RatingColumn" Width="90" />
+                    <ColumnDefinition x:Name="StatusColumn" Width="110" />
+                    <ColumnDefinition x:Name="SizeColumn" Width="0" />
+                    <ColumnDefinition x:Name="AddedColumn" Width="0" />
+                    <ColumnDefinition x:Name="OpenedColumn" Width="0" />
                     <ColumnDefinition Width="80" />
                 </Grid.ColumnDefinitions>
-
-                <!-- Tick, shown only while several books are being worked on at once -->
-                <Border x:Name="SelectBadge" Width="24" Height="24" CornerRadius="12"
-                        VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"
-                        Background="Transparent" BorderBrush="{ThemeResource TextFillColorSecondaryBrush}" BorderThickness="1.5">
-                    <TextBlock x:Name="SelectTick" Text="" FontSize="13" FontWeight="Bold"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
 
                 <!-- Thumbnail -->
                 <Border x:Name="Thumb" Width="44" Height="62" CornerRadius="4">
@@ -47,6 +43,16 @@
                         <Image x:Name="ThumbImage" Stretch="UniformToFill"
                                ImageOpened="OnThumbOpened" ImageFailed="OnThumbFailed" />
                     </Grid>
+                </Border>
+
+                <!-- Tick: in the thumbnail's place while books are being ticked, and over it on the row under the
+                     pointer, where a click on it starts ticking -->
+                <Border x:Name="SelectBadge" Width="24" Height="24" CornerRadius="12"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"
+                        Background="Transparent" BorderBrush="{ThemeResource TextFillColorSecondaryBrush}" BorderThickness="1.5"
+                        Tapped="OnTickTapped" DoubleTapped="OnTickDoubleTapped" AutomationProperties.Name="Tick">
+                    <TextBlock x:Name="SelectTick" Text="" FontSize="13" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
 
                 <!-- Title, author/series/format, drive -->
@@ -80,8 +86,20 @@
                     <TextBlock x:Name="StatusText" FontSize="11" FontWeight="Bold" />
                 </Border>
 
+                <!-- File size, date added, last opened: each says what it is, as the list has no header row -->
+                <TextBlock x:Name="SizeText" Grid.Column="4" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel x:Name="AddedCell" Grid.Column="5" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Added" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="AddedText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                </StackPanel>
+                <StackPanel x:Name="OpenedCell" Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Opened" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="OpenedText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                </StackPanel>
+
                 <!-- Quick toggles -->
-                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6"
+                <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="6"
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Button x:Name="FinishedBtn" Click="OnToggleFinished" Width="32" Height="32" Padding="0"
                             Background="Transparent" BorderThickness="0" CornerRadius="6" FontSize="15" />

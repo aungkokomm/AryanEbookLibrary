@@ -38,7 +38,10 @@ public enum SortMode
     Series = 2,
     DateAdded = 3,
     LastOpened = 4,
-    Rating = 5
+    Rating = 5,
+    Progress = 6,
+    FileSize = 7,
+    Format = 8
 }
 
 public enum ViewMode
