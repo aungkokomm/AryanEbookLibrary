@@ -129,3 +129,14 @@ function NewWindow([int]$procId, [IntPtr[]]$known, [string]$title, [int]$waitMs 
     }
     return [IntPtr]::Zero
 }
+
+# Setup remembers where it put Aryan (HKCU\Software\Aryan eBook Library). A test install must leave that as it found it,
+# or the reader's next Setup would offer the test's folder.
+$script:SetupMemory = 'HKCU:\Software\Aryan eBook Library'
+function SaveSetupMemory { if (Test-Path $script:SetupMemory) { Get-ItemProperty $script:SetupMemory | Select-Object Folder, Portable } else { $null } }
+function RestoreSetupMemory($saved) {
+    if ($null -eq $saved) { Remove-Item $script:SetupMemory -Recurse -ErrorAction SilentlyContinue; return }
+    New-Item -Force $script:SetupMemory | Out-Null
+    Set-ItemProperty $script:SetupMemory Folder $saved.Folder
+    Set-ItemProperty $script:SetupMemory Portable $saved.Portable -Type DWord
+}

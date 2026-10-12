@@ -11,6 +11,8 @@ function Check([bool]$ok, [string]$what) { if ($ok) { "PASS $what" } else { "FAI
 $root = [Windows.Automation.AutomationElement]::RootElement
 $button = [Windows.Automation.ControlType]::Button
 
+$memory = SaveSetupMemory
+
 # A portable copy with a library, made silently first.
 $copy = Join-Path $Work 'My Ebooks Data'
 if (-not (Test-Path (Join-Path $copy 'AryanEbookLibrary.exe'))) {
@@ -94,4 +96,5 @@ Check ((Get-Item (Join-Path $copy 'AryanEbookLibrary.dll')).LastWriteTimeUtc.Yea
 Check (-not (Test-Path (Join-Path $copy 'Aryan eBook Library'))) "no second copy inside it"
 $after = Get-ChildItem $data -Recurse -File | ForEach-Object { "$($_.FullName.Substring($data.Length)) $((Get-FileHash $_.FullName).Hash)" }
 Check ((Compare-Object $hashes $after) -eq $null) "the library is untouched ($($hashes.Count) files, same hashes)"
+RestoreSetupMemory $memory
 if ($fails -eq 0) { "ALL PASS" } else { "$fails FAILED" }

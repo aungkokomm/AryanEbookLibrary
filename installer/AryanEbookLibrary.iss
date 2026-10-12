@@ -55,8 +55,9 @@ MinVersion=10.0.17763
 CloseApplications=yes
 RestartApplications=no
 ; Two ways to set Aryan up, asked on the first page: installed for this user, or portable in a folder
-; the user picks (a USB drive, D:\). Portable writes nothing to Windows: no uninstaller, no entry in
-; Settings > Apps, no Start menu. Silent portable copy: Setup.exe /VERYSILENT /PORTABLE /DIR="E:\Aryan"
+; the user picks (a USB drive, D:\). Portable installs nothing in Windows: no uninstaller, no entry in
+; Settings > Apps, no Start menu. Only the folder is remembered (see [Registry]), as CineLibrary's Setup does,
+; so the next update goes back to it. Silent portable copy: Setup.exe /VERYSILENT /PORTABLE /DIR="E:\Aryan"
 Uninstallable=not IsPortable
 CreateUninstallRegKey=not IsPortable
 
@@ -76,8 +77,14 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "AryanLibrary-Data,AryanLibrary-Data\*"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
+[Registry]
+; Where Setup put Aryan, and how, for the next Setup to go back to (RememberedCopy). A portable copy has no
+; uninstaller, so this stays behind; an installed copy's uninstaller removes it.
+Root: HKCU; Subkey: "Software\{#AppName}"; ValueType: string; ValueName: "Folder"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#AppName}"; ValueType: dword; ValueName: "Portable"; ValueData: "{code:PortableFlag}"; Flags: uninsdeletekey
+
 [Icons]
-; None for a portable copy: it leaves no trace in Windows.
+; None for a portable copy: no Start menu, no desktop shortcut.
 Name: "{group}\{#AppName}";           Filename: "{app}\{#ExeName}"; WorkingDir: "{app}"; Check: not IsPortable
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"; Check: not IsPortable
 Name: "{autodesktop}\{#AppName}";     Filename: "{app}\{#ExeName}"; WorkingDir: "{app}"; Tasks: desktopicon; Check: not IsPortable
@@ -126,12 +133,39 @@ begin
     Result := ExpandConstant('{%USERPROFILE}\{#AppName}');
 end;
 
+function PortableFlag(Param: String): String;
+begin
+  if IsPortable then
+    Result := '1'
+  else
+    Result := '0';
+end;
+
 // ---- Finding the copy an update belongs to ----
 //
-// A portable copy writes nothing to Windows, so Windows cannot say where it is, and every update offered
-// "Install for me" and a new folder: Next, Next put a second Aryan, with an empty library, beside the reader's
-// own. Setup looks for it instead: the copy that is running, or else the copy whose library was used last,
-// in the places people keep one.
+// A portable copy has no uninstaller, so Windows cannot say where it is, and every update offered "Install for
+// me" and a new folder: Next, Next put a second Aryan, with an empty library, beside the reader's own. Setup now
+// remembers the folder it used (and whether it was portable) and goes back to it while it still holds Aryan.
+// A copy made before Setup remembered anything is looked for instead: the copy that is running, or else the
+// copy whose library was used last, in the places people keep one.
+
+// The folder Setup last put Aryan in, while Aryan is still there, and whether it went in as a portable copy.
+function RememberedCopy(var Portable: Boolean): String;
+var
+  Flag: Cardinal;
+begin
+  Portable := True;
+  if not RegQueryStringValue(HKCU, 'Software\{#AppName}', 'Folder', Result) then
+    Result := '';
+  Result := RemoveBackslashUnlessRoot(Result);
+  if (Result = '') or not FileExists(AddBackslash(Result) + '{#ExeName}') then
+  begin
+    Result := '';
+    exit;
+  end;
+  if RegQueryDWordValue(HKCU, 'Software\{#AppName}', 'Portable', Flag) then
+    Portable := Flag <> 0;
+end;
 
 // The folder Aryan runs from, if it is running now.
 function RunningCopy: String;
@@ -217,6 +251,7 @@ end;
 procedure InitializeWizard;
 var
   Choice: String;
+  WasPortable: Boolean;
 begin
   InstalledDir := WizardForm.DirEdit.Text;
   InstalledDirLabel := WizardForm.SelectDirLabel.Caption;
@@ -225,10 +260,21 @@ begin
   DirOnCommandLine := ExpandConstant('{param:DIR|}') <> '';
   if not WizardSilent and not DirOnCommandLine then
   begin
-    FoundDir := ExistingCopy;
-    // The installed copy is the one Windows already remembers, and Inno offers it already.
-    if CompareText(FoundDir, RemoveBackslashUnlessRoot(InstalledDir)) = 0 then
+    FoundDir := RememberedCopy(WasPortable);
+    if (FoundDir <> '') and not WasPortable then
+    begin
+      // Installed for this user last time: that folder, and Install for me.
+      InstalledDir := FoundDir;
+      WizardForm.DirEdit.Text := FoundDir;
       FoundDir := '';
+    end
+    else if FoundDir = '' then
+    begin
+      FoundDir := ExistingCopy;
+      // The installed copy is the one Windows already remembers, and Inno offers it already.
+      if CompareText(FoundDir, RemoveBackslashUnlessRoot(InstalledDir)) = 0 then
+        FoundDir := '';
+    end;
   end;
 
   Choice := 'Aryan is portable either way: your library (books found, covers, notes, highlights and settings) is kept in ' +
@@ -240,7 +286,7 @@ begin
     'Install it on this computer, or keep it portable.',
     Choice, True, False);
   ModePage.Add('Install for me. Aryan gets a Start menu entry and can be removed from Settings > Apps.');
-  ModePage.Add('Portable. Copy Aryan into a folder you choose, such as a USB drive. Nothing is written to Windows.');
+  ModePage.Add('Portable. Copy Aryan into a folder you choose, such as a USB drive. Nothing is installed in Windows.');
   ModePage.Values[0] := not PortableOnCommandLine and (FoundDir = '');
   ModePage.Values[1] := PortableOnCommandLine or (FoundDir <> '');
   if (PortableOnCommandLine or (FoundDir <> '')) and not DirOnCommandLine then
@@ -315,7 +361,7 @@ function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoType
   MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 begin
   if IsPortable then
-    Result := 'Portable copy: nothing is written to Windows (no Start menu, no uninstaller).' + NewLine + NewLine +
+    Result := 'Portable copy: no Start menu, no uninstaller. Setup remembers the folder for the next update.' + NewLine + NewLine +
       MemoDirInfo
   else
     Result := 'Installed for this user.' + NewLine + NewLine + MemoDirInfo;

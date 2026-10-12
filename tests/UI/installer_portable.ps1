@@ -27,6 +27,8 @@ function Install([string]$dir, [string]$log) {
     return $p.ExitCode
 }
 
+$memory = SaveSetupMemory
+
 # 1. a new portable copy
 $before = Traces
 $dir = Join-Path $Work 'portable-new'
@@ -38,6 +40,8 @@ Check (Test-Path (Join-Path $dir 'THIRD-PARTY-NOTICES.txt')) "with its notices"
 Check (-not (Get-ChildItem $dir -Filter 'unins*' -ErrorAction SilentlyContinue)) "no uninstaller"
 Check ((Traces) -eq $before) "nothing changed in Windows (uninstall entry, Start menu, desktop, Programs folder)"
 Check (-not (Test-Path (Join-Path $dir 'AryanLibrary-Data'))) "no library shipped"
+$remembered = Get-ItemProperty $script:SetupMemory -ErrorAction SilentlyContinue
+Check ($remembered.Folder -eq $dir -and $remembered.Portable -eq 1) "Setup remembers the folder, for the next update"
 
 $p = Start-Process (Join-Path $dir 'AryanEbookLibrary.exe') -WorkingDirectory $dir -PassThru
 $h = [IntPtr]::Zero
@@ -58,4 +62,5 @@ Check ((Get-Item (Join-Path $dir 'AryanEbookLibrary.dll')).LastWriteTimeUtc.Year
 $after = Get-ChildItem $data -Recurse -File | Where-Object { $_.Name -ne 'aryan.log' } | ForEach-Object { "$($_.FullName.Substring($data.Length)) $((Get-FileHash $_.FullName).Hash)" }
 Check ((Compare-Object $hashes $after) -eq $null -and $hashes.Count -gt 0) "the library is untouched ($($hashes.Count) files, same hashes)"
 Check ((Traces) -eq $before) "and still nothing in Windows"
+RestoreSetupMemory $memory
 if ($fails -eq 0) { "ALL PASS" } else { "$fails FAILED" }
