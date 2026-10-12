@@ -9,7 +9,7 @@ namespace AryanEbookLibrary.Services;
 public sealed class Database : IDisposable
 {
     /// <summary>The newest layout, which <see cref="Migrate"/> brings an older library up to. Raise it with each new step.</summary>
-    public const int LatestVersion = 8;
+    public const int LatestVersion = 10;
 
     private readonly SqliteConnection _conn;
     private readonly object _gate = new();
@@ -346,6 +346,31 @@ public sealed class Database : IDisposable
                 """);
             Exec("CREATE INDEX idx_annotations_book ON annotations(book_key);");
             Exec("PRAGMA user_version = 8;");
+        }
+        if (version < 9)
+        {
+            // How long a book is: a PDF's or comic's pages, an estimate for a book that flows (0 = not known yet). Filled
+            // when the scan reads the book again (MetadataService.Version 7).
+            Exec("ALTER TABLE books ADD COLUMN page_count INTEGER NOT NULL DEFAULT 0;");
+            Exec("PRAGMA user_version = 9;");
+        }
+        if (version < 10)
+        {
+            // Words looked up with Define in the reader, each with the sentence it was in and its book (Words).
+            Exec("""
+                CREATE TABLE lookups (
+                    id          INTEGER PRIMARY KEY,
+                    word        TEXT NOT NULL,
+                    sentence    TEXT NOT NULL DEFAULT '',
+                    book_key    TEXT NOT NULL DEFAULT '',
+                    book_title  TEXT NOT NULL DEFAULT '',
+                    place       TEXT NOT NULL DEFAULT '',
+                    times       INTEGER NOT NULL DEFAULT 1,
+                    looked_utc  TEXT NOT NULL
+                );
+                """);
+            Exec("CREATE INDEX idx_lookups_word ON lookups(word COLLATE NOCASE);");
+            Exec("PRAGMA user_version = 10;");
         }
     }
 

@@ -65,6 +65,15 @@ public static class ReadingLog
         books.Select(FinishedLocal).Where(d => d is not null).Select(d => d!.Value.Year)
             .Append(thisYear).Distinct().OrderByDescending(y => y).ToList();
 
+    /// <summary>The pages of the books finished in each month of the year; a book of unknown length adds none.</summary>
+    public static int[] PagesByMonth(ReadingYear year)
+    {
+        var pages = new int[12];
+        foreach (var b in year.Finished)
+            if (b.PageCount > 0 && FinishedLocal(b) is { } when) pages[when.Month - 1] += b.PageCount;
+        return pages;
+    }
+
     public static int AllTime(IEnumerable<Book> books) => books.Count(b => b.Status == ReadStatus.Finished);
 
     public static int Undated(IEnumerable<Book> books) =>

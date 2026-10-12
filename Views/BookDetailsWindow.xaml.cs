@@ -405,7 +405,7 @@ public sealed partial class BookDetailsWindow : Window
 
         if (_book.Year is { } year) ChipsPanel.Children.Add(Chip(year.ToString()));
         ChipsPanel.Children.Add(Chip(_book.FormatLabel));
-        if (Pages() is { } pages) ChipsPanel.Children.Add(Chip($"{pages:N0} pages"));
+        if (Pages() is { } pages) ChipsPanel.Children.Add(Chip(pages.Number + (pages.One ? " page" : " pages")));
         var language = ShelfFilter.LanguageKey(_book);
         if (language != ShelfFilter.NotStated) ChipsPanel.Children.Add(Chip(ShelfFilter.LanguageName(language)));
         if (!_book.IsAvailable) ChipsPanel.Children.Add(Chip("OFFLINE", (Brush)Application.Current.Resources["OfflineBrush"]));
@@ -429,11 +429,15 @@ public sealed partial class BookDetailsWindow : Window
         return chip;
     }
 
-    /// <summary>Pages as the app's reader counted them: known once a PDF or comic has been opened in it. An EPUB's
-    /// count there is of the reader's own screens, not the book's pages, so it is not shown.</summary>
-    private int? Pages() =>
-        _book.Format is BookFormat.Pdf or BookFormat.Cbz or BookFormat.Cbr &&
-        AppServices.Sessions.GetPosition(_book.StateKey) is { PageCount: > 0 } p ? p.PageCount : null;
+    /// <summary>Pages as the app's reader counted them once a PDF or comic was opened in it, else as the scan found
+    /// them ("about" for an EPUB or Kindle book, from the length of its text). The reader's count of an EPUB is of
+    /// its own screens, not the book's pages, so it is not used.</summary>
+    private (string Number, bool One)? Pages()
+    {
+        if (_book.Format is BookFormat.Pdf or BookFormat.Cbz or BookFormat.Cbr &&
+            AppServices.Sessions.GetPosition(_book.StateKey) is { PageCount: > 0 } p) return (p.PageCount.ToString("N0"), p.PageCount == 1);
+        return _book.PageCount <= 0 ? null : ((_book.PagesEstimated ? "about " : "") + _book.PageCount.ToString("N0"), _book.PageCount == 1);
+    }
 
     private void ShowDrive()
     {
@@ -484,7 +488,7 @@ public sealed partial class BookDetailsWindow : Window
         var b = _book;
         FactsWrap.Children.Clear();
         Fact("FORMAT", b.FormatLabel);
-        if (Pages() is { } pages) Fact("PAGES", pages.ToString("N0"));
+        if (Pages() is { } pages) Fact("PAGES", pages.Number);
         if (b.FileSize > 0) Fact("FILE SIZE", Size(b.FileSize));
         if (b.Publisher.Trim().Length > 0)
         {
@@ -1041,6 +1045,141 @@ public sealed partial class BookDetailsWindow : Window
         Populate();
         _ = LoadImagesAsync();
     }
+
+    // ---- the cover the reader chooses ----
+
+    private void OnCoverPointerEntered(object sender, PointerRoutedEventArgs e) => CoverBtn.Opacity = 1;
+
+    private void OnCoverPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (CoverBtn.FocusState == FocusState.Unfocused) CoverBtn.Opacity = 0;
+    }
+
+    private void OnCoverBtnFocus(object sender, RoutedEventArgs e) =>
+        CoverBtn.Opacity = CoverBtn.FocusState == FocusState.Unfocused ? 0 : 1;
+
+    private void OnChangeCover(object sender, RoutedEventArgs e) => CoverMenu().ShowAt(CoverBtn);
+
+    private void OnCoverRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var at = (FrameworkElement)sender;
+        CoverMenu().ShowAt(at, e.GetPosition(at));
+        e.Handled = true;
+    }
+
+    /// <summary>A picture, a page of the book (PDF or comic), or back to the book's own. The file itself is never changed.</summary>
+    private MenuFlyout CoverMenu()
+    {
+        var menu = new MenuFlyout();
+        Add("A picture on this PC…", () => _ = ChooseCoverPictureAsync());
+        if (_book.Format is BookFormat.Pdf or BookFormat.Cbz or BookFormat.Cbr) Add("A page of the book…", () => _ = ChooseCoverPageAsync());
+        if (_book.MyCoverFile is not null)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            Add("The book's own cover", () =>
+            {
+                CoverStore.RemoveMine(_book.StateKey);
+                _book.SetMyCover(null);
+            });
+        }
+        return menu;
+
+        void Add(string text, Action run)
+        {
+            var item = new MenuFlyoutItem { Text = text };
+            item.Click += (_, _) => run();
+            menu.Items.Add(item);
+        }
+    }
+
+    private async Task ChooseCoverPictureAsync()
+    {
+        try
+        {
+            var path = await ListActions.PickAsync(RootGrid.XamlRoot, () => Helpers.Pickers.OpenAsync(this, ".jpg", ".jpeg", ".png", ".webp", ".gif"));
+            if (path is null) return;
+            var bytes = await File.ReadAllBytesAsync(path);
+            if (Services.Metadata.ImageSniffer.Ext(bytes) is not { } ext)
+            {
+                await SayAsync("Change cover", "That file is not a picture Aryan can show (JPEG, PNG, WebP or GIF).");
+                return;
+            }
+            await UseCoverAsync(bytes, ext);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("details: the picture could not be used as the cover: " + ex.Message);
+            await SayAsync("Change cover", "That picture could not be used: " + ex.Message);
+        }
+    }
+
+    private async Task ChooseCoverPageAsync()
+    {
+        if (_dialogOpen || RootGrid.XamlRoot is null) return;
+        if (_book.FullPath is not { } path || !File.Exists(path))
+        {
+            await SayAsync("Change cover", "The book's drive is not plugged in, so its pages cannot be shown.");
+            return;
+        }
+        var pages = _book.PageCount;
+        var box = new NumberBox
+        {
+            Header = pages > 0 ? $"Page (1 to {pages:N0})" : "Page", Value = 1, Minimum = 1, Maximum = pages > 0 ? pages : 100_000,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline
+        };
+        var dialog = new ContentDialog
+        {
+            Title = "Use a page as the cover", Content = box, PrimaryButtonText = "Use this page", CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary, XamlRoot = RootGrid.XamlRoot
+        };
+        _dialogOpen = true;
+        ContentDialogResult answer;
+        try
+        {
+            answer = await dialog.ShowThemedAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+        if (answer != ContentDialogResult.Primary || double.IsNaN(box.Value)) return;
+
+        var index = (int)box.Value - 1;
+        try
+        {
+            byte[]? bytes;
+            string? ext;
+            if (_book.Format == BookFormat.Pdf)
+            {
+                bytes = await Services.Metadata.PdfReader.RenderPageAsync(path, index);
+                ext = ".png";
+            }
+            else
+            {
+                bytes = await Task.Run(() =>
+                {
+                    using var comic = Reader.Comic.ComicBook.Open(path);
+                    return index < comic.PageCount ? comic.ReadPage(index) : null;
+                });
+                ext = bytes is null ? null : Services.Metadata.ImageSniffer.Ext(bytes);
+            }
+            if (bytes is null || ext is null)
+            {
+                await SayAsync("Change cover", $"Page {index + 1:N0} could not be drawn.");
+                return;
+            }
+            await UseCoverAsync(bytes, ext);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("details: the page could not be used as the cover: " + ex.Message);
+            await SayAsync("Change cover", "That page could not be used: " + ex.Message);
+        }
+    }
+
+    /// <summary>Kept beside the other covers (a rescan or rebuilding the covers leaves it alone), shown everywhere at once.</summary>
+    private async Task UseCoverAsync(byte[] bytes, string ext) =>
+        _book.SetMyCover(await CoverStore.SaveMineAsync(bytes, ext, _book.StateKey));
 
     private async Task SayAsync(string title, string text)
     {

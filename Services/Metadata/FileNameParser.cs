@@ -202,6 +202,14 @@ public static class FileNameParser
             name = ackBy.Groups["title"].Value;
         }
 
+        // "120 Nagraj - Hari Maut": a numbered name whose left side repeats beside different titles across the library,
+        // and is no person the library knows, is a series with its number. The title keeps the whole name.
+        if (md.Series is null && md.Author is null && SeriesSide(name, ctx, md.SeriesIndex.HasValue) is { } side)
+        {
+            md.Series = side.Series;
+            md.SeriesIndex ??= side.Number;
+        }
+
         if (!HasMyanmar(name) && !name.Contains(' ') && name.Contains('-')) name = name.Replace('-', ' ');
         name = Squash(string.Join(' ', name.Split(' ').Select(SplitCamelCase))).Trim(' ', '-', ',', '.', ':');
         if (IsSingleCaseLatin(name)) name = TitleCase(name);
@@ -271,6 +279,24 @@ public static class FileNameParser
             md.Author = f.Author.Trim(' ', ',', '-');
             name = f.Title.Trim(' ', ',', '-', ':');
         }
+    }
+
+    /// <summary>
+    /// The left side of "Number Series - Story" when it repeats across the library and the right side does not, with
+    /// the number in front of it. Only a numbered name: an unnumbered "Name - Title" may as well be an author.
+    /// </summary>
+    private static (string Series, int? Number)? SeriesSide(string name, NameContext ctx, bool numbered)
+    {
+        var parts = SpacedDash.Split(name);
+        if (parts.Length != 2) return null;
+        var leftWithNumber = parts[0].Trim();
+        var number = Regex.Match(leftWithNumber, @"^(\d{1,5})\s*(?=\p{L})");
+        if (!numbered && !number.Success) return null;
+        var left = NameContext.WithoutNumber(leftWithNumber);
+        var right = parts[1].Trim();
+        if (left.Length < 2 || right.Length == 0 || ctx.IsKnownAuthor(left)) return null;
+        if (!ctx.IsRepeatedSide(left) || ctx.IsRepeatedSide(right)) return null;
+        return (left, number.Success ? int.Parse(number.Groups[1].Value, CultureInfo.InvariantCulture) : null);
     }
 
     private static readonly Regex NotAnAuthor = new(@"^(etc\.?|et al\.?|others|various|anonymous|unknown|n/?a)$", RegexOptions.IgnoreCase);

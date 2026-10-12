@@ -160,6 +160,7 @@
                                 <ToggleMenuFlyoutItem Text="Rating" Tag="rating" Click="OnColumnToggle" />
                                 <ToggleMenuFlyoutItem Text="Reading status" Tag="status" Click="OnColumnToggle" />
                                 <ToggleMenuFlyoutItem Text="File size" Tag="size" Click="OnColumnToggle" />
+                                <ToggleMenuFlyoutItem Text="Pages" Tag="pages" Click="OnColumnToggle" />
                                 <ToggleMenuFlyoutItem Text="Date added" Tag="added" Click="OnColumnToggle" />
                                 <ToggleMenuFlyoutItem Text="Last opened" Tag="opened" Click="OnColumnToggle" />
                             </MenuFlyoutSubItem>
@@ -226,7 +227,8 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Continue reading: one slim line over All Books, the books being read, most recent first. It scrolls
+                <!-- Continue reading: one slim line over All Books, the books being read, most recent first, then the next
+                     book in each series one was finished in. It scrolls
                      away with the covers, so it takes no room once you are browsing. -->
                 <Grid x:Name="ContinueRow" Padding="28,0,28,14" ColumnSpacing="14" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
@@ -256,6 +258,8 @@
                                                 <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontSize="13"
                                                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                                 <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind Progress, Mode=OneWay}" />
+                                                <TextBlock FontSize="11" Visibility="Collapsed" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Button>

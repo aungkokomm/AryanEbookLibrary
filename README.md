@@ -141,6 +141,10 @@ No account and no tracking, and Aryan never changes, renames or moves a book fil
 - A sidebar in sections (Library, Reading, Your notes, Browse and Tidy up), with a count on every shelf
 - Authors, Series and Tags pages, and lists of your own
 - Favourites, ratings, reading status, notes and tags for every book
+- Every book's length: the pages of a PDF or comic, an estimate for EPUB and Kindle books, a `pages:` search, and Length and Pages left sorts
+- Ctrl+Z undoes the last change to books, and Ctrl+C copies the ticked books as a list to paste anywhere
+- Choose any book's cover, a picture or a page of the book, without touching the file
+- A series named only by its files ("120 Nagraj - Hari Maut") is found as a series, number and all
 - Duplicates, Missing and Needs details pages, and editing many books at once
 - Surprise me, for when you cannot choose
 
@@ -157,10 +161,12 @@ No account and no tracking, and Aryan never changes, renames or moves a book fil
 ### Notes
 - Highlights in five colours, clipped pictures of any area, and page notes
 - Highlights and My Notes pages across all your books: search them, sort them, and jump back to the page
-- A reading log with your time, your pages, and the time a book has left at your pace
+- A reading log with your time, the pages you finished each month and year, and the time a book has left at your pace
+- Up next: finish a book in a series and the next one waits in Continue reading
 
 ### Words
 - Define: English meanings from WordNet, with Myanmar and Hindi translations, all offline
+- Every word you look up is kept on the Words page with the sentence and the book, ready to export as Anki cards or a spreadsheet
 - Burmese in Zawgyi or visual order is shown as proper Unicode (the files themselves are never touched)
 
 ### Details
@@ -182,7 +188,7 @@ No account and no tracking, and Aryan never changes, renames or moves a book fil
 1. Download `AryanEbookLibrary-Setup-<version>.exe` from the [latest release](../../releases/latest).
 2. Run it and choose how you want Aryan:
    - **Install for me:** for your user only, with no administrator rights needed, a Start menu entry, and an uninstaller in Settings > Apps.
-   - **Portable:** into any folder you like, a USB drive included. Nothing is written to Windows, and the whole folder, library and all, can move to another drive or PC.
+   - **Portable:** into any folder you like, a USB drive included. Nothing is installed in Windows (Setup only remembers the folder, for the next update), and the whole folder, library and all, can move to another drive or PC.
 3. Add the folders where your books are, and let it scan.
 
 New to Aryan? The [getting-started guide](https://aungkokomm.github.io/aryan/guide/) walks you through your first hour, from adding your books to highlights and backups.
@@ -213,6 +219,7 @@ Press **F1** in any reader to see them all. A few favourites:
 | **F11** | Full screen |
 | **Alt** | Move to the reader's toolbar |
 | **Ctrl+W** | Close the book |
+| **Ctrl+Z** | Undo the last change to books in the library |
 
 ## Build it yourself
 

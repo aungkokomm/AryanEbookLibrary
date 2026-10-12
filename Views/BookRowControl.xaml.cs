@@ -113,6 +113,7 @@ public sealed partial class BookRowControl : UserControl
         Show(RatingColumn, RowRating, "rating", 90);
         _statusShown = Show(StatusColumn, null, "status", 110);   // Populate shows the badge only for a book being read or finished
         Show(SizeColumn, SizeText, "size", 80);
+        Show(PagesColumn, PagesCell, "pages", 100);
         Show(AddedColumn, AddedCell, "added", 100);
         Show(OpenedColumn, OpenedCell, "opened", 100);
         if (Book is { } b) Populate(b);
@@ -163,6 +164,7 @@ public sealed partial class BookRowControl : UserControl
 
         RowRating.Text = Fn.Stars(b.Rating);
         SizeText.Text = b.FileSize > 0 ? Models.Book.FormatSize(b.FileSize) : "";
+        PagesCell.Text = b.PageCount <= 0 ? "" : (b.PagesEstimated ? "~" : "") + (b.PageCount == 1 ? "1 page" : $"{b.PageCount:N0} pages");
         AddedText.Text = b.AddedUtc.ToLocalTime().ToString("d MMM yyyy");
         OpenedText.Text = b.LastOpenedUtc is { } opened ? opened.ToLocalTime().ToString("d MMM yyyy") : "Never";
 

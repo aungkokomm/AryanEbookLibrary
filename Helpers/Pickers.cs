@@ -28,10 +28,10 @@ internal static class Pickers
         return (await picker.PickSaveFileAsync())?.Path;
     }
 
-    public static async Task<string?> OpenAsync(Window owner, string extension)
+    public static async Task<string?> OpenAsync(Window owner, params string[] extensions)
     {
         var picker = new FileOpenPicker(owner.AppWindow.Id);
-        picker.FileTypeFilter.Add(extension);
+        foreach (var extension in extensions) picker.FileTypeFilter.Add(extension);
         return (await picker.PickSingleFileAsync())?.Path;
     }
 }

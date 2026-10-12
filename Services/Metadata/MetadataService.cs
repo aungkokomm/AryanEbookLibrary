@@ -20,8 +20,10 @@ public static class MetadataService
     ///    number in the series, and a file name left as the title reads with spaces ("Aath_Pahar_Youn_Jhumte").
     /// 6: no web address, e-mail or program ("ComicRack", "CamScanner") as an author (a site becomes the publisher),
     ///    and a PDF's copyright page gives its year and publisher.
+    /// 7: every book's length (pages, or an estimate for EPUB and Kindle books), and a numbered series from file names
+    ///    ("120 Nagraj - Hari Maut").
     /// </summary>
-    public const int Version = 6;
+    public const int Version = 7;
 
     public static async Task<BookMetadata> ReadAsync(string path, BookFormat format, bool useCalibre, bool readCover = true)
     {

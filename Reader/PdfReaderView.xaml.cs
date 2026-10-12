@@ -43,6 +43,7 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     public event Action? CloseRequested { add { } remove { } }
 
     public event Action? LibraryRequested;
+    public event Action<string, string, int>? WordLookedUp;
 
     private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
     public event Action? FullScreenRequested;
@@ -1371,8 +1372,12 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
     private void ShowDefinition(string word, (int Page, int Start, int Length, string Text)? at)
     {
         _defineAnchor = null;
+        string sentence = "";
+        var page = -1;
         if (at is { } a && Text(a.Page) is { } layer)
         {
+            sentence = SentenceAt(layer, a.Start, a.Length);
+            page = a.Page;
             var rects = layer.GetRangeRects(a.Start, a.Length);
             if (rects.Count > 0)
             {
@@ -1383,6 +1388,8 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
         }
         else if (Selection() is { } s && Text(s.Start.Page) is { } sl && SelectedOn(s.Start.Page, sl) is { } range)
         {
+            sentence = SentenceAt(sl, range.Start, range.Length);
+            page = s.Start.Page;
             var rects = sl.GetRangeRects(range.Start, range.Length);
             if (rects.Count > 0)
             {
@@ -1394,6 +1401,17 @@ public sealed partial class PdfReaderView : UserControl, IReaderView
 
         Definition.Show(word);
         PlaceDefinition();
+        WordLookedUp?.Invoke(word, sentence, page);
+    }
+
+    /// <summary>The sentence on the page around the characters <paramref name="start"/> to start + length.</summary>
+    private static string SentenceAt(PageTextLayer layer, int start, int length)
+    {
+        var text = layer.Text;
+        start = Math.Clamp(start, 0, text.Length);
+        var end = Math.Clamp(start + length, start, text.Length);
+        var from = Math.Max(0, start - 400);
+        return Services.WordList.Sentence(text[from..start], text[start..end], text[end..Math.Min(text.Length, end + 400)]);
     }
 
     /// <summary>Keeps the popup beside its word as the pages scroll and zoom; hidden while the word is out of view.</summary>

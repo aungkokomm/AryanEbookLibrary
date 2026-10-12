@@ -14,6 +14,7 @@ public static class BackupService
         public List<string> Lists { get; set; } = new();   // My lists, so an empty one comes back too
         public List<BackupItem> Items { get; set; } = new();
         public List<BackupAnnotation> Annotations { get; set; } = new();   // highlights and notes, deleted ones' markers too
+        public List<WordLookup> Words { get; set; } = new();   // words looked up with Define
     }
 
     private sealed class BackupItem
@@ -53,9 +54,10 @@ public static class BackupService
 
         foreach (var row in annotations.All(withDeleted: true))
             backup.Annotations.Add(new BackupAnnotation { DriveId = row.DriveId, RelPath = row.RelPath, Annotation = row.Annotation });
+        backup.Words = repo.GetLookups();
 
         File.WriteAllText(file, JsonSerializer.Serialize(backup, Options));
-        return backup.Items.Count + backup.Annotations.Count;
+        return backup.Items.Count + backup.Annotations.Count + backup.Words.Count;
     }
 
     /// <summary>Merges a backup into the local state. Newest edit wins. Returns the number of entries applied.</summary>
@@ -85,6 +87,8 @@ public static class BackupService
             var first = book.First();
             applied += annotations.Merge(book.Key, first.DriveId, first.RelPath, book.Select(a => a.Annotation), marks);
         }
+        foreach (var word in backup.Words)
+            if (repo.MergeLookup(word)) applied++;
         return applied;
     }
 }

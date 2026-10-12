@@ -114,10 +114,13 @@ public sealed class ScannerService
                 author = p.Author ?? "";
                 nf = author.Length > 0 ? nf | BookMetadata.NameField.Author : nf & ~BookMetadata.NameField.Author;
             }
-            if ((nf & BookMetadata.NameField.Series) != 0)
+            // A series named only by the files ("120 Nagraj - Hari Maut") shows once the library has several of them:
+            // books new in this scan were read before the others were known, so one with no series takes it now.
+            if ((nf & BookMetadata.NameField.Series) != 0 || series.Length == 0 && !string.IsNullOrWhiteSpace(p.Series))
             {
                 series = p.Series ?? "";
                 seriesIndex = p.SeriesIndex ?? seriesIndex;
+                nf = series.Length > 0 ? nf | BookMetadata.NameField.Series : nf & ~BookMetadata.NameField.Series;
             }
             if ((nf & BookMetadata.NameField.Year) != 0) year = p.Year;
             if ((nf & BookMetadata.NameField.Publisher) != 0) publisher = p.Publisher ?? "";
@@ -206,7 +209,8 @@ public sealed class ScannerService
                         AddedUtc = AddedTime(item.File),
                         MetaVersion = MetadataService.Version,
                         NameFields = md.NameFields,
-                        CoverWeak = md.CoverIsTextPage
+                        CoverWeak = md.CoverIsTextPage,
+                        PageCount = md.PageCount ?? 0
                     };
 
                     if (md.Cover is { Length: > 0 })

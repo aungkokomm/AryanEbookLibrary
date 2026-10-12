@@ -43,6 +43,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     public event Action? CloseRequested;
 
     public event Action? LibraryRequested;
+    public event Action<string, string, int>? WordLookedUp;
 
     private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
 
@@ -288,7 +289,7 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
             case "context": OnContext(m); break;
             case "external": OpenLink(Str(m, "href")); break;
             case "search": OnSearchProgress(m); break;
-            case "probe": ShowDefinition(Str(m, "word"), RectOf(m)); break;
+            case "probe": Define(Str(m, "word"), RectOf(m), Near(m, Str(m, "word"))); break;
             case "top": _reveal.PointerAtTop(Flag(m, "near")); break;
             case "selection": OnSelection(m); break;
             case "mark": OnMarkClicked(m); break;
@@ -428,8 +429,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     {
         var box = RectOf(m);
         var selected = Str(m, "selection");
+        var near = Near(m, selected.Length > 0 ? selected : Str(m, "word"));
         var menu = WordMenu.Build(selected, Str(m, "word"),
-            define: w => ShowDefinition(w, box),
+            define: w => Define(w, box, near),
             copy: WordMenu.CopyText,
             find: text =>
             {
@@ -446,6 +448,16 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         }
         if (menu.Items.Count == 0) return;
         menu.ShowAt(Web, new FlyoutShowOptions { Position = new Point(Num(m, "x"), Num(m, "y")) });
+    }
+
+    /// <summary>The sentence what was clicked or selected is in: the page sends the paragraph's text either side of it.</summary>
+    private static string Near(JsonElement m, string anchor) => Services.WordList.Sentence(Str(m, "nearBefore"), anchor, Str(m, "nearAfter"));
+
+    /// <summary>Define, from the menu or the probe, and the word kept for the Words page with its sentence.</summary>
+    private void Define(string word, Rect? box, string sentence)
+    {
+        ShowDefinition(word, box);
+        if (word.Length > 0) WordLookedUp?.Invoke(word, sentence, -1);
     }
 
     private void ShowDefinition(string word, Rect? box)

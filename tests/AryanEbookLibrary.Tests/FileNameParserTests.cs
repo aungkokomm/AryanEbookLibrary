@@ -1,4 +1,7 @@
+using AryanEbookLibrary.Models;
+using AryanEbookLibrary.Services;
 using AryanEbookLibrary.Services.Metadata;
+using Microsoft.Data.Sqlite;
 
 namespace AryanEbookLibrary.Tests;
 
@@ -71,6 +74,73 @@ public class FileNameParserTests
         var md = FileNameParser.Parse(@"E:\Comics\124 Nagraj - Mritudand.pdf");
         Assert.NotEqual("Mritudand", md.Author);
         Assert.NotEqual("Nagraj", md.Author);
+    }
+
+    [Fact]
+    public void A_repeated_numbered_side_is_a_series_with_its_number()
+    {
+        FileNameParser.Context = NameContext.Build([], [
+            "120 Nagraj - Hari Maut", "121 Nagraj - Khooni Khel", "122 Nagraj - Zehreela Barood", "123 Nagraj - Mamber"]);
+        var md = FileNameParser.Parse(@"E:\Comics\124 Nagraj - Mritudand.pdf");
+        Assert.Equal("Nagraj", md.Series);
+        Assert.Equal(124, md.SeriesIndex);
+    }
+
+    [Fact]
+    public void A_series_new_in_a_scan_is_found_once_the_library_knows_its_other_books()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "aryan-tests-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using var db = new Database(Path.Combine(dir, "library.db"));
+            var repo = new LibraryRepository(db);
+            repo.AddDrive("E1", "Misc (E:)", "E:" + (char)92);
+            var folder = repo.AddFolder("E1", "Comics");
+            // As a scan reads new files: before any of them is in the library, so nothing says "Nagraj" repeats.
+            FileNameParser.Context = NameContext.Empty;
+            foreach (var name in new[] { "120 Nagraj - Hari Maut", "121 Nagraj - Khooni Khel", "122 Nagraj - Zehreela Barood", "123 Nagraj - Mamber" })
+            {
+                var rel = "Comics" + (char)92 + name + ".pdf";
+                var md = new BookMetadata();
+                MetadataService.FillFromFileName(md, rel);
+                repo.UpsertBook(new Book
+                {
+                    FolderId = folder.Id, DriveId = "E1", RelPath = rel, Format = BookFormat.Pdf, Title = md.Title ?? "", Author = md.Author ?? "",
+                    Series = md.Series ?? "", SeriesIndex = md.SeriesIndex, NameFields = md.NameFields, FileSize = 1000
+                });
+            }
+
+            new ScannerService(repo).RefreshNamesFromFiles();   // after the walk, with the whole library known
+
+            var all = repo.LoadAll().OrderBy(b => b.SeriesIndex).ToList();
+            Assert.All(all, b => Assert.Equal("Nagraj", b.Series));
+            Assert.Equal([120.0, 121.0, 122.0, 123.0], all.Select(b => b.SeriesIndex ?? 0));
+            Assert.All(all, b => Assert.Equal("", b.Author));
+            Assert.Equal("120 Nagraj - Hari Maut", all[0].Title);   // the title keeps the whole name
+        }
+        finally
+        {
+            FileNameParser.Context = NameContext.Empty;
+            SqliteConnection.ClearAllPools();
+            try { Directory.Delete(dir, recursive: true); } catch { /* a temp folder left behind is harmless */ }
+        }
+    }
+
+    [Fact]
+    public void A_known_author_on_the_left_is_no_series()
+    {
+        FileNameParser.Context = NameContext.Build(["Premchand"], ["1 Premchand - Godan", "2 Premchand - Gaban"]);
+        Assert.Null(FileNameParser.Parse(@"E:\Books\3 Premchand - Nirmala.pdf").Series);
+    }
+
+    [Fact]
+    public void No_series_without_a_number_or_a_repeat()
+    {
+        FileNameParser.Context = NameContext.Build([], ["120 Nagraj - Hari Maut", "121 Nagraj - Khooni Khel"]);
+        Assert.Null(FileNameParser.Parse(@"E:\Comics\Nagraj - Mritudand.pdf").Series);   // no number: could be an author
+        FileNameParser.Context = NameContext.Empty;
+        Assert.Null(FileNameParser.Parse(@"E:\Comics\124 Nagraj - Mritudand.pdf").Series);   // nothing else repeats it
     }
 
     [Theory]

@@ -538,6 +538,26 @@ const around = range => {
     }
 }
 
+// The paragraph's text either side of a word looked up, for the sentence it is in (the Words page).
+const nearby = range => {
+    const doc = range.startContainer.ownerDocument
+    let block = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement
+    while (block && block !== doc.body && doc.defaultView.getComputedStyle(block).display.startsWith('inline'))
+        block = block.parentElement
+    block ??= doc.body
+    try {
+        const before = doc.createRange()
+        before.setStart(block, 0)
+        before.setEnd(range.startContainer, range.startOffset)
+        const after = doc.createRange()
+        after.setStart(range.endContainer, range.endOffset)
+        after.setEnd(block, block.childNodes.length)
+        return { nearBefore: before.toString().slice(-400), nearAfter: after.toString().slice(0, 400) }
+    } catch {
+        return {}
+    }
+}
+
 // Words just selected with the mouse: the app offers the colours over them.
 const offerSelection = (doc, index) => {
     const selection = doc.getSelection()
@@ -595,6 +615,7 @@ const onSectionLoad = (doc, index) => {
             selection: range ? selected : '',
             cfi,
             ...(range ? around(range) : {}),
+            ...(anchor ? nearby(anchor) : {}),
             rect: anchor ? toTop(doc, anchor.getBoundingClientRect()) : null,
         })
     })
@@ -612,7 +633,7 @@ const probe = word => {
             range.setEnd(node, i + word.length)
             const r = toTop(doc, range.getBoundingClientRect())
             if (r.x < 0 || r.y < 0 || r.x > innerWidth || r.y > innerHeight) continue
-            post({ type: 'probe', word, rect: r })
+            post({ type: 'probe', word, rect: r, ...nearby(range) })
             return
         }
     }

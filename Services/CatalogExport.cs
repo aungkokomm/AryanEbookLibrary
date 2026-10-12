@@ -17,6 +17,16 @@ public static class CatalogExport
         "Added", "Last opened", "Finished", "Drive", "Path", "Available"
     };
 
+    /// <summary>Books as a plain list to paste anywhere (Ctrl+C): "Title by Author (Series #2, 1999)", one a line.</summary>
+    public static string Lines(IEnumerable<Book> books) =>
+        string.Join(Environment.NewLine, books.Select(b =>
+        {
+            var line = b.Title;
+            if (b.Author.Trim().Length > 0) line += " by " + b.Author.Trim();
+            var more = new[] { b.SeriesLine.Trim(), b.Year?.ToString() ?? "" }.Where(s => s.Length > 0).ToList();
+            return more.Count == 0 ? line : $"{line} ({string.Join(", ", more)})";
+        }));
+
     public static int Csv(string path, IEnumerable<Book> books)
     {
         var sb = new StringBuilder();

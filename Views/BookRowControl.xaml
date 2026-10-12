@@ -24,6 +24,7 @@
                     <ColumnDefinition x:Name="RatingColumn" Width="90" />
                     <ColumnDefinition x:Name="StatusColumn" Width="110" />
                     <ColumnDefinition x:Name="SizeColumn" Width="0" />
+                    <ColumnDefinition x:Name="PagesColumn" Width="0" />
                     <ColumnDefinition x:Name="AddedColumn" Width="0" />
                     <ColumnDefinition x:Name="OpenedColumn" Width="0" />
                     <ColumnDefinition Width="80" />
@@ -86,20 +87,22 @@
                     <TextBlock x:Name="StatusText" FontSize="11" FontWeight="Bold" />
                 </Border>
 
-                <!-- File size, date added, last opened: each says what it is, as the list has no header row -->
+                <!-- File size, length, date added, last opened: each says what it is, as the list has no header row -->
                 <TextBlock x:Name="SizeText" Grid.Column="4" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <StackPanel x:Name="AddedCell" Grid.Column="5" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock x:Name="PagesCell" Grid.Column="5" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel x:Name="AddedCell" Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <TextBlock Text="Added" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
                     <TextBlock x:Name="AddedText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                 </StackPanel>
-                <StackPanel x:Name="OpenedCell" Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel x:Name="OpenedCell" Grid.Column="7" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <TextBlock Text="Opened" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
                     <TextBlock x:Name="OpenedText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Quick toggles -->
-                <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="6"
+                <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="6"
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Button x:Name="FinishedBtn" Click="OnToggleFinished" Width="32" Height="32" Padding="0"
                             Background="Transparent" BorderThickness="0" CornerRadius="6" FontSize="15" />

@@ -112,6 +112,7 @@
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
                         <TextBlock x:Name="MostTimeText" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="PaceText" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
 
@@ -136,9 +137,18 @@
                             <TextBlock x:Name="GoalText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         </StackPanel>
 
+                        <!-- The year's pages: in all, a book on average, the longest -->
+                        <TextBlock x:Name="YearPagesText" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap" />
+
+                        <!-- The chart counts books, or the pages in them -->
+                        <SelectorBar x:Name="ChartBy" SelectionChanged="OnChartByChanged" Margin="-12,0,0,-8">
+                            <SelectorBarItem Text="Books" Tag="books" IsSelected="True" />
+                            <SelectorBarItem Text="Pages" Tag="pages" />
+                        </SelectorBar>
+
                         <!-- Twelve equal columns: each month's bar with its count over it. A template, not code, so the
                              theme brushes follow the app's theme (code gets the system theme's brushes). -->
-                        <ItemsRepeater x:Name="MonthChart" AutomationProperties.Name="Books finished each month">
+                        <ItemsRepeater x:Name="MonthChart" AutomationProperties.Name="Books, or their pages, finished each month">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout Orientation="Horizontal" MaximumRowsOrColumns="12" ItemsStretch="Fill"
                                                    MinItemWidth="20" MinItemHeight="170" MinColumnSpacing="6" />
@@ -200,6 +210,9 @@
                                                            TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Text="{x:Bind Why}" Style="{StaticResource PageHintStyle}"
                                                            MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Detail}" Style="{StaticResource PageHintStyle}" TextWrapping="Wrap"
+                                                           MaxLines="2" TextTrimming="CharacterEllipsis"
+                                                           Visibility="{x:Bind helpers:Fn.VisNotEmpty(Detail)}" />
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -232,6 +245,9 @@
                                                 <TextBlock Text="{x:Bind Book.Title}" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Text="{x:Bind Book.DisplayAuthor}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                <TextBlock Text="{x:Bind Detail}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                           Visibility="{x:Bind helpers:Fn.VisNotEmpty(Detail)}" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="3" Text="{x:Bind helpers:Fn.Stars(Book.Rating)}" Foreground="#FAAC17"
                                                        VerticalAlignment="Center" />

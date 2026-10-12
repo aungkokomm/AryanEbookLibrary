@@ -43,6 +43,7 @@ public sealed partial class ComicReaderView : UserControl, IReaderView
     public event Action? CloseRequested { add { } remove { } }
 
     public event Action? LibraryRequested;
+    public event Action<string, string, int>? WordLookedUp { add { } remove { } }   // pictures: no words to define
 
     private void OnLibraryClick(object sender, RoutedEventArgs e) => LibraryRequested?.Invoke();
     public event Action? FullScreenRequested;

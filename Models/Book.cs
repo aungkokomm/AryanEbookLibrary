@@ -106,6 +106,15 @@ public sealed class Book : ObservableObject
         ShowDetails();
     }
 
+    /// <summary>The cover the reader chose for this book (CoverStore's "my-" file), null for none.</summary>
+    public string? MyCoverFile { get; private set; }
+
+    public void SetMyCover(string? file)
+    {
+        MyCoverFile = file;
+        ShowDetails();
+    }
+
     /// <summary>Sets what one source says (replacing what it said before) and shows the result.</summary>
     public void SetOnline(OnlineDetails? online)
     {
@@ -199,8 +208,9 @@ public sealed class Book : ObservableObject
         var cover = o is not null && !string.IsNullOrEmpty(o.CoverFile) && (picked ? o.UseCover : o.UseCover || NeedsCover)
             ? o
             : NeedsCover && !string.IsNullOrEmpty(wikipedia?.CoverFile) ? wikipedia : null;
-        CoverFile = cover?.CoverFile ?? FileCoverFile;
-        CoverSource = cover?.Source;
+        // A cover the reader chose comes before all of them.
+        CoverFile = MyCoverFile ?? cover?.CoverFile ?? FileCoverFile;
+        CoverSource = MyCoverFile is null ? cover?.Source : null;
 
         _searchBlob = null;
     }
@@ -226,7 +236,7 @@ public sealed class Book : ObservableObject
     /// </summary>
     public bool NeedsDetails =>
         Author.Length == 0 ||
-        CoverFile is null || CoverWeak && CoverSource is null ||
+        CoverFile is null || CoverWeak && CoverSource is null && MyCoverFile is null ||
         Services.Online.OnlineMatcher.HasNoTitleWords(Title);
 
     public double? SeriesIndex { get; set; }
@@ -263,6 +273,18 @@ public sealed class Book : ObservableObject
     }
 
     public long FileSize { get; set; }
+
+    /// <summary>How many pages: a PDF's or comic's own, an estimate for a book whose text flows; 0 when not known.</summary>
+    public int PageCount { get; set; }
+
+    /// <summary>A book whose text flows has no fixed pages: its length is an estimate.</summary>
+    public bool PagesEstimated => Format is BookFormat.Epub or BookFormat.Mobi or BookFormat.Azw3 or BookFormat.Kfx;
+
+    public string PagesText => PageCount <= 0 ? "" : (PagesEstimated ? "about " : "") + (PageCount == 1 ? "1 page" : $"{PageCount:N0} pages");
+
+    /// <summary>Pages still to read: none once finished; unknown (-1) when the length is.</summary>
+    public int PagesLeft => Status == ReadStatus.Finished ? 0 : PageCount <= 0 ? -1 : (int)Math.Round(PageCount * (100 - Math.Clamp(Progress, 0, 100)) / 100.0);
+
     public long ModifiedTicks { get; set; }
     public int MetaVersion { get; set; }
     public int NameFields { get; set; }     // BookMetadata.NameField bits: details taken from the file name
@@ -340,6 +362,9 @@ public sealed class Book : ObservableObject
     public DateTime? FinishedUtc { get; set; }
     public DateTime StateUpdatedUtc { get; set; } = DateTime.MinValue;
 
+    /// <summary>The state as last read or saved, which a change is measured from (for Ctrl+Z). Null: never saved, all defaults.</summary>
+    public BookState? LastSaved { get; set; }
+
     // ---- Derived ----
     private string? _stateKey;
     public string StateKey => _stateKey ??= MakeKey(DriveId, RelPath);
@@ -378,6 +403,7 @@ public sealed class Book : ObservableObject
             if (Year.HasValue) parts.Add(Year.Value.ToString());
             if (!string.IsNullOrWhiteSpace(Language)) parts.Add(Language.ToUpperInvariant());
             parts.Add(FormatLabel);
+            if (PagesText.Length > 0) parts.Add(PagesText);
             parts.Add(FormatSize(FileSize));
             return string.Join("  ·  ", parts);
         }
@@ -404,6 +430,7 @@ public sealed class Book : ObservableObject
         StateUpdatedUtc = s.UpdatedUtc;
         SetCustomDetails(s.CustomTitle, s.CustomAuthor, s.CustomSeries);
         _searchBlob = null;
+        LastSaved = s;
     }
 
     public BookState ToState() => new()

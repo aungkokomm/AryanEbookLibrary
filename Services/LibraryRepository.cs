@@ -130,9 +130,10 @@ public sealed class LibraryRepository
     {
         var labels = GetDrives().ToDictionary(d => d.Id, d => d.Label, StringComparer.OrdinalIgnoreCase);
         var online = GetAllOnline();
+        var mine = CoverStore.Mine();   // the covers the reader chose
 
         return _db.Query(
-            $"SELECT {BookColumns}, b.name_fields, b.cover_weak FROM books b LEFT JOIN book_state s ON s.key = b.state_key WHERE b.is_missing = 0",
+            $"SELECT {BookColumns}, b.name_fields, b.cover_weak, b.page_count FROM books b LEFT JOIN book_state s ON s.key = b.state_key WHERE b.is_missing = 0",
             r =>
             {
                 var b = new Book
@@ -157,11 +158,13 @@ public sealed class LibraryRepository
                     ModifiedTicks = r.IsDBNull(17) ? 0 : r.GetInt64(17),
                     AddedUtc = Dt(r, 18) ?? DateTime.UtcNow,
                     NameFields = r.GetInt32(32),
-                    CoverWeak = r.GetInt32(33) != 0
+                    CoverWeak = r.GetInt32(33) != 0,
+                    PageCount = r.GetInt32(34)
                 };
                 b.DriveLabel = labels.TryGetValue(b.DriveId, out var l) ? l : b.DriveId;
                 b.KeepFileDetails();
                 if (online.TryGetValue(b.StateKey, out var sources)) b.SetOnline(sources);
+                if (CoverStore.MineFor(mine, b.StateKey) is { } myCover) b.SetMyCover(myCover);
 
                 if (!r.IsDBNull(19))
                 {
@@ -261,7 +264,10 @@ public sealed class LibraryRepository
             // And its highlights and notes.
             _db.Exec("UPDATE annotations SET book_key=$newkey, drive_id=$d, rel_path=$new WHERE book_key=$oldkey",
                 ("$newkey", newKey), ("$d", newDriveId), ("$new", newRelPath), ("$oldkey", oldKey));
+            // And the words looked up in it.
+            _db.Exec("UPDATE lookups SET book_key=$newkey WHERE book_key=$oldkey", ("$newkey", newKey), ("$oldkey", oldKey));
         });
+        CoverStore.MoveMine(oldKey, newKey);   // and the cover chosen for it
     }
 
     public Dictionary<string, ExistingBook> GetExistingForFolder(long folderId) =>
@@ -277,10 +283,10 @@ public sealed class LibraryRepository
         _db.Exec("""
             INSERT INTO books (folder_id, drive_id, rel_path, state_key, format, title, author, series, series_index,
                                publisher, year, language, description, isbn, subjects, cover_file, file_size,
-                               modified_ticks, added_utc, meta_version, name_fields, cover_weak)
+                               modified_ticks, added_utc, meta_version, name_fields, cover_weak, page_count)
             VALUES ($folder, $drive, $rel, $key, $format, $title, $author, $series, $sindex,
                     $publisher, $year, $lang, $desc, $isbn, $subjects, $cover, $size, $ticks, $added,
-                    $mver, $nfields, $cweak)
+                    $mver, $nfields, $cweak, $pages)
             ON CONFLICT(drive_id, rel_path) DO UPDATE SET
                 folder_id = excluded.folder_id,
                 state_key = excluded.state_key,
@@ -301,6 +307,7 @@ public sealed class LibraryRepository
                 meta_version = excluded.meta_version,
                 name_fields = excluded.name_fields,
                 cover_weak = excluded.cover_weak,
+                page_count = excluded.page_count,
                 is_missing = 0;
             """,
             ("$folder", b.FolderId), ("$drive", b.DriveId), ("$rel", b.RelPath), ("$key", b.StateKey),
@@ -308,7 +315,7 @@ public sealed class LibraryRepository
             ("$sindex", b.SeriesIndex), ("$publisher", b.Publisher), ("$year", b.Year), ("$lang", b.Language),
             ("$desc", b.Description), ("$isbn", b.Isbn), ("$subjects", b.Subjects), ("$cover", b.CoverFile),
             ("$size", b.FileSize), ("$ticks", b.ModifiedTicks), ("$added", Iso(b.AddedUtc)),
-            ("$mver", b.MetaVersion), ("$nfields", b.NameFields), ("$cweak", b.CoverWeak ? 1 : 0));
+            ("$mver", b.MetaVersion), ("$nfields", b.NameFields), ("$cweak", b.CoverWeak ? 1 : 0), ("$pages", b.PageCount));
     }
 
     // ------------------------------------------------------------ names from file names
@@ -494,6 +501,45 @@ public sealed class LibraryRepository
     // ------------------------------------------------------------ my lists
 
     /// <summary>The user's lists, in the order they were made.</summary>
+    // ------------------------------------------------------------ words looked up (Words)
+
+    /// <summary>
+    /// Keeps a word looked up with Define. The same word in the same sentence of the same book again counts once more
+    /// and moves to the top, rather than filling the list with copies.
+    /// </summary>
+    public void AddLookup(WordLookup w)
+    {
+        var changed = _db.Exec(
+            "UPDATE lookups SET times = times + $times, looked_utc = MAX(looked_utc, $t), place = $place " +
+            "WHERE word = $w COLLATE NOCASE AND sentence = $s AND book_key = $k",
+            ("$times", w.Times), ("$t", Iso(w.LookedUtc)), ("$place", w.Place), ("$w", w.Word), ("$s", w.Sentence), ("$k", w.BookKey));
+        if (changed == 0)
+            _db.Exec("INSERT INTO lookups (word, sentence, book_key, book_title, place, times, looked_utc) VALUES ($w, $s, $k, $title, $place, $times, $t)",
+                ("$w", w.Word), ("$s", w.Sentence), ("$k", w.BookKey), ("$title", w.BookTitle), ("$place", w.Place),
+                ("$times", w.Times), ("$t", Iso(w.LookedUtc)));
+    }
+
+    public List<WordLookup> GetLookups() =>
+        _db.Query("SELECT id, word, sentence, book_key, book_title, place, times, looked_utc FROM lookups ORDER BY looked_utc DESC",
+            r => new WordLookup
+            {
+                Id = r.GetInt64(0), Word = r.GetString(1), Sentence = Str(r, 2), BookKey = Str(r, 3), BookTitle = Str(r, 4),
+                Place = Str(r, 5), Times = r.GetInt32(6), LookedUtc = Dt(r, 7) ?? DateTime.UtcNow
+            });
+
+    /// <summary>Forgets a word: every time it was looked up.</summary>
+    public void DeleteLookups(string word) => _db.Exec("DELETE FROM lookups WHERE word = $w COLLATE NOCASE", ("$w", word));
+
+    /// <summary>A backup's word, unless this library has it already (same word, sentence and book).</summary>
+    public bool MergeLookup(WordLookup w)
+    {
+        var known = _db.Scalar<long>("SELECT COUNT(*) FROM lookups WHERE word = $w COLLATE NOCASE AND sentence = $s AND book_key = $k",
+            ("$w", w.Word), ("$s", w.Sentence), ("$k", w.BookKey));
+        if (known > 0) return false;
+        AddLookup(w);
+        return true;
+    }
+
     public List<string> GetLists() =>
         _db.Query("SELECT name FROM user_lists ORDER BY sort, created_utc, name COLLATE NOCASE", r => r.GetString(0));
 

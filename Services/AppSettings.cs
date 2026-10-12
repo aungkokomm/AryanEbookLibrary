@@ -15,7 +15,7 @@ public sealed class AppSettings
     public SortMode SortMode { get; set; } = SortMode.Title;
     public bool SortDescending { get; set; }
     public string GridDensity { get; set; } = "M";     // S | M | L | XL card size
-    public string ListColumns { get; set; } = "rating,status";   // the list view's columns: rating, status, size, added, opened
+    public string ListColumns { get; set; } = "rating,status";   // the list view's columns: rating, status, size, pages, added, opened
     public bool LookupOnline { get; set; }               // fill missing details from Open Library in the background
     public string GoogleBooksKey { get; set; } = "";     // the user's own Google Books API key; "" = Google Books is not asked
     // Authors the library offered for books with none ("site|name") and the user turned down.

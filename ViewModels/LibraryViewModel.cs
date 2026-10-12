@@ -426,15 +426,25 @@ public sealed class LibraryViewModel : ObservableObject
     /// </summary>
     public List<Book> ContinueBooks { get => _continueBooks; private set => SetProperty(ref _continueBooks, value); }
 
+    /// <summary>
+    /// The books being read, last opened first, then up next in each series with a finished book (the Reading log's
+    /// Up next): only books whose drive is plugged in, as the row opens them.
+    /// </summary>
     private void RefreshContinueBooks()
     {
         var show = Filter == LibraryFilter.All && ActiveShelf.Length == 0 && ListFilter.Length == 0 && !IsFiltered;
-        var books = show
-            ? _all.Where(b => b.Status == ReadStatus.Reading && b.IsAvailable)
-                .OrderByDescending(b => b.LastOpenedUtc ?? DateTime.MinValue).Take(12).ToList()
-            : new List<Book>();
+        var next = show
+            ? ReadingLog.UpNext(_all, max: 40).Where(i => i.Book.IsAvailable).Take(12).ToList()
+            : new List<UpNextItem>();
+        _upNext = next.Where(i => i.Book.Status != ReadStatus.Reading).ToDictionary(i => i.Book, i => i.Why);
+        var books = next.Select(i => i.Book).ToList();
         if (!books.SequenceEqual(_continueBooks)) ContinueBooks = books;   // not rebuilt on every keystroke of a search
     }
+
+    private Dictionary<Book, string> _upNext = new();
+
+    /// <summary>Why a book in the Continue reading row is there when it is not being read yet ("Next in Nagraj, #121").</summary>
+    public string? UpNextWhy(Book book) => _upNext.GetValueOrDefault(book);
 
     /// <summary>Every book in the catalogue, whatever the current filter shows.</summary>
     public IReadOnlyList<Book> AllBooks => _all;
@@ -624,6 +634,13 @@ public sealed class LibraryViewModel : ObservableObject
 
         var titleCmp = StringComparer.CurrentCultureIgnoreCase;
 
+        // A book whose length is not known (or, for pages left, one already finished) goes last, whichever way the sort runs.
+        IOrderedEnumerable<Book> Known(Func<Book, bool> known, Func<Book, int> key)
+        {
+            var first = q.OrderBy(b => !known(b));
+            return (desc ? first.ThenByDescending(key) : first.ThenBy(key)).ThenBy(b => b.SortTitle, titleCmp);
+        }
+
         return mode switch
         {
             SortMode.Author => Order(b => b.Author, titleCmp).ThenBy(b => b.SortTitle, titleCmp),
@@ -635,6 +652,8 @@ public sealed class LibraryViewModel : ObservableObject
             SortMode.Progress => Order(b => b.Status == ReadStatus.Finished ? 100 : b.Progress).ThenBy(b => b.SortTitle, titleCmp),
             SortMode.FileSize => Order(b => b.FileSize),
             SortMode.Format => Order(b => b.FormatLabel, titleCmp).ThenBy(b => b.SortTitle, titleCmp),
+            SortMode.Length => Known(b => b.PageCount > 0, b => b.PageCount),
+            SortMode.PagesLeft => Known(b => b.PagesLeft > 0, b => b.PagesLeft),
             _ => Order(b => b.SortTitle, titleCmp)
         };
     }
@@ -1175,13 +1194,40 @@ public sealed class LibraryViewModel : ObservableObject
         return books.Count;
     }
 
-    public void SaveState(Book book)
+    /// <summary>
+    /// Saves the book's personal state. A change the reader made can be undone with Ctrl+Z; opening a book and the
+    /// reader's progress pass <paramref name="undoable"/> false.
+    /// </summary>
+    public void SaveState(Book book, bool undoable = true)
     {
+        var before = book.LastSaved ?? new BookState();
         book.StateUpdatedUtc = DateTime.UtcNow;
         book.ResetSearchBlob();
-        Repo.UpsertState(book.DriveId, book.RelPath, book.StateKey, book.ToState());
+        var now = book.ToState();
+        Repo.UpsertState(book.DriveId, book.RelPath, book.StateKey, now);
+        book.LastSaved = now;
+        // Everything saved before the app is idle again is one step: forty books marked at once undo together.
+        if (undoable && _history.Saved(book.StateKey, before, now))
+            _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, _history.EndStep);
         AppServices.Sync.Schedule(book.FolderId);
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private readonly UndoHistory _history = new();
+
+    /// <summary>Ctrl+Z: the last change to books goes back, and the status bar says what it was.</summary>
+    public void UndoLast()
+    {
+        var byKey = new Dictionary<string, Book>();
+        foreach (var b in _all) byKey.TryAdd(b.StateKey, b);
+        if (_history.Undo(key => byKey.GetValueOrDefault(key)) is not { } undone)
+        {
+            Tell("Nothing to undo");
+            return;
+        }
+        foreach (var book in undone.Books) SaveState(book, undoable: false);
+        ApplyFilter();
+        Tell(undone.Text);
     }
 
     /// <summary>A book's personal state was saved: the pane's counts (Notes, My lists) may have changed.</summary>
@@ -1262,6 +1308,7 @@ public sealed class LibraryViewModel : ObservableObject
             if (!byKey.TryGetValue(b.StateKey, out var s)) continue;
             b.Lists = s.Lists.ToList();
             b.StateUpdatedUtc = s.UpdatedUtc;
+            b.LastSaved = b.ToState();   // a list renamed is no change for Ctrl+Z to undo later
         }
         // Every folder holding a changed book, loaded or not (one on an unplugged drive is written when it is back).
         var folders = Repo.GetFolders();
@@ -1336,7 +1383,7 @@ public sealed class LibraryViewModel : ObservableObject
 
         book.LastOpenedUtc = DateTime.UtcNow;
         if (book.Status == ReadStatus.Unread) book.Status = ReadStatus.Reading;
-        SaveState(book);
+        SaveState(book, undoable: false);
         RefreshContinueBooks();   // it comes first in the row now
         return null;
     }
@@ -1352,6 +1399,7 @@ public sealed class LibraryViewModel : ObservableObject
     public async Task RestoreFromBackupAsync(string file)
     {
         var applied = await Task.Run(() => BackupService.Import(file, Repo, AppServices.AnnotationStore));
+        _history.Clear();   // the backup's state replaces what the changes were made on
         await ReloadAsync();
         AppServices.Annotations.RaiseChanged();
         StatusText = $"Backup restored: {applied} entries applied";

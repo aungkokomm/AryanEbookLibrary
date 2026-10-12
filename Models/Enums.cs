@@ -41,7 +41,9 @@ public enum SortMode
     Rating = 5,
     Progress = 6,
     FileSize = 7,
-    Format = 8
+    Format = 8,
+    Length = 9,
+    PagesLeft = 10
 }
 
 public enum ViewMode

@@ -121,10 +121,16 @@
                             <Border.Shadow>
                                 <ThemeShadow />
                             </Border.Shadow>
-                            <Grid>
+                            <!-- Change cover shows over the cover while the mouse is on it (and on right-click) -->
+                            <Grid Background="Transparent" PointerEntered="OnCoverPointerEntered" PointerExited="OnCoverPointerExited"
+                                  RightTapped="OnCoverRightTapped">
                                 <TextBlock x:Name="CoverTitle" Margin="16" TextWrapping="Wrap" TextAlignment="Center"
                                            VerticalAlignment="Center" FontWeight="SemiBold" />
                                 <Image x:Name="CoverImage" Stretch="UniformToFill" />
+                                <Button x:Name="CoverBtn" Content="Change cover" Click="OnChangeCover" Opacity="0"
+                                        GotFocus="OnCoverBtnFocus" LostFocus="OnCoverBtnFocus"
+                                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12"
+                                        CornerRadius="8" Padding="12,6" FontSize="12" Background="#D9202020" Foreground="White" />
                             </Grid>
                         </Border>
 

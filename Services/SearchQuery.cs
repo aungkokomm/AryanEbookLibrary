@@ -83,6 +83,7 @@ public sealed class SearchQuery
         "lang" or "language" => b => Language(b, value),
         "year" => Number(value) is { } year ? b => b.Year is { } y && year(y) : null,
         "rating" or "stars" => Number(value) is { } stars ? b => stars(b.Rating) : null,
+        "pages" or "length" => Number(value) is { } pages ? b => b.PageCount > 0 && pages(b.PageCount) : null,   // a book of unknown length matches no length
         "is" => Is(value),
         _ => null
     };

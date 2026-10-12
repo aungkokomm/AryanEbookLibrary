@@ -309,10 +309,19 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnRootPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Handled || ContentFrame.Content is not LibraryPage page) return;
+        if (e.Handled) return;
         var focused = FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        // Ctrl+Z on any page undoes the last change to books; a text box keeps its own Ctrl+Z for its text.
+        if (e.Key == Windows.System.VirtualKey.Z && BookCardControl.IsDown(Windows.System.VirtualKey.Control)
+            && !BookCardControl.IsDown(Windows.System.VirtualKey.Shift) && focused is not (TextBox or RichEditBox or PasswordBox or AutoSuggestBox))
+        {
+            AppServices.Library.UndoLast();
+            e.Handled = true;
+            return;
+        }
+        if (ContentFrame.Content is not LibraryPage page) return;
         if (focused is ComboBox || focused is TextBox && e.Key is Windows.System.VirtualKey.Home or Windows.System.VirtualKey.End) return;
-        if (focused is not TextBox && (page.SelectByKey(e.Key, focused) || page.MarkByKey(e.Key, focused)) || page.ScrollByKey(e.Key))
+        if (focused is not TextBox && (page.SelectByKey(e.Key, focused) || page.CopyByKey(e.Key, focused) || page.MarkByKey(e.Key, focused)) || page.ScrollByKey(e.Key))
             e.Handled = true;
     }
 
@@ -390,6 +399,7 @@ public sealed partial class MainWindow : Window
         }));
 
         items.Add(new("Scan connected drives for changes", "Action", CommandBox.PlaceRank, () => _ = RescanAsync()));
+        items.Add(new("Undo the last change to books (Ctrl+Z)", "Action", CommandBox.PlaceRank, () => AppServices.Library.UndoLast()));
         items.Add(new("Select books", "Action", CommandBox.PlaceRank, () =>
         {
             if (ContentFrame.Content is not LibraryPage) ShowAllBooks();
@@ -484,6 +494,7 @@ public sealed partial class MainWindow : Window
             case "finished": ShowLibrary(LibraryFilter.Finished); break;
             case "highlights": ShowAnnotations(notes: false); break;
             case "notes": ShowAnnotations(notes: true); break;
+            case "words": Navigate(typeof(WordsPage)); break;
             case "needs": ShowLibrary(LibraryFilter.NeedsDetails); break;
             case "authors": Navigate(typeof(AuthorsPage)); break;
             case "series": Navigate(typeof(SeriesPage)); break;

@@ -155,6 +155,7 @@ internal static class ReaderShortcuts
             ("Shift+click", "Tick every book from the last one ticked"),
             ("Point at a cover", "Its tick appears: click it to start ticking"),
             ("Right-click a ticked book", "Mark, list, copy or edit all the ticked books"),
+            ("Ctrl+C", "Copy the ticked books as a list, to paste anywhere"),
         });
         AddGroup(panel, "Rating and marking", new[]
         {
@@ -164,6 +165,10 @@ internal static class ReaderShortcuts
             ("D", "Finished today, or unread again"),
         });
         Note(panel, "On a ticked book they change every ticked book.");
+        AddGroup(panel, "Changing your mind", new[]
+        {
+            ("Ctrl+Z", "Undo the last change to books: a mark, stars, a favorite, a list, tags or details"),
+        });
         AddGroup(panel, "Finding", new[]
         {
             ("Ctrl+K", "Go to any book, author, series, tag, list, shelf or page"),
@@ -175,6 +180,7 @@ internal static class ReaderShortcuts
             ("author:  title:  series:", "author:tolstoy  title:\"war and peace\""),
             ("tag:  list:  publisher:", "tag:history  list:\"to lend\""),
             ("year:  rating:", "year:1990-2000  year:2000+  rating:4+"),
+            ("pages:", "pages:<300  pages:500+  pages:100-200"),
             ("format:  lang:", "format:pdf  format:kindle  lang:my  lang:hindi"),
             ("is:", "unread, reading, finished, favorite, rated, unrated, offline, notes"),
             ("A minus in front", "Leaves them out: -tag:lent  -is:finished"),

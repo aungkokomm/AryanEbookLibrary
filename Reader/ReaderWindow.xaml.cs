@@ -152,6 +152,7 @@ public sealed partial class ReaderWindow : Window
             Close();
         };
         _view.ShortcutsRequested += ShowShortcuts;
+        _view.WordLookedUp += OnWordLookedUp;
         _notes = new ReaderAnnotations(book);
         _view.UseAnnotations(_notes);
         // From inside the web view's own message: the window closes once that is over.
@@ -170,6 +171,25 @@ public sealed partial class ReaderWindow : Window
         _ = _view.OpenAsync(path, position);
         _ = LoadPaceAsync();
         element.Loaded += (_, _) => _view.FocusPages();
+    }
+
+    /// <summary>Every Define is kept for the Words page, with the sentence it was in and this book.</summary>
+    private void OnWordLookedUp(string word, string sentence, int page)
+    {
+        word = word.Trim();
+        if (word.Length == 0 || word.Length > 60) return;   // a whole passage selected is no word to learn
+        try
+        {
+            AppServices.Repo.AddLookup(new WordLookup
+            {
+                Word = word, Sentence = sentence, BookKey = _book.StateKey, BookTitle = _book.Title,
+                Place = page >= 0 ? $"page {page + 1}" : "", LookedUtc = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Write("reader: the word looked up was not kept: " + ex.Message);
+        }
     }
 
     // ---- title bar ----
@@ -406,7 +426,7 @@ public sealed partial class ReaderWindow : Window
                 if (percent != _book.Progress)
                 {
                     _book.Progress = Math.Clamp(percent, 1, 99);
-                    AppServices.Library.SaveState(_book);
+                    AppServices.Library.SaveState(_book, undoable: false);
                 }
             }
 

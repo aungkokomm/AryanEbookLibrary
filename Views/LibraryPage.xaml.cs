@@ -98,6 +98,22 @@ public sealed partial class LibraryPage : Page
     /// it stars and 0 takes them away, F makes it a favorite, R marks it being read and D done (each again undoes it).
     /// On a ticked book they act on every ticked book. False for any other key.
     /// </summary>
+    /// <summary>Ctrl+C: the ticked books, or else the one with the keyboard on it, copied as a list to paste anywhere.</summary>
+    public bool CopyByKey(VirtualKey key, object? focused)
+    {
+        if (key != VirtualKey.C || !BookCardControl.IsDown(VirtualKey.Control)) return false;
+        var vm = ViewModel;
+        var books = vm.SelectedCount > 0
+            ? vm.Selected.OrderBy(b => vm.IndexOfShown(b) is var i and >= 0 ? i : int.MaxValue).ToList()
+            : focused switch { BookCardControl { Book: { } c } => [c], BookRowControl { Book: { } r } => [r], _ => new List<Book>() };
+        if (books.Count == 0) return false;
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(CatalogExport.Lines(books));
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        vm.Tell(books.Count == 1 ? $"Copied “{books[0].Title}”" : $"{books.Count:N0} books copied as a list");
+        return true;
+    }
+
     public bool MarkByKey(VirtualKey key, object? focused)
     {
         if (BookCardControl.IsDown(VirtualKey.Control) || BookCardControl.IsDown(VirtualKey.Menu) || BookCardControl.IsDown(VirtualKey.Shift))
@@ -196,6 +212,10 @@ public sealed partial class LibraryPage : Page
         ("Size ↑", SortMode.FileSize, false),
         ("Format ↑", SortMode.Format, false),
         ("Format ↓", SortMode.Format, true),
+        ("Length ↑", SortMode.Length, false),
+        ("Length ↓", SortMode.Length, true),
+        ("Pages left ↑", SortMode.PagesLeft, false),
+        ("Pages left ↓", SortMode.PagesLeft, true),
     };
 
     private bool _ready;
@@ -294,8 +314,13 @@ public sealed partial class LibraryPage : Page
     /// </summary>
     private async void OnContinueChipPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (args.Element is not Button { Content: StackPanel { Children: [Border { Child: Image image }, ..] } }
+        if (args.Element is not Button { Content: StackPanel { Children: [Border { Child: Image image }, StackPanel { Children: [_, ProgressBar bar, TextBlock why] }] } }
             || sender.ItemsSourceView.GetAt(args.Index) is not Book book) return;
+        // A book up next in its series says so where a book being read shows how far it is.
+        var upNext = ViewModel.UpNextWhy(book);
+        why.Text = upNext ?? "";
+        why.Visibility = upNext is null ? Visibility.Collapsed : Visibility.Visible;
+        bar.Visibility = upNext is null ? Visibility.Visible : Visibility.Collapsed;
         image.Tag = book;
         image.Source = null;
         if (book.CoverPath is not { } path) return;

@@ -32,6 +32,9 @@ public interface IReaderView
     /// <summary>The toolbar's Library button: the book closes and the library comes to the front.</summary>
     event Action? LibraryRequested;
 
+    /// <summary>Define was asked for a word: the word, the sentence it is in, and its page (from 0), or -1 in a book that flows.</summary>
+    event Action<string, string, int>? WordLookedUp;
+
     int PageCount { get; }
     bool OfferFinish { get; set; }
 

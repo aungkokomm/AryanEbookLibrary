@@ -131,6 +131,11 @@
                                     ToolTipService.ToolTip="Every note you wrote, on books, highlights and pages">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" Style="{StaticResource PaneNotesIconStyle}" /></NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <!-- Every word looked up with Define in the reader, with its sentence and book -->
+                <NavigationViewItem Content="Words" Tag="words"
+                                    ToolTipService.ToolTip="Words you looked up while reading, with the sentences you met them in">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE82D;" Style="{StaticResource PaneNotesIconStyle}" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <!-- The user's hand-picked lists (CineLibrary's MY LISTS); filled in code, with "New list" last -->
                 <NavigationViewItem x:Name="ListsItem" Content="My lists" Tag="lists"
                                     SelectsOnInvoked="False" IsExpanded="True"

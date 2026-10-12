@@ -68,14 +68,32 @@ public static class PdfReader
 
     private const int RpcWrongThread = unchecked((int)0x8001010E);
 
-    private static async Task RenderFirstPageAsync(string path, BookMetadata md)
+    /// <summary>
+    /// Page <paramref name="index"/> (from 0) as a PNG, for a cover the reader chose: drawn by Windows, or by PDFium
+    /// when Windows cannot. Null when neither can, or the book has fewer pages.
+    /// </summary>
+    public static async Task<byte[]?> RenderPageAsync(string path, int index)
+    {
+        var md = new BookMetadata();
+        try
+        {
+            await RenderFirstPageAsync(path, md, index);
+        }
+        catch (Exception)
+        {
+            await RenderFirstPageWithPdfiumAsync(path, md, index);
+        }
+        return md.Cover;
+    }
+
+    private static async Task RenderFirstPageAsync(string path, BookMetadata md, int index = 0)
     {
         var file = await StorageFile.GetFileFromPathAsync(path);
         var doc = await PdfDocument.LoadFromFileAsync(file);
         md.PageCount = (int)doc.PageCount;
-        if (doc.PageCount == 0) return;
+        if (index >= doc.PageCount) return;
 
-        using var page = doc.GetPage(0);
+        using var page = doc.GetPage((uint)index);
         var options = new PdfPageRenderOptions
         {
             DestinationWidth = 480,
@@ -95,7 +113,7 @@ public static class PdfReader
     }
 
     /// <summary>Page 1 by PDFium, as the same 480 px PNG, or false when PDFium cannot open the file either.</summary>
-    private static async Task<bool> RenderFirstPageWithPdfiumAsync(string path, BookMetadata md)
+    private static async Task<bool> RenderFirstPageWithPdfiumAsync(string path, BookMetadata md, int index = 0)
     {
         (int Width, int Height, byte[] Bgra)? page;
         int pages;
@@ -106,7 +124,7 @@ public static class PdfReader
             using (book)
             {
                 pages = book.PageCount;
-                page = pages > 0 ? book.RenderPage(0, 480) : null;
+                page = pages > index ? book.RenderPage(index, 480) : null;
             }
         }
         catch (Exception)

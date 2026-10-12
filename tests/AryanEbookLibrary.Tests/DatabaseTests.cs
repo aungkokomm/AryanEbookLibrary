@@ -41,7 +41,7 @@ public sealed class DatabaseTests : IDisposable
     {
         new Database(Db).Dispose();
         SqliteConnection.ClearAllPools();
-        Exec(Db, "DROP INDEX idx_annotations_book; DROP TABLE annotations; PRAGMA user_version = 7;");
+        Exec(Db, "DROP INDEX idx_annotations_book; DROP TABLE annotations; ALTER TABLE books DROP COLUMN page_count; DROP INDEX idx_lookups_word; DROP TABLE lookups; PRAGMA user_version = 7;");
         Exec(Db, "INSERT INTO drives (id, label) VALUES ('D6412CBB', 'Misc (E:)');");
     }
 

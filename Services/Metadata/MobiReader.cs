@@ -36,6 +36,11 @@ public static class MobiReader
         var headerLen = (int)BE32(rec, 20);
         var enc = BE32(rec, 28) == 65001 ? Encoding.UTF8 : Encoding.Latin1;
 
+        // The PalmDOC header gives the length of the book's text, markup and all (about a third of it): an estimate
+        // of its pages, as an EPUB's. A Burmese or Hindi book, three bytes a letter, comes out longer than it is.
+        var textLength = BE32(rec, 4);
+        if (textLength > 0) md.PageCount = (int)Math.Max(1, Math.Round(textLength / (EpubReader.CharsPerPage * 1.4)));
+
         // Full name (fallback title)
         var nameOff = (int)BE32(rec, 84);
         var nameLen = (int)BE32(rec, 88);
