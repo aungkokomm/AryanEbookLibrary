@@ -826,8 +826,11 @@ public sealed class LibraryViewModel : ObservableObject
             {
                 // Pick up favorites/notes stored on the drive itself before indexing.
                 var imported = await Task.Run(() => AppServices.Sync.Import(folder), ct);
-                total.Add(await AppServices.Scanner.ScanAsync(new[] { folder }, progress, ct));
-                await ReloadAsync();
+                var result = await AppServices.Scanner.ScanAsync(new[] { folder }, progress, ct);
+                total.Add(result);
+                // The books are read again only when the scan changed something: the scan at start-up usually finds every
+                // book where it was, and reading them all again built every card again, once per folder: they flashed.
+                if (result.Changed || imported > 0) await ReloadAsync();
                 if (imported > 0) AppServices.Annotations.RaiseChanged();
             }
 

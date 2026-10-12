@@ -123,22 +123,72 @@
                                     <RadioButton x:Name="PagesRadio" Content="Pages" GroupName="Flow" Click="OnFlowClick" Tag="paginated" MinWidth="0" />
                                     <RadioButton x:Name="ScrollRadio" Content="Scroll" GroupName="Flow" Click="OnFlowClick" Tag="scrolled" MinWidth="0" />
                                 </StackPanel>
-                                <ComboBox x:Name="FontBox" Header="Font" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
-                                    <ComboBoxItem Content="The book's own" Tag="book" />
-                                    <ComboBoxItem Content="Serif" Tag="serif" />
-                                    <ComboBoxItem Content="Sans-serif" Tag="sans" />
-                                </ComboBox>
-                                <ComboBox x:Name="SpacingBox" Header="Line spacing" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
-                                    <ComboBoxItem Content="Tight" Tag="tight" />
-                                    <ComboBoxItem Content="Normal" Tag="normal" />
-                                    <ComboBoxItem Content="Wide" Tag="wide" />
-                                    <ComboBoxItem Content="Extra wide" Tag="extra" />
-                                </ComboBox>
-                                <ComboBox x:Name="WidthBox" Header="Text width" HorizontalAlignment="Stretch" SelectionChanged="OnTextStyleChanged">
-                                    <ComboBoxItem Content="Narrow" Tag="narrow" />
-                                    <ComboBoxItem Content="Medium" Tag="medium" />
-                                    <ComboBoxItem Content="Wide" Tag="wide" />
-                                </ComboBox>
+                                <!-- Rows of buttons, not lists: a list opened inside this menu closed again without choosing -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Font" />
+                                    <Grid x:Name="FontChoices" ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton Tag="book" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Font: the book's own" ToolTipService.ToolTip="The book's own font">
+                                            <FontIcon Glyph="&#xE736;" FontSize="16" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="1" Tag="serif" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Font: serif" ToolTipService.ToolTip="Serif">
+                                            <TextBlock Text="Aa" FontFamily="Georgia" FontSize="16" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="2" Tag="sans" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Font: sans-serif" ToolTipService.ToolTip="Sans-serif">
+                                            <TextBlock Text="Aa" FontFamily="Segoe UI" FontSize="16" />
+                                        </ToggleButton>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Line spacing" />
+                                    <Grid x:Name="SpacingChoices" ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton Tag="tight" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Line spacing: tight" ToolTipService.ToolTip="Tight">
+                                            <PathIcon Data="M1,4.25H19V5.75H1Z M1,7.25H19V8.75H1Z M1,10.25H19V11.75H1Z" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="1" Tag="normal" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Line spacing: normal" ToolTipService.ToolTip="Normal">
+                                            <PathIcon Data="M1,3.25H19V4.75H1Z M1,7.25H19V8.75H1Z M1,11.25H19V12.75H1Z" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="2" Tag="wide" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Line spacing: wide" ToolTipService.ToolTip="Wide">
+                                            <PathIcon Data="M1,2.25H19V3.75H1Z M1,7.25H19V8.75H1Z M1,12.25H19V13.75H1Z" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="3" Tag="extra" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Line spacing: extra wide" ToolTipService.ToolTip="Extra wide">
+                                            <PathIcon Data="M1,1.25H19V2.75H1Z M1,7.25H19V8.75H1Z M1,13.25H19V14.75H1Z" />
+                                        </ToggleButton>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Text width" />
+                                    <Grid x:Name="WidthChoices" ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- The page's edges, and lines of text between them -->
+                                        <ToggleButton Tag="narrow" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Text width: narrow" ToolTipService.ToolTip="Narrow">
+                                            <PathIcon Data="M0,1H1V15H0Z M19,1H20V15H19Z M7,3.25H13V4.75H7Z M7,7.25H13V8.75H7Z M7,11.25H13V12.75H7Z" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="1" Tag="medium" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Text width: medium" ToolTipService.ToolTip="Medium">
+                                            <PathIcon Data="M0,1H1V15H0Z M19,1H20V15H19Z M5,3.25H15V4.75H5Z M5,7.25H15V8.75H5Z M5,11.25H15V12.75H5Z" />
+                                        </ToggleButton>
+                                        <ToggleButton Grid.Column="2" Tag="wide" Checked="OnTextChoiceChecked" Unchecked="OnTextChoiceUnchecked" HorizontalAlignment="Stretch" Height="32" Padding="0"
+                                                      AutomationProperties.Name="Text width: wide" ToolTipService.ToolTip="Wide">
+                                            <PathIcon Data="M0,1H1V15H0Z M19,1H20V15H19Z M3,3.25H17V4.75H3Z M3,7.25H17V8.75H3Z M3,11.25H17V12.75H3Z" />
+                                        </ToggleButton>
+                                    </Grid>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="JustifySwitch" Header="Justify text" Toggled="OnTextStyleChanged"
                                               OnContent="" OffContent="" />
                             </StackPanel>

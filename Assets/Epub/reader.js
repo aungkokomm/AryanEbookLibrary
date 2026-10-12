@@ -23,7 +23,8 @@ const FONTS = {
     serif: `Georgia, Cambria, 'Times New Roman', serif`,
     sans: `'Segoe UI', 'Noto Sans', Arial, sans-serif`,
 }
-const SPACING = { tight: 1.25, wide: 1.85, extra: 2.2 }
+// Tight is tighter than the 1.2 most converted books set for themselves.
+const SPACING = { tight: 1.15, wide: 1.85, extra: 2.2 }
 const WIDTHS = { narrow: '560px', medium: '720px', wide: '960px' }
 let searchHits = []
 let searchIndex = -1
@@ -62,7 +63,7 @@ const css = () => {
         ${font ? `body, body *:not(code):not(pre):not(kbd):not(samp):not(tt) { font-family: ${font} !important; }` : ''}
         .aryan-reading { background-color: rgba(250, 204, 21, .3) !important; box-shadow: 0 0 0 4px rgba(250, 204, 21, .3); border-radius: 3px; }
         ::highlight(aryan-word) { background-color: rgb(250, 204, 21); color: #000; }
-        ${spacing ? `body, p, li, blockquote, dd, div { line-height: ${spacing} !important; }` : ''}
+        ${spacing ? `body, body *:not(rt) { line-height: ${spacing} !important; }` : ''}
         [align="left"] { text-align: left; }
         [align="right"] { text-align: right; }
         [align="center"] { text-align: center; }
@@ -84,11 +85,24 @@ const applyPrefs = () => {
     document.documentElement.style.setProperty('--overlayer-highlight-blend-mode', night ? 'normal' : 'multiply')
     if (!view?.renderer) return
     view.renderer.setAttribute('flow', prefs.flow === 'scrolled' ? 'scrolled' : 'paginated')
-    view.renderer.setAttribute('max-column-count', '2')
-    view.renderer.setAttribute('max-inline-size', WIDTHS[prefs.width] ?? WIDTHS.medium)
+    layoutColumns()
     view.renderer.setAttribute('margin', '40px')
     view.renderer.setStyles?.(css())
 }
+
+// The text width is a line length. The paginator alone only counts how many columns of at most that width fit, then
+// stretches them over the whole page, so Narrow, Medium and Wide looked alike at most window sizes. Here each column is
+// at most the chosen width, and there are two only where the page is about twice as wide: narrower or wider lines at
+// any size.
+const layoutColumns = () => {
+    if (!view?.renderer) return
+    const width = parseFloat(WIDTHS[prefs.width] ?? WIDTHS.medium)
+    const page = view.renderer.getBoundingClientRect().width || innerWidth
+    const columns = prefs.flow === 'scrolled' ? 1 : Math.max(1, Math.min(2, Math.round(page / width)))
+    for (const [name, value] of [['max-column-count', String(columns)], ['max-inline-size', `${width}px`]])
+        if (view.renderer.getAttribute(name) !== value) view.renderer.setAttribute(name, value)
+}
+addEventListener('resize', layoutColumns)
 
 // ---- opening ----
 

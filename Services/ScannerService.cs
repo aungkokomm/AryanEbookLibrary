@@ -17,6 +17,11 @@ public sealed class ScanResult
     public int Missing;
     public int Moved;
     public int OfflineFolders;
+    public int Renamed;            // books whose details were read again from their file names
+    public bool MissingChanged;    // books went missing or came back
+
+    /// <summary>Whether the index changed, so the books on show must be read again.</summary>
+    public bool Changed => Inserted + Updated + Renamed > 0 || MissingChanged;
 
     public void Add(ScanResult o)
     {
@@ -28,6 +33,8 @@ public sealed class ScanResult
         Missing += o.Missing;
         Moved += o.Moved;
         OfflineFolders += o.OfflineFolders;
+        Renamed += o.Renamed;
+        MissingChanged |= o.MissingChanged;
     }
 
     public string Summary =>
@@ -82,7 +89,7 @@ public sealed class ScannerService
             total.Add(await ScanFolderAsync(folder, root, driveRoot, progress, ct));
         }
 
-        await Task.Run(RefreshNamesFromFiles, ct);
+        total.Renamed = await Task.Run(RefreshNamesFromFiles, ct);
         progress?.Report(new ScanProgress(total.Found, total.Found, total.Inserted, total.Updated, total.Skipped, "", true));
         return total;
     }
@@ -91,8 +98,9 @@ public sealed class ScannerService
     /// Reads the file names again with what the whole library now knows (the authors every book declares,
     /// names that recur), for books whose title, author or other details came from their file name, and for
     /// books with no author at all. Only file names are read, so this takes a moment even for thousands.
+    /// Returns how many books it changed.
     /// </summary>
-    public void RefreshNamesFromFiles()
+    public int RefreshNamesFromFiles()
     {
         var ctx = NameContext.Build(_repo.GetDeclaredAuthors(), _repo.GetAllRelPaths());
         FileNameParser.Context = ctx;
@@ -133,6 +141,7 @@ public sealed class ScannerService
             _repo.UpdateNameDerived(changed);
             Log.Write($"Names read again with the library's context: {changed.Count} books updated ({ctx.PeopleCount} known names)");
         }
+        return changed.Count;
     }
 
     private async Task<ScanResult> ScanFolderAsync(
@@ -236,7 +245,7 @@ public sealed class ScannerService
             });
 
         // Only a completed walk may decide what is missing.
-        result.Missing = _repo.MarkMissing(folder.Id, folder.DriveId, seen);
+        (result.Missing, result.MissingChanged) = _repo.MarkMissing(folder.Id, folder.DriveId, seen);
         _repo.TouchDrive(folder.DriveId, driveRoot);
         Report();
         return result;

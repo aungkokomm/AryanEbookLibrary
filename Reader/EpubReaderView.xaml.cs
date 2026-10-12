@@ -79,9 +79,9 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
         ShowFontSize();
         _flow = settings.ReaderFlow == "scrolled" ? "scrolled" : "paginated";
         (_flow == "scrolled" ? ScrollRadio : PagesRadio).IsChecked = true;
-        Select(FontBox, settings.ReaderFont, "book");
-        Select(SpacingBox, settings.ReaderLineSpacing, "normal");
-        Select(WidthBox, settings.ReaderTextWidth, "medium");
+        Select(FontChoices, settings.ReaderFont, "book");
+        Select(SpacingChoices, settings.ReaderLineSpacing, "normal");
+        Select(WidthChoices, settings.ReaderTextWidth, "medium");
         JustifySwitch.IsOn = settings.ReaderJustify;
         _settingUp = false;
         Web.DefaultBackgroundColor = PageColor();
@@ -632,21 +632,38 @@ public sealed partial class EpubReaderView : UserControl, IReaderView
     {
         if (_settingUp) return;
         var s = AppServices.Settings;
-        s.ReaderFont = Picked(FontBox, "book");
-        s.ReaderLineSpacing = Picked(SpacingBox, "normal");
-        s.ReaderTextWidth = Picked(WidthBox, "medium");
+        s.ReaderFont = Picked(FontChoices, "book");
+        s.ReaderLineSpacing = Picked(SpacingChoices, "normal");
+        s.ReaderTextWidth = Picked(WidthChoices, "medium");
         s.ReaderJustify = JustifySwitch.IsOn;
         s.Save();
         Post(new JsonObject { ["type"] = "prefs", ["prefs"] = Prefs() });
     }
 
-    private static void Select(ComboBox box, string value, string fallback)
+    /// <summary>One button of a row is the choice: the pressed one stays down, the others let go.</summary>
+    private void OnTextChoiceChecked(object sender, RoutedEventArgs e)
     {
-        var items = box.Items.OfType<ComboBoxItem>().ToList();
-        box.SelectedItem = items.FirstOrDefault(i => (string)i.Tag == value) ?? items.First(i => (string)i.Tag == fallback);
+        if (sender is not ToggleButton { Parent: Panel row } chosen) return;
+        foreach (var b in row.Children.OfType<ToggleButton>()) if (b != chosen) b.IsChecked = false;
+        OnTextStyleChanged(sender, e);
     }
 
-    private static string Picked(ComboBox box, string fallback) => (box.SelectedItem as ComboBoxItem)?.Tag as string ?? fallback;
+    /// <summary>Pressing the chosen button again keeps it chosen: a row is never left with nothing.</summary>
+    private void OnTextChoiceUnchecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Parent: Panel row } button && !row.Children.OfType<ToggleButton>().Any(b => b.IsChecked == true))
+            button.IsChecked = true;
+    }
+
+    private static void Select(Panel row, string value, string fallback)
+    {
+        var buttons = row.Children.OfType<ToggleButton>().ToList();
+        var chosen = buttons.FirstOrDefault(b => (string)b.Tag == value) ?? buttons.First(b => (string)b.Tag == fallback);
+        foreach (var b in buttons) b.IsChecked = b == chosen;
+    }
+
+    private static string Picked(Panel row, string fallback) =>
+        row.Children.OfType<ToggleButton>().FirstOrDefault(b => b.IsChecked == true)?.Tag as string ?? fallback;
 
     private void OnFlowClick(object sender, RoutedEventArgs e)
     {

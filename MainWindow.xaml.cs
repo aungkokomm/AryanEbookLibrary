@@ -70,10 +70,19 @@ public sealed partial class MainWindow : Window
         // The card only fits the full pane; on a narrow window the pane is a strip of icons until it is opened.
         NavView.PaneOpening += (_, _) => NowReadingCard.Visibility = _nowReading is null ? Visibility.Collapsed : Visibility.Visible;
         NavView.PaneClosing += (_, _) => NowReadingCard.Visibility = Visibility.Collapsed;
+        // Its top in line with the top of the books' panel: the pane's header row starts a few pixels lower, by an amount
+        // that depends on the display's scale, so it is measured rather than written down.
+        NowReadingCard.SizeChanged += (_, _) =>
+        {
+            var below = NowReadingCard.TransformToVisual(NavView).TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
+            if (Math.Abs(below) >= 0.5) NowReadingCard.Margin = new Thickness(0, NowReadingCard.Margin.Top - below, 10, 0);
+        };
         BuildLists();
         ListsItem.IsExpanded = AppServices.Settings.ListsExpanded;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
+        // Opens maximized (the user's choice), as readers do; the size above is what Restore gives.
+        (AppWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter)?.Maximize();
 
         // Event-driven drive detection (WM_DEVICECHANGE) instead of a poll timer, as in CineLibrary.
         // Don't await inside the WndProc: it must return promptly.

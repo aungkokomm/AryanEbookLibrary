@@ -101,19 +101,21 @@ public sealed class LibraryRepository
     /// <summary>
     /// End of a completed folder scan: every book of the folder is marked missing, then the ones the
     /// walk saw are cleared again (CineLibrary's mark-missing-then-clear, in one transaction).
-    /// Returns how many books of the folder are now missing.
+    /// Returns how many books of the folder are now missing, and whether any went or came back since the last scan.
     /// </summary>
-    public int MarkMissing(long folderId, string driveId, IEnumerable<string> seenRelPaths)
+    public (int Missing, bool Changed) MarkMissing(long folderId, string driveId, IEnumerable<string> seenRelPaths)
     {
-        var missing = 0;
+        const string missingIds = "SELECT id FROM books WHERE folder_id=$f AND is_missing = 1 ORDER BY id";
+        List<long> before = [], after = [];
         _db.Transaction(() =>
         {
+            before = _db.Query(missingIds, r => r.GetInt64(0), ("$f", folderId));
             _db.Exec("UPDATE books SET is_missing = 1 WHERE folder_id=$f", ("$f", folderId));
             foreach (var rel in seenRelPaths)
                 _db.Exec("UPDATE books SET is_missing = 0 WHERE drive_id=$d AND rel_path=$r", ("$d", driveId), ("$r", rel));
-            missing = (int)(_db.Scalar<long>("SELECT COUNT(*) FROM books WHERE folder_id=$f AND is_missing = 1", ("$f", folderId)));
+            after = _db.Query(missingIds, r => r.GetInt64(0), ("$f", folderId));
         });
-        return missing;
+        return (after.Count, !after.SequenceEqual(before));
     }
 
     // ------------------------------------------------------------ books

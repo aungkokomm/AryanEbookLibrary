@@ -290,7 +290,8 @@ public sealed partial class LibraryPage : Page
                 SyncFilterBar();
                 break;
             case nameof(LibraryViewModel.HeaderText):
-                LayoutTopBar();   // a longer title may need the tools on a row of their own
+            case nameof(LibraryViewModel.TotalCount):
+                LayoutTopBar();   // a longer title or count may need the pills or the tools on a row of their own
                 break;
             case nameof(LibraryViewModel.ContinueBooks):
                 SyncContinueRow();
@@ -775,13 +776,19 @@ public sealed partial class LibraryPage : Page
 
         var besidePills = room - PillsGap - pills - ToolsGap - tools;
         var besideTools = room - ToolsGap - tools;
-        var title = TitleWidth(withCount: true);
+        // One line when the title fits with its count as shown unfiltered ("8,068 books"). Deciding by the longest count a
+        // filter can show ("8,068 of 8,068 books") put a maximized window on the edge, where a pixel's difference at start
+        // gave two lines one time and one the next.
+        var title = TitleWidth($"{ViewModel.TotalCount:N0} books");
         // 0: one line; 1: the pills under the title and tools; 2: the tools and then the pills under the title
-        var mode = besidePills >= title ? 0 : besideTools >= TitleWidth(withCount: false) ? 1 : 2;
+        var mode = besidePills >= title ? 0 : besideTools >= TitleWidth(null) ? 1 : 2;
         // The title's column is as wide as the title, so it is held to the room left, where its count is trimmed.
-        // On one line it is also kept as wide as its longest count, so a filter's "1 of 7 books" moves no pill.
+        // On one line it is also kept as wide as its longest count where there is room, so a filter's "1 of 7 books"
+        // moves no pill; where there is not, that longer count is trimmed instead (its tooltip has it all).
         HeaderTitle.MaxWidth = Math.Max(0, mode == 0 ? besidePills : mode == 1 ? besideTools : room);
-        HeaderTitle.MinWidth = mode == 0 ? title : 0;
+        HeaderTitle.MinWidth = mode == 0
+            ? Math.Min(besidePills, TitleWidth($"{ViewModel.TotalCount:N0} of {ViewModel.TotalCount:N0} books"))
+            : 0;
         if (mode == _topBarMode) return;
         _topBarMode = mode;
 
@@ -808,23 +815,21 @@ public sealed partial class LibraryPage : Page
     private readonly TextBlock _countProbe = new() { TextWrapping = TextWrapping.NoWrap };
 
     /// <summary>
-    /// How wide the title is when nothing cuts it, at least 160: measured on a copy outside the page, since
-    /// the one on the page only ever gets the width left over. With its count, room is kept for the longest
-    /// count ("2,812 of 2,812 books") rather than the one shown, so choosing a filter does not rearrange the bar;
-    /// the filters named after it are what gets trimmed.
+    /// How wide the title is when nothing cuts it, at least 160, and with <paramref name="count"/> beside it when one is
+    /// given: measured on a copy outside the page, since the one on the page only ever gets the width left over.
     /// </summary>
-    private double TitleWidth(bool withCount)
+    private double TitleWidth(string? count)
     {
         _titleProbe.Style = HeaderTitle.Style;
         _titleProbe.Text = ViewModel.HeaderText;   // not HeaderTitle.Text, which the binding may not have updated yet
         _titleProbe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         var width = Math.Max(160, Math.Ceiling(_titleProbe.DesiredSize.Width));
-        if (!withCount) return width;
+        if (count is null) return width;
 
         _countProbe.Style = HeaderTitle.Style;
         _countProbe.FontSize = 14;
         _countProbe.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
-        _countProbe.Text = $"{ViewModel.TotalCount:N0} of {ViewModel.TotalCount:N0} books";
+        _countProbe.Text = count;
         _countProbe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         return Math.Ceiling(_titleProbe.DesiredSize.Width + 8 + _countProbe.DesiredSize.Width);
     }

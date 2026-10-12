@@ -54,37 +54,36 @@
             IsSettingsVisible="True"
             ItemInvoked="NavView_ItemInvoked">
 
-            <!-- The book being read, first thing in the sidebar: a click opens it where it was left. Shown while the pane is
-                 open and something is being read on a connected drive (filled in code). -->
-            <NavigationView.PaneCustomContent>
-                <Button x:Name="NowReadingCard" Visibility="Collapsed" Click="OnNowReading" Margin="12,4,12,6" Padding="8"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="8"
+            <!-- The book being read, on the same row as the pane's menu button, so the sections below line up with the
+                 page: a click opens it where it was left. Shown while the pane is open and something is being read on a
+                 connected drive (filled in code). -->
+            <NavigationView.PaneHeader>
+                <Button x:Name="NowReadingCard" Visibility="Collapsed" Click="OnNowReading" Margin="0,0,10,0" Padding="6,4,10,5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" CornerRadius="6"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                    <Grid ColumnSpacing="10">
+                    <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Width="34" Height="46" CornerRadius="3" Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                        <Border Width="20" Height="28" CornerRadius="2" Background="{ThemeResource ControlFillColorSecondaryBrush}">
                             <Image x:Name="NowReadingCover" Stretch="UniformToFill" />
                         </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                            <TextBlock Text="Now reading" Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                            <TextBlock x:Name="NowReadingTitle" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                            <Grid ColumnSpacing="8">
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                            <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <ProgressBar x:Name="NowReadingProgress" Maximum="100" VerticalAlignment="Center" />
-                                <TextBlock x:Name="NowReadingPercent" Grid.Column="1" Style="{StaticResource PaneCountStyle}" />
+                                <TextBlock x:Name="NowReadingTitle" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="NowReadingPercent" Grid.Column="1" Style="{StaticResource PaneCountStyle}" VerticalAlignment="Center" />
                             </Grid>
+                            <ProgressBar x:Name="NowReadingProgress" Maximum="100" MinHeight="2" />
                         </StackPanel>
                     </Grid>
                 </Button>
-            </NavigationView.PaneCustomContent>
+            </NavigationView.PaneHeader>
 
             <!-- Five sections, each with its icons in one colour; the counts at the right are added in code (AddCount) -->
             <NavigationView.MenuItems>
